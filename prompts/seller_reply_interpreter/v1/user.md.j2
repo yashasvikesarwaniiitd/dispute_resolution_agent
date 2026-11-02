@@ -1,21 +1,24 @@
 <case_summary>
-case_id: {{ case.id }}
-state: {{ case.state }}
-request_sent_at: {{ request.sent_at }}
+case_ref: {{ ctx.case_ref }}
+request_sent_at: {{ ctx.request_sent_at }}
 </case_summary>
 
 <outstanding_request>
-{% for item in request.items -%}
+{% for item in ctx.requested_items -%}
 - {{ item }}
 {% endfor -%}
 </outstanding_request>
 
 <untrusted_seller_reply>
-{{ reply.body | neutralise }}
-attachments:
-{% for a in reply.attachments -%}
-- {{ a.filename | neutralise }} ({{ a.content_type }})
-{% endfor -%}
+{{ ctx.reply_text | neutralise }}
 </untrusted_seller_reply>
+
+<untrusted_attachments>
+{% for a in ctx.attachments -%}
+- {{ a.name | neutralise }} ({{ a.content_type | neutralise }})
+{% else -%}
+none
+{% endfor -%}
+</untrusted_attachments>
 
 Describe the reply now. Return only the JSON object.

@@ -136,7 +136,7 @@ class InternalEventType(StrEnum):   # catalog and payloads: events-catalog.md
 
 EventType = InboundEventType | InternalEventType
 
-class TimerKind(StrEnum): SELLER_REMINDER; SELLER_DECISION; OPS_TIMEOUT; APPROVAL_EXPIRY; VERIFY_RETRY
+class TimerKind(StrEnum): SELLER_REMINDER; SELLER_DECISION; OPS_TIMEOUT; APPROVAL_EXPIRY; VERIFY_RETRY; EVIDENCE_RETRY
 
 class Trigger(StrEnum):   # exactly the `triggers` keys of transitions.yaml
     CASE_OPENED; ELIGIBILITY_PASSED; ELIGIBILITY_FAILED; EVIDENCE_RECORDED; ASSESSMENT_READY
@@ -206,6 +206,7 @@ class ReviewCode(StrEnum):
     APPROVAL_REJECTED_LIMIT = "approval_rejected_limit"
     FOLLOW_UP_REJECTED = "follow_up_rejected"
     FOLLOW_UP_DENIED = "follow_up_denied"
+    CREDIT_REJECTED = "credit_rejected"             # D40
     OPS_TIMEOUT = "ops_timeout"
     DELIVERY_FAILED = "delivery_failed"
     LATE_INBOUND = "late_inbound"
@@ -1119,6 +1120,7 @@ class PolicyContext(BaseModel):
 class TimersConfig(BaseModel):
     reminder_after_hours: int = 48; decision_after_hours: int = 72
     reopen_window_days: int = 7; ops_timeout_hours: int = 120
+    evidence_retry_minutes: int = 15; evidence_max_retries: int = 3     # D41
 class ContactConfig(BaseModel):
     max_messages_per_case: int = 3; max_messages_per_day: int = 1; day_boundary_tz: str = "Asia/Kolkata"
     max_clarifications_per_case: int = 1                                     # D19: one follow-up, then a person

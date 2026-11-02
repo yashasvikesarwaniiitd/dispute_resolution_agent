@@ -61,7 +61,8 @@ PENDING ──approve──► APPROVED ──consumed by plan──► (used_by
 | Event | Approval | Intent | Case |
 |-------|----------|--------|------|
 | Approved | APPROVED, then consumed | APPROVED -> PLANNED | T10 -> EXECUTING |
-| Rejected, proposal intent, under the cap | REJECTED | REJECTED | T11 -> INVESTIGATING (the note goes into the next briefing's `prior_rejections`) |
+| Rejected, credit | REJECTED | REJECTED | escalate `credit_rejected` (D40) |
+| Rejected, message from a proposal, under the cap | REJECTED | REJECTED | T11 -> INVESTIGATING (the note goes into the next briefing's `prior_rejections`) |
 | Rejected, reminder intent | REJECTED | REJECTED | T12 -> AWAITING_SELLER (reminder skipped) |
 | Rejected, follow-up intent, or over `approvals.max_rejections_per_case` (2) | REJECTED | REJECTED | escalate `follow_up_rejected` / `approval_rejected_limit` |
 | Expired (APPROVAL_EXPIRY timer) | EXPIRED | EXPIRED | escalate `approval_expired` |

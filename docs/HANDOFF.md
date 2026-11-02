@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is in progress.
+No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is drafted and awaiting owner approval: `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (38 scenarios, full coverage), `release-gates.yaml` (draft), `synthetic-data.md`, revised `prompts/` (all v1, pre-release), ADR 0024. Coverage checkpoint and debatable outcomes decided (D38-D41). **Paused before the independent review**: next session, run the review, fix findings, then owner approval.
 
-**Next action: finish Stage A4**, then the owner reviews it. After approval: Stage A5 (task cards and freeze, `arch-v1`).
+**Next action: the owner reviews Stage A4.** After approval: Stage A5 (task cards and freeze, `arch-v1`).
 
 ## 2. The project in five lines
 
@@ -65,6 +65,10 @@ No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs ar
 | D35 | (2026-11-02) Red teaming (O14): our own prompt-injection suite, extended in Phase 6, run as a live local eval against the South India agents; no Foundry cloud red teaming. |
 | D36 | (2026-11-02) Email account (O13): a personal Outlook.com account, ideally a new one used only for the pilot, with delegated sign-in (device code), an encrypted token cache and re-login about every 90 days. ADR 0023. |
 | D37 | (2026-11-02) Stage A3 integrations, Foundry, configuration and observability specification approved: integrations, foundry, config, observability; ADRs 0019-0023 accepted; FOUNDRY_SETUP.md corrected. |
+| D38 | (2026-11-02) Scenario S02: correct charge, larger measured box, cause unknown -> ask the seller for a photo first, then decide. |
+| D39 | (2026-11-02) Scenario S04: conflicting history -> ask the hub to check (remeasurement); history is never proof. |
+| D40 | (2026-11-02) Rejecting a code-proven credit sends the case to a person (`credit_rejected`) instead of re-planning. Transitions X15. |
+| D41 | (2026-11-02) A required evidence source that fails transiently is retried every 15 minutes, up to 3 times, before the case proceeds with the failure recorded. Transitions X16. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

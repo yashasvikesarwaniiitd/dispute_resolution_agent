@@ -289,6 +289,7 @@ Every ESCALATE or DENY verdict carries a `ReviewReason`. The rule's reason maps 
 |-------------|------------|--------|
 | `kill_switch_active` (R02) | `kill_switch_active` | |
 | `module_unavailable:<m>` (R03) | `module_unavailable` | module = `<m>` |
+| `credit_rejected` (apply_approval step, D40) | `credit_rejected` (new in A4) | |
 | `reply_unresolved` (R12, R19), `wait_without_expectation` (R19), `seller_withdrawal_claimed` (R20), `guardrail_blocked` (R23) | the code of the same name | |
 | `manipulation_suspected` (R21), `low_confidence` (R22), `multiple_definite_errors` (R14), `ledger_state_unknown` (R16) | the code of the same name (new in A2) | |
 | `sender_unauthenticated` (signal at ESCALATE) | `sender_unauthenticated` (new) | |

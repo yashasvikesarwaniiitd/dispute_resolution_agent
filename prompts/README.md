@@ -9,7 +9,7 @@ prompts/<name>/<version>/
   system.md        role, objective, trust model, inputs, procedure, rules, output contract, examples
   user.md.j2       the data blocks, rendered per case with Jinja2 (StrictUndefined)
   schema.json      JSON Schema for the output; also validated with pydantic in code
-  meta.yaml        name, version, status, owner, purpose, model requirements, temperature, eval suite, changelog
+  meta.yaml        name, version, status, owner, purpose, model requirements, max output tokens, eval suite, eval cases, changelog (no sampling parameters: the adapters never send them; foundry.md section 6)
 ```
 
 ## Structure of every system prompt

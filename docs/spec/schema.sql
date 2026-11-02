@@ -447,7 +447,7 @@ CREATE TABLE timers (
   id                TEXT    NOT NULL PRIMARY KEY CHECK (id GLOB 'tmr_*'),
   case_id           TEXT    NOT NULL REFERENCES cases(id),
   kind              TEXT    NOT NULL CHECK (kind IN ('SELLER_REMINDER','SELLER_DECISION','OPS_TIMEOUT',
-                                                     'APPROVAL_EXPIRY','VERIFY_RETRY')),
+                                                     'APPROVAL_EXPIRY','VERIFY_RETRY','EVIDENCE_RETRY')),
   due_at            TEXT    NOT NULL CHECK (due_at GLOB '????-??-??T??:??:??.??????Z'),
   anchor_at         TEXT    NOT NULL CHECK (anchor_at GLOB '????-??-??T??:??:??.??????Z'),
   armed_in_state    TEXT    NOT NULL,

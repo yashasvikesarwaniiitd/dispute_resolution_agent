@@ -78,6 +78,8 @@ timers:
   decision_after_hours: 72
   reopen_window_days: 7
   ops_timeout_hours: 120
+  evidence_retry_minutes: 15                       # D41
+  evidence_max_retries: 3
 contact:
   max_messages_per_case: 3
   max_messages_per_day: 1
@@ -165,7 +167,7 @@ routes:
 
 The owner copies prices from the official pages listed in `foundry.md` section 10 when provisioning. Start-up refuses a route whose model has no price row (spend caps cannot work without one). Reasoning tokens are billed as output and are counted from the reported usage, never estimated after the fact.
 
-## 6. `config/release_gates.yaml` (schema now; values drafted in A4, approved in Phase 6, O6)
+## 6. `config/release_gates.yaml` (schema now; values drafted in A4 in `docs/spec/release-gates.yaml`, which supersedes the placeholder keys below; approved in Phase 6, O6)
 
 ```yaml
 gates:

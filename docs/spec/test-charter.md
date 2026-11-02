@@ -79,6 +79,8 @@ Conventions: "fires" = the rule returns the stated verdict and reason; "refused"
 | TC-SCH-S1..S27 | the A1 schema negative tests (`orchestrator.md` appendix A), kept as a Phase 1 test module | [1] |
 | TC-TBL-C1..C16 | the state table checks, as unit tests | [1] |
 | TC-ORC-STEP | looping test table -> escalate `step_limit` | [1] |
+| TC-ORC-EVR-1..3 | a transient evidence failure retries at 15, 30, 45 min then records FAILED; a source that recovers on the second retry continues normally; a permanent error or `module_unavailable` does not retry (D41) | [2] |
+| TC-APR-10 | rejecting a credit escalates `credit_rejected`; rejecting a message re-plans (D40) | [5] |
 | TC-ORC-01..11 | the orchestrator test ideas in `orchestrator.md` section 10 | [1] |
 | TC-MOD-01..05 | invalid JSON twice -> escalate; finding cites an unknown evidence id -> `invalid_model_output`; action off the menu; extra properties; missing required field | [4] |
 

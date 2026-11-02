@@ -39,7 +39,7 @@ states:
   #           human          rests; only human events move it; the agent takes no action
   #           terminal       an outcome; `reopen` says who may reopen it
   RECEIVED:            {category: auto,          step: eligibility}
-  GATHERING_EVIDENCE:  {category: auto,          step: gather_evidence}
+  GATHERING_EVIDENCE:  {category: auto_may_rest, step: gather_evidence}   # may rest for EVIDENCE_RETRY (D41)
   CALCULATING:         {category: auto,          step: assess}
   INVESTIGATING:       {category: auto,          step: investigate}
   EXECUTING:           {category: auto,          step: execute}
@@ -69,6 +69,7 @@ timer_kinds:
   OPS_TIMEOUT:     {due: "anchor + policy.timers.ops_timeout_hours (120h)",    anchor: remeasurement issue verified_at}
   APPROVAL_EXPIRY: {due: "anchor + policy.approvals.expire_after_hours (72h)", anchor: approval requested_at}
   VERIFY_RETRY:    {due: "next entry of executor.verify_schedule_s after the last attempt", anchor: action sent_at}
+  EVIDENCE_RETRY:  {due: "now + policy.timers.evidence_retry_minutes (15)", anchor: the failed fetch, note: "at most policy.timers.evidence_max_retries (3) per gather round (D41)"}
   # At most one active timer per (case, kind): a partial unique index enforces it (schema.sql).
 
 triggers:
@@ -139,7 +140,8 @@ guards:
 # Any step may also produce `escalate` (an unexpected exception inside a step is escalate(internal_error)).
 steps:
   eligibility:     {in: [RECEIVED],           produces: [eligibility_passed, eligibility_failed, escalate]}
-  gather_evidence: {in: [GATHERING_EVIDENCE], produces: [evidence_recorded, escalate]}
+  gather_evidence: {in: [GATHERING_EVIDENCE], produces: [evidence_recorded, rest, escalate],
+                    note: "rest = a required item FAILED with a transient error (timeout, unavailable) and fewer than evidence_max_retries EVIDENCE_RETRY timers fired this round: schedule EVIDENCE_RETRY and wait. Permanent errors and module_unavailable do not retry. After the last retry the round is recorded with the FAILED item (D41)"}
   assess:          {in: [CALCULATING],        produces: [assessment_ready, assessment_ineligible, escalate]}
   investigate:     {in: [INVESTIGATING],      produces: [verdict_allow, verdict_require_approval, proposal_wait, escalate]}
   execute:         {in: [EXECUTING],          produces: [action_sent, escalate]}
@@ -147,7 +149,7 @@ steps:
   reminder:        {in: [AWAITING_SELLER],    produces: [reminder_allow, reminder_require_approval, rest, escalate],
                     note: "rest = REMINDER_SKIPPED (policy denied the reminder, e.g. contact limit)"}
   apply_approval:  {in: [AWAITING_APPROVAL],  produces: [approval_granted, approval_rejected, escalate],
-                    note: "rejection of a FOLLOW_UP intent -> escalate(follow_up_rejected); over rejection cap -> escalate(approval_rejected_limit); execution re-check fails -> escalate(policy_denied)"}
+                    note: "rejection of a FOLLOW_UP intent -> escalate(follow_up_rejected); rejection of a credit -> escalate(credit_rejected) (D40: the reviewer disagrees with a code-proven amount, so a person owns the case); over rejection cap -> escalate(approval_rejected_limit); execution re-check fails -> escalate(policy_denied)"}
   hand_off:        {in: [NEEDS_HUMAN_REVIEW], produces: [human_took_case, follow_up_allow, follow_up_require_approval, follow_up_blocked]}
 
 transitions:
@@ -157,7 +159,8 @@ transitions:
   - {id: T01, from: RECEIVED,           to: GATHERING_EVIDENCE,  trigger: eligibility_passed}
   - {id: T02, from: RECEIVED,           to: REJECTED_INELIGIBLE, trigger: eligibility_failed,
      effects: {cancel_timers: all, record_outcome: true}}
-  - {id: T03, from: GATHERING_EVIDENCE, to: CALCULATING,         trigger: evidence_recorded}
+  - {id: T03, from: GATHERING_EVIDENCE, to: CALCULATING,         trigger: evidence_recorded,
+     effects: {cancel_timers: [EVIDENCE_RETRY]}}
   - {id: T04, from: CALCULATING,        to: INVESTIGATING,       trigger: assessment_ready}
   - {id: T05, from: CALCULATING,        to: REJECTED_INELIGIBLE, trigger: assessment_ineligible,
      effects: {cancel_timers: all, record_outcome: true}}
@@ -182,7 +185,7 @@ transitions:
      guards: [approval_matches_pending, action_planned],
      effects: {cancel_timers: [APPROVAL_EXPIRY]}}
   - {id: T11, from: AWAITING_APPROVAL,  to: INVESTIGATING,       trigger: approval_rejected,
-     guards: [approval_matches_pending, pending_source_proposal, rejection_cap_ok],
+     guards: [approval_matches_pending, pending_source_proposal, intent_is_not_credit, rejection_cap_ok],
      effects: {cancel_timers: [APPROVAL_EXPIRY], clear_pending: true, increment: [rejection_count]}}
   - {id: T12, from: AWAITING_APPROVAL,  to: AWAITING_SELLER,     trigger: approval_rejected,
      guards: [approval_matches_pending, pending_source_timer],
@@ -330,7 +333,7 @@ transitions:
 # `*` is the default for event types not listed under that state.
 accept:
   RECEIVED:            {DISPUTE_RAISED: absorb, "*": defer}
-  GATHERING_EVIDENCE:  {DISPUTE_RAISED: absorb, "*": defer}
+  GATHERING_EVIDENCE:  {DISPUTE_RAISED: absorb, TIMER_FIRED.EVIDENCE_RETRY: step:gather_evidence, "*": defer}
   CALCULATING:         {DISPUTE_RAISED: absorb, "*": defer}
   INVESTIGATING:       {DISPUTE_RAISED: absorb, "*": defer}
   EXECUTING:           {DISPUTE_RAISED: absorb, "*": defer}
@@ -351,6 +354,7 @@ accept:
     TIMER_FIRED.OPS_TIMEOUT: ignore
     TIMER_FIRED.APPROVAL_EXPIRY: ignore
     TIMER_FIRED.VERIFY_RETRY: ignore
+    TIMER_FIRED.EVIDENCE_RETRY: ignore
     HUMAN_TOOK_CASE: ignore
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
@@ -367,6 +371,7 @@ accept:
     TIMER_FIRED.OPS_TIMEOUT: "transition:escalate(ops_timeout)"
     TIMER_FIRED.APPROVAL_EXPIRY: ignore
     TIMER_FIRED.VERIFY_RETRY: ignore
+    TIMER_FIRED.EVIDENCE_RETRY: ignore
     HUMAN_TOOK_CASE: ignore
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
@@ -383,6 +388,7 @@ accept:
     TIMER_FIRED.OPS_TIMEOUT: ignore
     TIMER_FIRED.APPROVAL_EXPIRY: "transition:escalate(approval_expired)"
     TIMER_FIRED.VERIFY_RETRY: ignore
+    TIMER_FIRED.EVIDENCE_RETRY: ignore
     HUMAN_TOOK_CASE: ignore
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
@@ -399,6 +405,7 @@ accept:
     TIMER_FIRED.OPS_TIMEOUT: ignore
     TIMER_FIRED.APPROVAL_EXPIRY: ignore
     TIMER_FIRED.VERIFY_RETRY: ignore
+    TIMER_FIRED.EVIDENCE_RETRY: ignore
     HUMAN_TOOK_CASE: step:hand_off                                           # T33 | T34 | T35 | T36
     HUMAN_RETURNED_CASE: transition:human_returned_case
     HUMAN_REOPENED_CASE: ignore
@@ -420,7 +427,7 @@ accept:
 input_event_types: [DISPUTE_RAISED, SELLER_REPLY_RECEIVED, DISPUTE_WITHDRAWN, DELIVERY_FAILURE_RECEIVED,
                     OPS_FINDING_RECEIVED, APPROVAL_DECIDED, TIMER_FIRED.SELLER_REMINDER,
                     TIMER_FIRED.SELLER_DECISION, TIMER_FIRED.OPS_TIMEOUT, TIMER_FIRED.APPROVAL_EXPIRY,
-                    TIMER_FIRED.VERIFY_RETRY, HUMAN_TOOK_CASE, HUMAN_RETURNED_CASE, HUMAN_REOPENED_CASE,
+                    TIMER_FIRED.VERIFY_RETRY, TIMER_FIRED.EVIDENCE_RETRY, HUMAN_TOOK_CASE, HUMAN_RETURNED_CASE, HUMAN_REOPENED_CASE,
                     HUMAN_CONFIRMED_WITHDRAWAL]
 
 # Differences from docs/FLOW.md section 2. Each is decided; the reason is stated.
@@ -477,6 +484,14 @@ discrepancies:
     flow: "'any working state -> NEEDS_HUMAN_REVIEW'"
     decision: "Every working state except NEEDS_HUMAN_REVIEW itself (T90). Escalating from review is a no-op, not a transition."
     why: "A self-transition would write a misleading STATE_CHANGED event."
+  - id: X15
+    flow: "AWAITING_APPROVAL -> INVESTIGATING when an approval is rejected (re-plan)"
+    decision: "Owner decision D40 (2026-11-02): a rejected credit escalates (credit_rejected) instead of re-planning; T11 now carries intent_is_not_credit. Rejected messages still re-plan."
+    why: "Credits are only proposed for code-proven errors (D29), so a rejection means the reviewer disagrees with the calculation; re-planning would just propose the same credit again."
+  - id: X16
+    flow: "GATHERING_EVIDENCE always completes in one pass"
+    decision: "Owner decision D41 (2026-11-02): a required evidence item that fails with a transient error (timeout, unavailable) is retried every 15 minutes, up to 3 times per gather round, before the round is recorded with the FAILED item. GATHERING_EVIDENCE becomes auto_may_rest with timer EVIDENCE_RETRY."
+    why: "Brief outages of an evidence source should not send cases to a person."
   - id: X14
     flow: "AWAITING_SELLER -> CLOSED_NO_RESPONSE at 72 h when there is no useful reply; an irrelevant reply re-enters INVESTIGATING"
     decision: "Owner decision D19 (2026-11-02). An unclear, partial or irrelevant reply gets one clarification_request that names what is still missing or unclear (policy.contact.max_clarifications_per_case = 1, within the contact limits). If that does not resolve it, or the agent cannot handle the reply, the case goes to a person (reply_unresolved). A seller who replied is never closed as CLOSED_NO_RESPONSE (guard no_reply_since_anchor on T16, T29). T08 (wait after a reply) is removed. ADR 0014."

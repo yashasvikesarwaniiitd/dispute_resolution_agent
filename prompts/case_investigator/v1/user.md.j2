@@ -1,46 +1,69 @@
 <case_facts>
-case_id: {{ case.id }}
-state: {{ case.state }}
-shipment_ref: {{ case.shipment_ref }}
-seller_ref: {{ case.seller_ref }}
-opened_at: {{ case.opened_at }}
+case_ref: {{ b.case_ref }}
+shipment_ref: {{ b.facts.shipment_ref }}
+claim_ref: {{ b.facts.claim_ref }}
+seller_ref: {{ b.facts.seller_ref }}
+raised_at: {{ b.facts.raised_at }}
 </case_facts>
 
 <deterministic_results>
-{{ assessment | tojson }}
+{{ b.assessment_view | tojson }}
 </deterministic_results>
 
 <evidence_items>
-{% for item in evidence -%}
-- id: {{ item.id }} | source: {{ item.source }} | status: {{ item.status }} | value: {{ item.value | neutralise }}
+{% for item in b.trusted_evidence -%}
+- id: {{ item.id }} | source: {{ item.source }} | source_trust: system | status: {{ item.status }} | value: {{ item.value | tojson }}
+{% endfor -%}
+{% for item in b.untrusted_evidence -%}
+- id: {{ item.id }} | source: {{ item.source }} | source_trust: outside_party | status: {{ item.status }} | value: see untrusted_evidence block {{ item.id }}
 {% endfor -%}
 </evidence_items>
 
+{% for item in b.untrusted_evidence -%}
+<untrusted_evidence id="{{ item.id }}" source="{{ item.source }}">
+{{ item.text | neutralise }}
+</untrusted_evidence>
+{% endfor %}
+
+{% if b.reply_reading -%}
+<untrusted_reply_reading>
+{{ b.reply_reading | tojson | neutralise }}
+</untrusted_reply_reading>
+{% endif %}
+
+<contact_status>
+reply_in_round: {{ b.contact.reply_in_round }}
+clarifications_sent: {{ b.contact.clarifications_sent }}
+remeasurement_outstanding: {{ b.contact.remeasurement_outstanding }}
+</contact_status>
+
 <related_cases>
-{% for rc in related_cases -%}
-- case: {{ rc.id }} | outcome: {{ rc.outcome }} | similarity: {{ rc.similarity_reason }}
+{% for rc in b.related_cases -%}
+- case: {{ rc.case_ref }} | state: {{ rc.state }} | closed_at: {{ rc.closed_at }}
 {% endfor -%}
 </related_cases>
 
-{% if pattern_context -%}
+{% if b.pattern_context -%}
 <pattern_context>
 These are hypotheses from cross-case analysis, not facts.
-{% for p in pattern_context -%}
-- pattern: {{ p.id }} | status: {{ p.status }} | hypothesis: {{ p.hypothesis | neutralise }}
+{% for p in b.pattern_context -%}
+- pattern: {{ p.id }} | status: {{ p.status }} | summary: {{ p.summary | neutralise }}
 {% endfor -%}
 </pattern_context>
 {% endif %}
 
+{% if b.prior_rejections -%}
+<reviewer_notes>
+{% for n in b.prior_rejections -%}
+- {{ n | neutralise }}
+{% endfor -%}
+</reviewer_notes>
+{% endif %}
+
 <allowed_actions>
-{% for a in allowed_actions -%}
+{% for a in b.allowed_actions -%}
 - {{ a }}
 {% endfor -%}
 </allowed_actions>
-
-{% if seller_text -%}
-<untrusted_seller_text>
-{{ seller_text | neutralise }}
-</untrusted_seller_text>
-{% endif %}
 
 Recommend the next step now. Return only the JSON object.

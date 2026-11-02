@@ -7,8 +7,9 @@ output_schema: schema.json
 model_requirements:
   structured_output: true
   tool_use: none
-temperature: 0
 max_output_tokens: 600
 eval_suite: tests/evals/seller_reply_interpreter
+eval_cases: docs/spec/prompt-review.md#seller_reply_interpreter
 changelog:
   - v1: initial version
+  - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): intent precedence order (instruction attempt beats withdrawal beats evidence); requested items limited to the outstanding list word for word; attachments only from a separate untrusted_attachments block (file names are seller-written); encoded, hidden and other-language instructions named in the trust model; summary must describe instructions, not repeat them; mixed withdrawal-plus-demand example; temperature removed. Failure modes RI-F1..RI-F7 in docs/spec/prompt-review.md.

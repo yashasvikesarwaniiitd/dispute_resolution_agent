@@ -8,8 +8,8 @@ output_schema: schema.json
 model_requirements:
   structured_output: true
   tool_use: none
-temperature: 0
 max_output_tokens: 1200
 eval_suite: tests/evals/pattern_analyst
 changelog:
   - v1: initial version, inactive until Phase 7
+  - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): identifiers never the subject of a fault hypothesis; correlation-not-cause and no-circular-confirmation rules; temperature removed. Failure modes PA-F1..PA-F4 in docs/spec/prompt-review.md.
