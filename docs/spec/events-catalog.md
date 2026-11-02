@@ -31,9 +31,9 @@ Each is first stored in `inbox` (dedupe), then appended to `events` when dispatc
 | Type | Source and `source_event_id` | Emitter | Routing to a case | Correlation |
 |------|------------------------------|---------|-------------------|-------------|
 | `DISPUTE_RAISED` | `dispute_api` or `simulator`, the dispute form id | `POST /events` | intake: open case for (shipment, claim), else a soft-terminal case in window, else a new case (orchestrator.md section 2) | new `corr_<ULID>`; becomes `case.correlation_id` for a new case |
-| `SELLER_REPLY_RECEIVED` | `outlook`, the internetMessageId | email poller | `messages.conversation_id` -> case; else sender address + shipment ref in subject if exactly one open case matches; else `UNROUTABLE` | inherits the correlation of the outbound message it answers |
+| `SELLER_REPLY_RECEIVED` | `outlook`, the Graph immutable message id (not the sender-controlled internetMessageId) | email poller | `messages.conversation_id` -> case; else sender address + shipment ref in subject if exactly one open case matches; else `UNROUTABLE` | inherits the correlation of the outbound message it answers |
 | `DISPUTE_WITHDRAWN` | `seller_portal`, the portal request id | portal API (authenticated, structured) | (shipment, claim) -> open case | new |
-| `DELIVERY_FAILURE_RECEIVED` | `outlook`, the NDR internetMessageId | email poller | the failed outbound message id -> its case | inherits the failed message's correlation |
+| `DELIVERY_FAILURE_RECEIVED` | `outlook`, the NDR's Graph immutable id | email poller | the failed outbound message id -> its case | inherits the failed message's correlation |
 | `OPS_FINDING_RECEIVED` | `jira`, `<issue_key>:<finding_id>` | Jira poller | the issue's idempotency label -> action -> case | inherits the issue action's correlation |
 | `APPROVAL_DECIDED` | `approvals`, `<approval_id>:decision` | review queue via `POST /events` | `case_id` in the event | inherits APPROVAL_REQUESTED's correlation |
 | `TIMER_FIRED` | `scheduler`, the timer id | `TimerScheduler` | `case_id` in the event | the timer's stored correlation |

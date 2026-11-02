@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is in progress.
+No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is drafted and awaiting owner approval: `integrations.md`, `foundry.md`, `config.md`, `observability.md`, ADRs 0019-0022, and an updated `docs/FOUNDRY_SETUP.md`. Open decisions O13 and O14 came out of the documentation research.
 
-**Next action: finish Stage A3**, then the owner reviews it. After approval: Stage A4 (agent prompts and evals) on Opus.
+**Next action: the owner reviews Stage A3** (open decisions O13, O14). An independent review's findings are fixed (draft-only lookups, composite-write time budget, unsent-draft read-back, forged Authentication-Results, auto-instrumentation, missing call timeouts, config completeness). After approval: Stage A4 (agent prompts and evals) on Opus.
 
 ## 2. The project in five lines
 
@@ -68,13 +68,15 @@ No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are 
 | # | Question | Default | Decided in |
 |---|----------|---------|------------|
 | O1 | `gpt-5-mini` versus `gpt-5.4-mini` as the default, and whether Agent Service accepts both in the chosen region | `gpt-5-mini`; compare on cost per case and eval results | Phase 4b |
-| O2 | Guardrail integration: observe deployment guardrail results, or call a Prompt Shields API | Smaller of the two, via ADR | Phase 4b |
+| O2 | Guardrail integration: observe deployment guardrail results, or call a Prompt Shields API | Observe the deployment's content-filter annotations (the smaller option; foundry.md section 8) | Phase 4b |
 | O3 | Use Foundry evaluations | Optional and supplementary; local gates are authoritative | Phase 6 |
 | O4 | Microsoft Agent Framework | Not used; revisit only through an ADR | Backlog |
-| O5 | Graph authentication model | Least privilege on a test mailbox; ADR | Stage A3 |
+| O5 | Graph authentication model | App-only client credentials, `Mail.Send` + `Mail.ReadWrite` + `Mail.Read` scoped to the test mailbox with RBAC for Applications (ADR 0019); depends on O13 | Stage A3 review |
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
+| O13 | Email account type. App-only Graph access (needed for unattended sending and polling) is not available for personal Outlook.com accounts | A Microsoft 365 test tenant (developer or business trial) with one scoped test mailbox; alternative: a personal account with delegated sign-in and a stored refresh token (weaker; needs an ADR) | Owner, before Phase 3 |
+| O14 | Red teaming. Foundry cloud red teaming does not run in South India | Run our own injection corpus (extended) as a local eval against the live South India agents; skip Foundry cloud red teaming. Alternative: a second project in a supported region just for red teaming (uses credit) | Owner, before Phase 6 |
 
 ## 6. What the owner must do (Claude Code never does these)
 

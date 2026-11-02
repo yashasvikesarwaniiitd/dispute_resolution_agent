@@ -708,6 +708,7 @@ class TransientPortError(PortError):
 class AmbiguousOutcome(PortError):
     """The request may or may not have taken effect (timeout after send, 5xx on a write)."""
     code = "ambiguous"
+    def __init__(self, detail: str, external_ref: str | None = None) -> None: ...   # e.g. a Jira key or draft id, for the human
 class PermanentPortError(PortError):
     """Retrying cannot help (400 validation, 404 on a write target, 422)."""
     code = "permanent"
@@ -721,7 +722,7 @@ class BudgetExceeded(PortError):
 class AgentDrift(PortError): code = "agent_drift"
 ```
 
-Error mapping inside the orchestrator (one place, `orchestrator/errors.py`): `ModuleUnavailable(m)` -> escalate `module_unavailable:m`; `GuardrailBlocked` -> `guardrail_blocked`; `BudgetExceeded(k)` -> `k`; `AgentDrift` -> `agent_drift`; `InvalidModelOutput` -> `invalid_model_output`; `KillSwitchEngaged` -> `kill_switch_active`; `PolicyRefused` -> `policy_denied`; any other `KernelError` or unexpected exception inside a step -> `internal_error` (logged with traceback; the case still gets a reason). `ConcurrencyConflict` is never mapped to a review: it is retried (orchestrator.md section 4).
+Error mapping inside the orchestrator (one place, `orchestrator/errors.py`): `ModuleUnavailable(m)` -> escalate `module_unavailable:m`; `GuardrailBlocked` -> `guardrail_blocked`; `BudgetExceeded(k)` -> `k`; `AgentDrift` -> `agent_drift`; `AuthPortError` or `PermanentPortError` from a model gateway -> `module_unavailable:model_gateway` (ERROR log); `InvalidModelOutput` -> `invalid_model_output`; `KillSwitchEngaged` -> `kill_switch_active`; `PolicyRefused` -> `policy_denied`; any other `KernelError` or unexpected exception inside a step -> `internal_error` (logged with traceback; the case still gets a reason). `ConcurrencyConflict` is never mapped to a review: it is retried (orchestrator.md section 4).
 
 ## 6. Ports (`ports/`, one file per port)
 
@@ -992,7 +993,8 @@ class MessageChannel(Protocol):
         """Raises TransientPortError, AmbiguousOutcome, PermanentPortError, AuthPortError, ModuleUnavailable.
         Timeout: executor.call_timeout_s."""
     def find_sent(self, key: IdempotencyKey) -> "SendReceipt | None":
-        """The message previously sent with this key, if visible. Raises TransientPortError."""
+        """The message previously sent with this key, if visible. Raises TransientPortError, and
+        AmbiguousOutcome when the evidence cannot settle it (e.g. the marked message is only in Drafts)."""
     def get_message(self, receipt: "SendReceipt") -> "MessageSnapshot":
         """Read-back. Raises ExternalNotFound (not yet visible), TransientPortError."""
     def fetch_replies(self, since: datetime) -> Sequence["InboundMessage"]:
@@ -1002,7 +1004,7 @@ class TicketingSystem(Protocol):
     idempotent_writes: bool
     lookup_supported: bool
     def upsert_issue(self, spec: "IssueSpec", key: IdempotencyKey) -> "IssueRef": ...      # raises as send()
-    def find_issue(self, key: IdempotencyKey) -> "IssueRef | None": ...
+    def find_issue(self, key: IdempotencyKey) -> "IssueRef | None": ...       # raises as find_sent; a miss is not proof
     def get_issue(self, ref: "IssueRef") -> "IssueSnapshot": ...                           # raises as get_message()
     def fetch_findings(self, since: datetime) -> Sequence["OpsFinding"]: ...
 
@@ -1066,7 +1068,9 @@ class IssueRef(BaseModel):
 
 class IssueSnapshot(BaseModel):
     key: str; project_key: str; labels: tuple[str, ...]; summary: str
-    description_hash: PayloadHash; status: str
+    description_text: str                 # plain text extracted from the stored ADF, normalised (integrations.md 2.3)
+    status: str; resolution: str | None
+    idempotency_key: IdempotencyKey | None   # from the dispute_agent issue property
 
 class OpsFinding(BaseModel):
     issue_key: str; finding_id: str; kind: Literal["remeasured", "inspected", "no_fault_found"]
@@ -1307,7 +1311,7 @@ These keys are new. A3 (`config.md`) owns their final schema; the defaults below
 | `executor.lookup_attempts` | 3 | lookup-by-key after ambiguous outcome |
 | `executor.verify_schedule_s` | `[0, 5, 30, 120, 300]` | VERIFY_RETRY |
 | `executor.verify_deadline_s` | 600 | verification deadline |
-| `executor.execute_budget_s` / `claim_lease_s` | 240 / 300 | bound on one execute run; action lease (must exceed the budget) |
+| `executor.execute_budget_s` / `claim_lease_s` | 300 / 420 | bound on one execute run including composite writes; action lease (must exceed the budget) |
 
 ## 12. Differences from the ARCHITECTURE.md section 4 sketch
 
@@ -1383,3 +1387,25 @@ MANDATORY_RULES: Final = frozenset({"R02", "R03", "R10", "R13", "R17"})   # Poli
 ```
 
 Which rule reason maps to which `ReviewCode` is the table in `policy-rules.md` section 8. `credit_amount` takes the already-credited totals (`money-rules.md` section 3).
+
+## 14. Amendments from Stage A3
+
+From `integrations.md` and `foundry.md`:
+
+```python
+# InboundMessage (section 6.4): new field
+    auth_result: Literal["pass", "fail", "none"]       # from Authentication-Results (dmarc); fail -> sender_unauthenticated signal
+
+# ModelResponse (section 4.10): new field
+    screen_annotations: tuple[str, ...] = ()           # Foundry content_filters annotations (e.g. "prompt_shield:jailbreak"); advisory (I15)
+
+# RenderedPrompt (section 4.10): new field
+    provider_schema: Mapping[str, JsonValue]           # strict-mode-compatible derivative of output_schema (foundry.md section 6)
+
+# message_content_hash (executor.md section 6) hashes normalised text:
+def normalise_text(s: str) -> str:
+    """Unicode NFC; CRLF -> LF; strip trailing whitespace per line; collapse runs of blank lines to one;
+    strip leading/trailing whitespace. Used on both sides of the read-back comparison (integrations.md 1.4)."""
+```
+
+`MessageChannel` semantics (integrations.md 1.3): `find_sent` raises `AmbiguousOutcome` when the marked message is found only in Drafts. `TicketingSystem.find_issue` is best effort: a hit is reliable, a miss is not proof of absence (integrations.md 2.2).

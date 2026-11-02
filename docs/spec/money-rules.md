@@ -82,7 +82,7 @@ The ledger is simulated (D4) but behaves like a strict real one, so the executor
 | Reversal | Not available to the agent. A human reverses outside the system (residual risk RR4 in `threat-model.md`). |
 | Storage | Its own SQLite file (`ledger.sqlite3`), separate from the case database, so a case-database bug cannot fake a ledger entry. |
 
-Failure injection (test configuration only, `ledger.simulation.failure_mode`, never on by default):
+Failure injection (test configuration only, `modules.ledger.settings.failure_mode`, never on by default):
 
 | Mode | What it does | Executor must end in |
 |------|--------------|----------------------|

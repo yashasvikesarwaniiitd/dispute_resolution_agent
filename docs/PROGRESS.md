@@ -6,7 +6,7 @@
 |----------------|--------|-------------------|-------|
 | A1 Kernel specification | Approved | Owner, 2026-11-02 (D27) | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
 | A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
-| A3 Integrations and Foundry | In progress | | |
+| A3 Integrations and Foundry | Drafted; awaiting owner approval | | 4 spec files, ADRs 0019-0022, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
 | A4 Agent and evals | Not started | | |
 | A5 Build plan and freeze (`arch-v1`) | Not started | | |
 | 0 Foundations and sockets | Not started | | |
@@ -40,6 +40,10 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0016 | Credits only for code-proven reasons; no amount caps, structural limit only | accepted (D29, D30) |
 | 0017 | Model-call budgets and failover live in one kernel decorator around ModelGateway | accepted (D34) |
 | 0018 | Human events are authenticated; the actor comes from the session | accepted (D32) |
+| 0019 | Email is sent as a marked draft, looked up by an extended property, read back by immutable id | proposed |
+| 0020 | Jira idempotency comes from our own action record; labels and a property are markers | proposed |
+| 0021 | Foundry agents are called by pinned version, statelessly, and validated in our code | proposed |
+| 0022 | Poll for email replies and Jira findings; no webhooks in v1 | proposed |
 
 ## Session log
 
@@ -48,3 +52,4 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 2026-11-02 | A1 | Opus (Claude Code desktop session, not the stage script) | not recorded | Kernel spec drafted: interfaces, schema, transitions + accept matrix, events, orchestrator, executor, traceability; ADRs 0004-0013; machine checks on the table and schema; independent review | Owner approves A1 (O9), then A2 |
 | 2026-11-02 | A1 | Opus | not recorded | Owner made 8 product decisions (D19-D26); clarification follow-up added (ADR 0014, X14, checks C15-C16) | Owner sign-off O9, then A2 |
 | 2026-11-02 | A2 | Opus | not recorded | Checkpoint approved (D28-D31); policy rules R01-R25, M01-M06, F01; threat model T01-T21; approvals; money rules; test charter; ADRs 0015-0018; independent review | Owner approves A2, then A3 |
+| 2026-11-02 | A3 | Opus + 3 research subagents | not recorded | Official docs researched (Graph, Jira, Foundry, Anthropic); integrations, foundry, config, observability specs; ADRs 0019-0022; FOUNDRY_SETUP.md corrected | Owner approves A3 (O13, O14), then A4 |

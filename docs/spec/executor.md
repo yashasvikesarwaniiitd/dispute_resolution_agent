@@ -59,7 +59,7 @@ WHERE id = :id AND status IN ('PLANNED', 'SENT')
 
 One row updated = claimed. Zero rows = someone else holds it (or it is finished): `execute` returns `blocked(claimed_elsewhere)` without acting. The execute step treats that as **rest** (no commit, no escalation); the runner's stuck-case sweep advances the case again later. The claim is cleared in the transaction that records the outcome. A crashed process's claim simply expires, and recovery takes it.
 
-Lease length: `executor.claim_lease_s` (default 300 s). It must exceed the worst-case duration of one `execute`, which is bounded by a hard budget `executor.execute_budget_s` (default 240 s): the up-front lookup (`lookup_attempts` x `call_timeout_s` + delays 1, 3, 9 s = 43 s), plus `max_attempts` writes (30 s) with backoff (at most 3 x 8 s), plus one ambiguous-outcome lookup with delays (43 s), which is about 140 s. `execute` checks the budget before every external call; if the next call could exceed it, it stops: `unknown(budget_exhausted)` if an ambiguous write happened, else `failed(transient_exhausted)`. Startup refuses `claim_lease_s <= execute_budget_s`.
+Lease length: `executor.claim_lease_s` (default 420 s). It must exceed the worst-case duration of one `execute`, which is bounded by a hard budget `executor.execute_budget_s` (default 300 s). The budget covers the **whole** adapter write, which may be several HTTP calls (Outlook: create draft, check Drafts, send = up to 4 calls; Jira: create, set property = 2), and lookups that read several places (Outlook: Sent Items and Drafts). Write-port adapters **never retry internally**; the executor is the only retry loop. Worst case with the defaults: up-front lookup 3 x 20 s + delays 13 s = 73 s; three write attempts of up to 40 s plus backoff 3 s = 123 s; one ambiguous-outcome lookup 73 s; total about 270 s. `execute` checks the budget before every external call; if the next call could exceed it, it stops: `unknown(budget_exhausted)` if an ambiguous write happened, else `failed(transient_exhausted)`. Startup refuses `claim_lease_s <= execute_budget_s`.
 
 ## 4. `plan(uow, case, intent, ctx)` (inside the step transaction)
 
@@ -92,7 +92,10 @@ def execute(action: Action) -> ExecutionOutcome:
         return failed(action, "approval_binding_broken")
     port = port_for(action.action_type)
     if port.lookup_supported:                                  # look before you leap, every time
-        found = lookup(port, action.idempotency_key)           # bounded retries on TransientPortError
+        try:
+            found = lookup(port, action.idempotency_key)       # bounded retries on TransientPortError
+        except AmbiguousOutcome:                               # e.g. marked email only in Drafts
+            return unknown(action, "ambiguous_after_lookup")
         if found: return sent(action, found, found_by_lookup=True)
     if attempts_before > 0 and not port.idempotent_writes:     # an earlier run may have written (crash, lost commit)
         return unknown(action, "recovery_unconfirmed")         # a lookup miss is not proof: search can lag behind sending
@@ -102,11 +105,14 @@ def execute(action: Action) -> ExecutionOutcome:
             return sent(action, ref, duplicate_suppressed=ref.duplicate)
         except TransientPortError as e:                        # certainly not applied
             sleep(backoff(attempt, e.retry_after_s)); continue
-        except AmbiguousOutcome:
-            found = lookup_with_delays(port, action.idempotency_key) if port.lookup_supported else None
+        except AmbiguousOutcome as amb:
+            try:
+                found = lookup_with_delays(port, action.idempotency_key) if port.lookup_supported else None
+            except AmbiguousOutcome:
+                return unknown(action, "ambiguous_after_lookup", external_ref=amb.external_ref)
             if found: return sent(action, found, found_by_lookup=True)
             if port.idempotent_writes: sleep(backoff(attempt)); continue   # re-send is safe by contract
-            return unknown(action, "ambiguous_after_lookup")
+            return unknown(action, "ambiguous_after_lookup", external_ref=amb.external_ref)
         except AuthPortError as e:  return failed(action, "auth", alert=True)
         except PermanentPortError as e: return failed(action, f"permanent:{e.status}")
         except ModuleUnavailable as e: return failed(action, f"module_unavailable:{e.module}")
@@ -124,7 +130,7 @@ Only `sent`, `failed` and `unknown` produce an outcome; the orchestrator persist
 | Adapter flags | Transient error | Ambiguous outcome | Crash recovery |
 |---------------|-----------------|-------------------|----------------|
 | `lookup_supported` and `idempotent_writes` (simulated ledger) | retry | lookup, else retry | lookup, else retry |
-| `lookup_supported` only (expected: Outlook via a key header search; Jira via label search) | retry | lookup with delays; not found -> UNKNOWN | lookup; not found -> write only if `attempts_before == 0`, else UNKNOWN `recovery_unconfirmed` |
+| `lookup_supported` only (expected: Outlook via an extended-property search; Jira via label search) | retry | lookup with delays; not found -> UNKNOWN | lookup; not found -> write only if `attempts_before == 0`, else UNKNOWN `recovery_unconfirmed` |
 | neither | retry | UNKNOWN | write only if `attempts_before == 0`, else UNKNOWN `recovery_unconfirmed` |
 
 Crash recovery runs `execute` again, so its claim makes `attempts >= 1`; the rule therefore reads the value **before** the recovery claim (`attempts == 0` before claiming = no earlier run ever started).
@@ -141,7 +147,7 @@ Read-back is independent: it reads the external system through the port's read m
 
 Hash definitions (one each, used everywhere):
 - **Approval binding** (I13): `intent.payload_hash = payload_hash(payload)` over the whole payload (for a message: kind, recipient, subject, body, numbers used, thread). The approval stores it; `plan` and `execute` require equality.
-- **Read-back content**: `message_content_hash(to, subject, body) = payload_hash({"to": to, "subject": subject, "body": body})`, computed by the executor from the snapshot's plain-text fields and from the stored intent. The adapter returns the body exactly as sent (text/plain); how Graph preserves it is Stage A3.
+- **Read-back content**: `message_content_hash(to, subject, body) = payload_hash({"to": sorted(to), "subject": subject, "body": normalise_text(body)})`, computed by the executor from the snapshot's fields and from the stored intent. Graph documents no exact body round-trip, so bodies are normalised on both sides (`kernel-interfaces.md` section 14, `integrations.md` section 1.4).
 
 Result:
 - all checks pass -> `verified` (action VERIFIED, `verified_by = system`, `verification_json` lists checks).
@@ -175,7 +181,7 @@ Result:
 
 ## 8. Settings
 
-`executor.call_timeout_s` 10, `max_attempts` 3, `backoff_base_s` 1, `backoff_factor` 2, `backoff_cap_s` 8, `lookup_attempts` 3, `verify_schedule_s` [0, 5, 30, 120, 300], `verify_deadline_s` 600, `execute_budget_s` 240, `claim_lease_s` 300. A3 `config.md` owns the final schema.
+`executor.call_timeout_s` 10, `max_attempts` 3, `backoff_base_s` 1, `backoff_factor` 2, `backoff_cap_s` 8, `lookup_attempts` 3, `verify_schedule_s` [0, 5, 30, 120, 300], `verify_deadline_s` 600, `execute_budget_s` 300, `claim_lease_s` 420. A3 `config.md` owns the final schema.
 
 ## 9. Test ideas (Phase 1, against an in-memory fake channel)
 
