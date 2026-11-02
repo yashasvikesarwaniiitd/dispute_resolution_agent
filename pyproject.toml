@@ -38,6 +38,13 @@ packages = ["src/dispute_agent"]
 
 # --- ruff -------------------------------------------------------------------
 
+[tool.uv]
+# This repository lives inside a OneDrive-synced folder on at least one machine. OneDrive
+# refuses hardlinks into its sync root ("The cloud operation cannot be performed on a file
+# with incompatible hardlinks", os error 396) and intermittently holds locks on files uv is
+# replacing. Copying instead of hardlinking costs a little disk and makes installs reliable.
+link-mode = "copy"
+
 [tool.ruff]
 src = ["src", "tests"]
 line-length = 100
@@ -61,9 +68,19 @@ ignore = [
     "E501",     # line length is handled by the formatter
 ]
 
+[tool.ruff.lint.flake8-type-checking]
+# pydantic resolves field annotations at runtime, so imports used only in a model's field
+# types must stay real imports. Without this, TC rules would move them into a
+# TYPE_CHECKING block and every model with a NewType field would fail to build.
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
 [tool.ruff.lint.per-file-ignores]
 # Tests may shadow builtins in fixtures and use assert freely.
 "tests/**" = ["A002", "A003"]
+# N818 wants an "Error" suffix on every exception. kernel-interfaces.md section 5 names
+# these exactly (IllegalTransition, ModuleUnavailable, AmbiguousOutcome, ...) and the whole
+# specification refers to them by those names. The frozen spec outranks the lint convention.
+"src/dispute_agent/kernel/domain/errors.py" = ["N818"]
 
 # --- mypy -------------------------------------------------------------------
 
