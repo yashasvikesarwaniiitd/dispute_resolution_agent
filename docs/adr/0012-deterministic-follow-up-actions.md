@@ -1,6 +1,6 @@
 # ADR 0012: Deterministic follow-up actions; "resolved credited" means credited and told
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

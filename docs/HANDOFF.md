@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stage A1 (kernel specification) is drafted and awaiting owner approval: `docs/spec/` holds `kernel-interfaces.md`, `schema.sql`, `transitions.yaml`, `events-catalog.md`, `orchestrator.md`, `executor.md` and `traceability.md`, with ADRs 0004-0013 (status proposed). The state machine table passed checks C1-C14, the schema loaded into SQLite and passed 27 negative tests, and an independent review's four real defects (duplicate credit path, stranded timer, credited case re-planned, crash re-send) are fixed (orchestrator.md appendix A).
+No code yet. Stage A1 (kernel specification) is drafted and awaiting owner approval: `docs/spec/` holds `kernel-interfaces.md`, `schema.sql`, `transitions.yaml`, `events-catalog.md`, `orchestrator.md`, `executor.md` and `traceability.md`, with ADRs 0004-0013 (status proposed). The product decisions are made (D19-D26). The state machine table passed checks C1-C16, the schema loaded into SQLite and passed 27 negative tests, and an independent review's four real defects (duplicate credit path, stranded timer, credited case re-planned, crash re-send) are fixed (orchestrator.md appendix A).
 
-**Next action: the owner reviews Stage A1** (start with `transitions.yaml` `discrepancies` X1-X13 and the ADRs; decision O9). After approval: Stage A2 (safety and policy) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a2`.
+**Next action: the owner reviews Stage A1** (remaining: the engineering ADRs still marked proposed; decision O9). After approval: Stage A2 (safety and policy) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a2`.
 
 ## 2. The project in five lines
 
@@ -46,6 +46,14 @@ No code yet. Stage A1 (kernel specification) is drafted and awaiting owner appro
 | D16 | The approvals module and a message review queue arrive in Phase 3 (not Phase 5), because every message needs review in the pilot. Phase 5 extends approvals to credits. |
 | D17 | Secondary route: the owner's Anthropic API, Haiku models only (enforced at startup). Used only for availability, rate-limit, quota and credit-window failures. Never for guardrail blocks, drift, invalid output or caps. Own spend cap (default $10). |
 | D18 | The Azure free credit is $200 for 30 days from sign-up. Create the account only when Phase 4b starts, upgrade to pay-as-you-go straight away (free trials can have zero model quota; the remaining credit stays valid), and keep `allow_paid_usage` false so spend stops when the credit window ends. Do the Foundry-dependent work (4b live evals, demo recording, Phase 6 Foundry evals and red team) inside that window. |
+| D19 | (2026-11-02) An unclear, partial or irrelevant seller reply gets one clarification follow-up naming the issue; if still unresolved, or the agent cannot handle it, a person takes over (`reply_unresolved`). A seller who replied is never closed as "no response". ADR 0014, transitions X14. |
+| D20 | (2026-11-02) A withdrawal written in an email needs a person to confirm; only an authenticated portal withdrawal closes a case on its own. ADR 0009. |
+| D21 | (2026-11-02) RESOLVED_CREDITED means the credit is verified and the confirmation email is verified as sent. ADR 0012. |
+| D22 | (2026-11-02) A late reply reopens a closed (no response / upheld) case within 7 days and at most 2 automatic reopens; otherwise a person decides. Transitions X9. |
+| D23 | (2026-11-02) A person can return a case from review to the agent, after resolving every action with an unknown outcome; a case with a verified credit cannot be returned. Transitions X7, T37. |
+| D24 | (2026-11-02) Kill switch: a blocked send moves the case to human review; a person returns it after the switch is off. |
+| D25 | (2026-11-02) A repeat dispute on a closed claim reopens it inside the 7-day window, otherwise opens a new linked case with extra caution. |
+| D26 | (2026-11-02) Illustrative limits accepted: ops timeout 120 h, approval expiry 72 h, 2 automatic reopens, 2 approval rejections per case, 10-minute verification deadline, 1 clarification per case. A3 owns the final config schema. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -59,8 +67,7 @@ No code yet. Stage A1 (kernel specification) is drafted and awaiting owner appro
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
-| O9 | Approve the Stage A1 kernel spec, its 13 changes to the FLOW.md state table (X1-X13) and ADRs 0004-0013. The largest: a free-text withdrawal needs human confirmation (ADR 0009, from I5); RESOLVED_CREDITED waits for the verified credit confirmation (ADR 0012); a human can return a case from review (X7); late replies outside the 7-day window go to review (X9) | As drafted | Owner, before Stage A2 |
-| O10 | New illustrative settings introduced by A1: ops timeout 120 h, agent reopen cap 2, approval expiry 72 h, rejection cap 2 per case, verification deadline 10 min | As drafted (kernel-interfaces.md section 11); A3 owns the final config schema | Stage A3 |
+| O9 | Overall sign-off of the Stage A1 kernel spec. The product decisions inside it are made (D19-D26); what remains is the engineering ADRs 0004-0008, 0010, 0011, 0013 (still "proposed") and the rest of the X1-X14 list | As drafted | Owner, before Stage A2 |
 
 ## 6. What the owner must do (Claude Code never does these)
 

@@ -114,11 +114,11 @@ guards:
   pending_source_timer:        "case.pending_intent.source_kind == TIMER (a reminder)"
   pending_source_follow_up:    "case.pending_intent.source_kind == FOLLOW_UP"
   rejection_cap_ok:            "case.rejection_count < policy.approvals.max_rejections_per_case (2)"
-  has_open_seller_expectation: "SELLER_DECISION is active for the case (it is armed only by a verified evidence_request and cancelled when that expectation ends)"
   has_open_ops_expectation:    "OPS_TIMEOUT is active for the case"
   no_verified_credit:          "the case has no POST_CREDIT action in VERIFIED (including verified by a human)"
+  no_reply_since_anchor:       "no inbound seller message for the case was received after the SELLER_DECISION timer's anchor_at"
   verified_kind_seller:        "verified_kind in [evidence_request, reminder]"
-  verified_kind_request:       "verified_kind == evidence_request"
+  verified_kind_request:       "verified_kind in [evidence_request, clarification_request] (each opens a new 48 h / 72 h window)"
   verified_kind_reminder:      "verified_kind == reminder"
   verified_kind_ops:           "verified_kind == remeasurement_issue"
   verified_kind_upheld:        "verified_kind == upheld_explanation"
@@ -165,15 +165,15 @@ transitions:
   # Planning: one proposal -> one intent -> one verdict
   # Expectation timers (SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT) survive the re-evaluation
   # that a reply or finding starts (T26, T31), so that `wait` can return to the open expectation
-  # (T08, T09). Any new primary plan (T06, T07) ends the old expectation and cancels them.
+  # (T09). Any new primary plan (T06, T07) ends the old expectation and cancels them.
   - {id: T06, from: INVESTIGATING,      to: EXECUTING,           trigger: verdict_allow,
      guards: [intent_is_not_credit, action_planned],
      effects: {cancel_timers: [SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT]}}
   - {id: T07, from: INVESTIGATING,      to: AWAITING_APPROVAL,   trigger: verdict_require_approval,
      effects: {cancel_timers: [SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT], schedule_timers: [APPROVAL_EXPIRY]}}
-  - {id: T08, from: INVESTIGATING,      to: AWAITING_SELLER,     trigger: proposal_wait,
-     guards: [has_open_seller_expectation],
-     note: "e.g. an irrelevant or partial reply; the original 72 h deadline still applies"}
+  # (T08, "wait after a seller reply", was removed by owner decision D19: an unclear reply gets one
+  #  clarification follow-up, then a person. INVESTIGATING is only ever reached after a reply in the
+  #  seller flow, so a seller-side `wait` is always denied: escalate reply_unresolved.)
   - {id: T09, from: INVESTIGATING,      to: AWAITING_OPS,        trigger: proposal_wait,
      guards: [has_open_ops_expectation]}
 
@@ -200,9 +200,9 @@ transitions:
      guards: [pending_source_proposal],
      effects: {supersede_pending: true, cancel_timers: [APPROVAL_EXPIRY]}}
   - {id: T16, from: AWAITING_APPROVAL,  to: CLOSED_NO_RESPONSE,  trigger: seller_decision_due,
-     guards: [pending_source_timer],
+     guards: [pending_source_timer, no_reply_since_anchor],
      effects: {supersede_pending: true, cancel_timers: all, record_outcome: true},
-     note: "the decision deadline passed while a reminder awaited approval"}
+     note: "the decision deadline passed while a reminder awaited approval and the seller never replied"}
 
   # Execution and verification
   - {id: T17, from: EXECUTING,          to: VERIFYING,           trigger: action_sent}
@@ -235,15 +235,16 @@ transitions:
 
   # Waiting for the seller
   - {id: T26, from: AWAITING_SELLER,    to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
-     note: "seller timers stay armed until a new plan (T06/T07) or `wait` (T08) decides"}
+     note: "seller timers stay armed until a new plan (T06/T07) or an escalation decides; the decision timer escalates reply_unresolved if neither happens"}
   - {id: T27, from: AWAITING_SELLER,    to: AWAITING_APPROVAL,   trigger: reminder_require_approval,
      effects: {schedule_timers: [APPROVAL_EXPIRY]},
      note: "SELLER_DECISION stays armed"}
   - {id: T28, from: AWAITING_SELLER,    to: EXECUTING,           trigger: reminder_allow,
      guards: [intent_is_not_credit, action_planned]}
   - {id: T29, from: AWAITING_SELLER,    to: CLOSED_NO_RESPONSE,  trigger: seller_decision_due,
+     guards: [no_reply_since_anchor],
      effects: {cancel_timers: all, record_outcome: true},
-     note: "a silent seller is never resolved (D7)"}
+     note: "a silent seller is never resolved (D7). A seller who replied is never closed as no response: the deadline escalates reply_unresolved instead (owner decision D19)"}
   - {id: T30, from: AWAITING_SELLER,    to: WITHDRAWN,           trigger: dispute_withdrawn,
      effects: {cancel_timers: all, record_outcome: true}}
 
@@ -346,7 +347,7 @@ accept:
     OPS_FINDING_RECEIVED: absorb
     APPROVAL_DECIDED: ignore
     TIMER_FIRED.SELLER_REMINDER: step:reminder
-    TIMER_FIRED.SELLER_DECISION: transition:seller_decision_due
+    TIMER_FIRED.SELLER_DECISION: "transition:seller_decision_due | transition:escalate(reply_unresolved)"
     TIMER_FIRED.OPS_TIMEOUT: ignore
     TIMER_FIRED.APPROVAL_EXPIRY: ignore
     TIMER_FIRED.VERIFY_RETRY: ignore
@@ -378,7 +379,7 @@ accept:
     OPS_FINDING_RECEIVED: "transition:ops_finding_received | defer"          # T15; otherwise defer
     APPROVAL_DECIDED: step:apply_approval                                    # -> approval_granted | approval_rejected | escalate
     TIMER_FIRED.SELLER_REMINDER: ignore
-    TIMER_FIRED.SELLER_DECISION: "transition:seller_decision_due | ignore"   # T16 only when a reminder is pending
+    TIMER_FIRED.SELLER_DECISION: "transition:seller_decision_due | transition:escalate(reply_unresolved)"   # T16 only when a reminder is pending and no reply came
     TIMER_FIRED.OPS_TIMEOUT: ignore
     TIMER_FIRED.APPROVAL_EXPIRY: "transition:escalate(approval_expired)"
     TIMER_FIRED.VERIFY_RETRY: ignore
@@ -438,7 +439,7 @@ discrepancies:
     why: "I5: text from outside the system can never change state. An AI reading of an email (which could be spoofed or injected) must not close a dispute. ADR 0009."
   - id: X4
     flow: "No transition for the `wait` proposal"
-    decision: "INVESTIGATING -> AWAITING_SELLER / AWAITING_OPS only when that expectation is still open (T08, T09). Otherwise policy denies `wait` and the case escalates (wait_without_expectation)."
+    decision: "INVESTIGATING -> AWAITING_OPS only while OPS_TIMEOUT is active (T09). A seller-side wait was removed by owner decision D19 (X14). Otherwise policy denies `wait` and the case escalates (wait_without_expectation, or reply_unresolved after a seller reply)."
     why: "`wait` is meaningful only when something is outstanding; a wait with nothing to wait for would stall a case forever."
   - id: X5
     flow: "No path for reminders (48 h) through approval"
@@ -476,6 +477,10 @@ discrepancies:
     flow: "'any working state -> NEEDS_HUMAN_REVIEW'"
     decision: "Every working state except NEEDS_HUMAN_REVIEW itself (T90). Escalating from review is a no-op, not a transition."
     why: "A self-transition would write a misleading STATE_CHANGED event."
+  - id: X14
+    flow: "AWAITING_SELLER -> CLOSED_NO_RESPONSE at 72 h when there is no useful reply; an irrelevant reply re-enters INVESTIGATING"
+    decision: "Owner decision D19 (2026-11-02). An unclear, partial or irrelevant reply gets one clarification_request that names what is still missing or unclear (policy.contact.max_clarifications_per_case = 1, within the contact limits). If that does not resolve it, or the agent cannot handle the reply, the case goes to a person (reply_unresolved). A seller who replied is never closed as CLOSED_NO_RESPONSE (guard no_reply_since_anchor on T16, T29). T08 (wait after a reply) is removed. ADR 0014."
+    why: "A seller who engaged deserves an answer or a person, not a silent close; one bounded follow-up resolves most ambiguity without letting a case loop."
 
 # Checks run on this table (results in docs/spec/orchestrator.md, appendix A). Phase 1 turns each
 # into a test in tests/unit/statemachine/test_table_properties.py.
@@ -493,4 +498,5 @@ checks:
   C11: "NEEDS_HUMAN_REVIEW leaves only on human-originated triggers (the agent never acts on its own there)"
   C12: "every transition into a terminal state cancels all timers and records an outcome"
   C13: "every transition id is unique; every guard and trigger used is declared"
-  C14: "timer-guarded `wait` transitions are live: the re-evaluation chains T26-T03-T04 and T31-T03-T04 do not cancel SELLER_DECISION / OPS_TIMEOUT (added after the A1 review found T08/T09 unreachable in practice)"
+  C14: "the timer-guarded `wait` transition T09 is live: the re-evaluation chain T31-T03-T04 does not cancel OPS_TIMEOUT (added after the A1 review found the wait transitions unreachable in practice)"
+  C15: "every transition into CLOSED_NO_RESPONSE carries guard no_reply_since_anchor (owner decision D19: a seller who replied is never closed as no response)"

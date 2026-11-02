@@ -162,9 +162,10 @@ class MessageKind(StrEnum):
     EVIDENCE_REQUEST = "evidence_request"; REMINDER = "reminder"
     HANDED_TO_HUMAN_NOTICE = "handed_to_human_notice"; UPHELD_EXPLANATION = "upheld_explanation"
     CREDIT_CONFIRMATION = "credit_confirmation"
+    CLARIFICATION_REQUEST = "clarification_request"   # one follow-up on an unclear reply (D19, ADR 0014)
 class VerifiedKind(StrEnum):   # the `verified_kind` carried by Trigger.ACTION_VERIFIED
     EVIDENCE_REQUEST; REMINDER; REMEASUREMENT_ISSUE; UPHELD_EXPLANATION; CREDIT
-    CREDIT_CONFIRMATION; HANDED_TO_HUMAN_NOTICE
+    CREDIT_CONFIRMATION; HANDED_TO_HUMAN_NOTICE; CLARIFICATION_REQUEST
 
 class IntentSource(StrEnum): PROPOSAL; TIMER; FOLLOW_UP
 class IntentStatus(StrEnum): PENDING_APPROVAL; APPROVED; PLANNED; SUPERSEDED; REJECTED; EXPIRED
@@ -209,6 +210,7 @@ class ReviewCode(StrEnum):
     DELIVERY_FAILED = "delivery_failed"
     LATE_INBOUND = "late_inbound"
     STEP_LIMIT = "step_limit"
+    REPLY_UNRESOLVED = "reply_unresolved"           # the seller replied but the agent could not resolve it (D19)
     INTERNAL_ERROR = "internal_error"
 ```
 
@@ -1115,6 +1117,7 @@ class TimersConfig(BaseModel):
     reopen_window_days: int = 7; ops_timeout_hours: int = 120
 class ContactConfig(BaseModel):
     max_messages_per_case: int = 3; max_messages_per_day: int = 1; day_boundary_tz: str = "Asia/Kolkata"
+    max_clarifications_per_case: int = 1                                     # D19: one follow-up, then a person
 class MessagesConfig(BaseModel):
     review_required_kinds: frozenset[MessageKind] = frozenset(MessageKind)   # pilot: all (D6)
     auto_send_kinds: frozenset[MessageKind] = frozenset()                    # validator: disjoint, union = all kinds
@@ -1180,6 +1183,7 @@ class GuardContext(BaseModel):
     pending_intent: ActionIntent | None; approval: Approval | None
     verified_kind: VerifiedKind | None; action_planned: bool
     active_timers: tuple[Timer, ...]; actions: tuple[Action, ...]
+    last_seller_reply_at: datetime | None     # for guard no_reply_since_anchor
     policy: "PolicyConfig"
 
 Guard = Callable[[GuardContext], bool]
@@ -1194,7 +1198,7 @@ class TransitionResult(BaseModel):
 class StateMachine:
     def __init__(self, table: Sequence[TransitionSpec], guards: Mapping[str, Guard],
                  accept: Mapping[CaseState, Mapping[str, str]], clock: Clock, ids: IdGenerator) -> None:
-        """Validates the table at construction (checks C1-C14). Raises ConfigError."""
+        """Validates the table at construction (checks C1-C16). Raises ConfigError."""
     def reaction(self, state: CaseState, event: InboundEvent) -> tuple[Reaction, str | None]:
         """From the accept matrix; key is the event type, or 'TIMER_FIRED.<kind>' for timers.
         Returns (TRANSITION, trigger) / (STEP, step name) / (ABSORB|DEFER|IGNORE, None).

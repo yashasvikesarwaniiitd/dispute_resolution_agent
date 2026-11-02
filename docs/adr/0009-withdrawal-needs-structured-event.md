@@ -1,6 +1,6 @@
 # ADR 0009: A free-text withdrawal needs human confirmation
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

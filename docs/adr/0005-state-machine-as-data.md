@@ -7,7 +7,7 @@ Date: 2026-11-02
 The state machine is a declarative table (`docs/spec/transitions.yaml`, transcribed into `kernel/statemachine/transitions.py`) of transitions with named guards and effects, plus a matrix that says what every state does with every inbound event (transition, step, absorb, defer, ignore). The table reconciles FLOW.md section 2 with thirteen recorded changes (X1-X13), including a human return path from NEEDS_HUMAN_REVIEW and a bounded wait in every waiting state.
 
 ## Why
-A table can be checked mechanically: reachability, no dead ends, credits only via approval, resolved only after verification. Fourteen such checks (C1-C14) were run on it and Phase 1 keeps them as tests. The matrix closes the gap a transition list leaves open: what happens to a reply that arrives while an email is being sent, or a timer that fires after the case moved on. Without it those situations get handled ad hoc in code.
+A table can be checked mechanically: reachability, no dead ends, credits only via approval, resolved only after verification. Sixteen such checks (C1-C16) were run on it and Phase 1 keeps them as tests. The matrix closes the gap a transition list leaves open: what happens to a reply that arrives while an email is being sent, or a timer that fires after the case moved on. Without it those situations get handled ad hoc in code.
 
 ## Options considered
 - Transitions written as if/else in the orchestrator: unreviewable and untestable as a whole.
