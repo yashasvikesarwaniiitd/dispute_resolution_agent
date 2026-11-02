@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-Nothing is built yet. This pack contains the design intent, the rules, the prompts and the process.
+No code yet. Stage A1 (kernel specification) is drafted and awaiting owner approval: `docs/spec/` holds `kernel-interfaces.md`, `schema.sql`, `transitions.yaml`, `events-catalog.md`, `orchestrator.md`, `executor.md` and `traceability.md`, with ADRs 0004-0013 (status proposed). The state machine table passed checks C1-C14, the schema loaded into SQLite and passed 27 negative tests, and an independent review's four real defects (duplicate credit path, stranded timer, credited case re-planned, crash re-send) are fixed (orchestrator.md appendix A).
 
-**Next action: Stage A1 (kernel specification) on Opus.** Run `./scripts/stage-a-opus.sh`, then `/phase-start a1`.
+**Next action: the owner reviews Stage A1** (start with `transitions.yaml` `discrepancies` X1-X13 and the ADRs; decision O9). After approval: Stage A2 (safety and policy) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a2`.
 
 ## 2. The project in five lines
 
@@ -59,6 +59,8 @@ Nothing is built yet. This pack contains the design intent, the rules, the promp
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
+| O9 | Approve the Stage A1 kernel spec, its 13 changes to the FLOW.md state table (X1-X13) and ADRs 0004-0013. The largest: a free-text withdrawal needs human confirmation (ADR 0009, from I5); RESOLVED_CREDITED waits for the verified credit confirmation (ADR 0012); a human can return a case from review (X7); late replies outside the 7-day window go to review (X9) | As drafted | Owner, before Stage A2 |
+| O10 | New illustrative settings introduced by A1: ops timeout 120 h, agent reopen cap 2, approval expiry 72 h, rejection cap 2 per case, verification deadline 10 min | As drafted (kernel-interfaces.md section 11); A3 owns the final config schema | Stage A3 |
 
 ## 6. What the owner must do (Claude Code never does these)
 
@@ -117,4 +119,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Stage A1: kernel specification on Opus.
+Owner review of Stage A1 (decision O9), then Stage A2: safety and policy specification on Opus.

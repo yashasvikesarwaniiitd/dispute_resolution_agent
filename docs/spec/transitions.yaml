@@ -1,0 +1,496 @@
+# State machine specification (Stage A1). Authority: docs/spec beats docs/FLOW.md (CLAUDE.md section 18).
+#
+# Phase 1 transcribes this file into kernel/statemachine/transitions.py (the kernel cannot import
+# pyyaml). A spec-conformance test loads this YAML and asserts the Python table is identical.
+#
+# Reading guide
+#   states       every state, its category and its reopen rule
+#   triggers     every trigger that can move a case, and what produces it
+#   guards       named pure predicates; a transition fires only if all its guards hold
+#   transitions  the legal moves; anything not listed is an IllegalTransition
+#   accept       what each state does with each inbound event (the event acceptance matrix)
+#   discrepancies  every difference from docs/FLOW.md section 2, with the decision and reason
+#
+# Effects vocabulary (applied atomically with the transition, in this order):
+#   cancel_timers: [kinds] | all       mark active timers of these kinds cancelled, and void fired timers
+#                                      of these kinds whose TIMER_FIRED is not yet consumed (deferred), so a
+#                                      late redelivery is recognised as stale (pre-dispatch rule P1)
+#   schedule_timers: [kinds]           arm timers; due_at rules are in `timer_kinds`
+#   supersede_pending: true            pending intent -> SUPERSEDED, its approval -> SUPERSEDED (ApprovalService.withdraw after commit)
+#   mark_in_flight_unknown: true       every action of the case in PLANNED or SENT -> UNKNOWN (reason in_flight_at_escalation)
+#   clear_pending: true                case.pending_intent_id -> null (intent already consumed)
+#   set_review_reason: true            case.review_reason := the trigger's reason (required)
+#   clear_review_reason: true
+#   increment: [reopen_count | rejection_count]
+#   record_outcome: true               write CASE_OUTCOME_RECORDED event and an outcome_outbox row
+#
+# Implicit effects (apply to every transition, not repeated below):
+#   every transition into GATHERING_EVIDENCE: gather_round += 1, rejection_count := 0
+#   every transition into a terminal state: closed_at := now; every transition out of one: closed_at := null
+#   every transition: state_entered_at := now, updated_at := now
+#   entering NEEDS_HUMAN_REVIEW sets review_reason (required); leaving it clears review_reason
+
+version: 1
+
+states:
+  # category: auto           the orchestrator runs this state's step immediately; never rests
+  #           auto_may_rest  runs a step; the step may rest (no transition) and wait for a timer
+  #           waiting        rests until an inbound event arrives
+  #           human          rests; only human events move it; the agent takes no action
+  #           terminal       an outcome; `reopen` says who may reopen it
+  RECEIVED:            {category: auto,          step: eligibility}
+  GATHERING_EVIDENCE:  {category: auto,          step: gather_evidence}
+  CALCULATING:         {category: auto,          step: assess}
+  INVESTIGATING:       {category: auto,          step: investigate}
+  EXECUTING:           {category: auto,          step: execute}
+  VERIFYING:           {category: auto_may_rest, step: verify}
+  AWAITING_SELLER:     {category: waiting}
+  AWAITING_OPS:        {category: waiting}
+  AWAITING_APPROVAL:   {category: waiting}
+  NEEDS_HUMAN_REVIEW:  {category: human}
+  RESOLVED_CREDITED:   {category: terminal, resolved: true,  reopen: human}
+  RESOLVED_UPHELD:     {category: terminal, resolved: true,  reopen: agent_within_window}
+  WITHDRAWN:           {category: terminal, resolved: false, reopen: human}
+  CLOSED_NO_RESPONSE:  {category: terminal, resolved: false, reopen: agent_within_window}
+  REJECTED_INELIGIBLE: {category: terminal, resolved: false, reopen: human}
+  HANDED_TO_HUMAN:     {category: terminal, resolved: false, reopen: never}   # D9: final for the agent
+
+# Working states = every non-terminal state. "Escalable" = working states the agent acts in
+# (every working state except NEEDS_HUMAN_REVIEW).
+groups:
+  escalable: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING,
+              AWAITING_SELLER, AWAITING_OPS, AWAITING_APPROVAL]
+  soft_terminal: [RESOLVED_UPHELD, CLOSED_NO_RESPONSE]
+  hard_terminal: [RESOLVED_CREDITED, WITHDRAWN, REJECTED_INELIGIBLE]
+
+timer_kinds:
+  SELLER_REMINDER: {due: "anchor + policy.timers.reminder_after_hours (48h)", anchor: evidence_request verified_at}
+  SELLER_DECISION: {due: "anchor + policy.timers.decision_after_hours (72h)", anchor: evidence_request verified_at}
+  OPS_TIMEOUT:     {due: "anchor + policy.timers.ops_timeout_hours (120h)",    anchor: remeasurement issue verified_at}
+  APPROVAL_EXPIRY: {due: "anchor + policy.approvals.expire_after_hours (72h)", anchor: approval requested_at}
+  VERIFY_RETRY:    {due: "next entry of executor.verify_schedule_s after the last attempt", anchor: action sent_at}
+  # At most one active timer per (case, kind): a partial unique index enforces it (schema.sql).
+
+triggers:
+  # kind: step   produced by the current state's step (pure decision over step results)
+  #       event  produced by an inbound event (via the accept matrix)
+  #       timer  produced by TIMER_FIRED of the named kind
+  #       human  produced by a HUMAN_* event; the actor must be a human
+  case_opened:                 {kind: event, from_event: DISPUTE_RAISED, note: "intake creates the case; the only transition with no from-state"}
+  eligibility_passed:          {kind: step}
+  eligibility_failed:          {kind: step, note: "definite ineligibility from DomainPack.eligibility; carries reason codes"}
+  evidence_recorded:           {kind: step, note: "every requirement recorded as FOUND, MISSING or FAILED; never invented"}
+  assessment_ready:            {kind: step}
+  assessment_ineligible:       {kind: step, note: "DomainPack.assess proves the claim ineligible from evidence"}
+  verdict_allow:               {kind: step, note: "policy Allow and executor.plan succeeded (PLANNED action row written)"}
+  verdict_require_approval:    {kind: step, note: "policy RequireApproval; approval row written"}
+  proposal_wait:               {kind: step}
+  reminder_allow:              {kind: step, note: "SELLER_REMINDER step: reminder intent, policy Allow"}
+  reminder_require_approval:   {kind: step}
+  follow_up_allow:             {kind: step, note: "deterministic follow-up intent (credit_confirmation, handed_to_human_notice) allowed"}
+  follow_up_require_approval:  {kind: step}
+  follow_up_blocked:           {kind: step, note: "follow-up intent denied or escalated by policy"}
+  action_sent:                 {kind: step}
+  action_verified:             {kind: step, note: "carries verified_kind: evidence_request | reminder | remeasurement_issue | upheld_explanation | credit | credit_confirmation | handed_to_human_notice"}
+  approval_granted:            {kind: event, from_event: APPROVAL_DECIDED}
+  approval_rejected:           {kind: event, from_event: APPROVAL_DECIDED}
+  seller_reply_received:       {kind: event, from_event: SELLER_REPLY_RECEIVED}
+  ops_finding_received:        {kind: event, from_event: OPS_FINDING_RECEIVED}
+  dispute_withdrawn:           {kind: event, from_event: DISPUTE_WITHDRAWN, note: "structured, authenticated source only; free text never triggers this (I5)"}
+  dispute_raised_again:        {kind: event, from_event: DISPUTE_RAISED}
+  seller_decision_due:         {kind: timer, timer: SELLER_DECISION}
+  human_took_case:             {kind: human, from_event: HUMAN_TOOK_CASE, note: "applied by the hand_off step, which that event starts"}
+  human_returned_case:         {kind: human, from_event: HUMAN_RETURNED_CASE}
+  human_reopened_case:         {kind: human, from_event: HUMAN_REOPENED_CASE}
+  human_confirmed_withdrawal:  {kind: human, from_event: HUMAN_CONFIRMED_WITHDRAWAL}
+  late_inbound:                {kind: event, note: "seller reply, ops finding or dispute on a soft-terminal case that fails a reopen guard"}
+  escalate:                    {kind: step, note: "carries a ReviewReason (required). Produced by any step, by policy Deny/Escalate, by ModuleUnavailable, kill switch, guardrail block, FAILED/UNKNOWN action, timeouts, bounces and limits"}
+
+guards:
+  intent_is_not_credit:        "the intent being executed is not POST_CREDIT (I3 defence in depth: credits reach EXECUTING only from AWAITING_APPROVAL)"
+  action_planned:              "a PLANNED action row for case.pending_intent_id was written in this transaction"
+  approval_matches_pending:    "the event's approval_id is the approval of case.pending_intent_id and its payload_hash equals the intent's"
+  pending_source_proposal:     "case.pending_intent.source_kind == PROPOSAL"
+  pending_source_timer:        "case.pending_intent.source_kind == TIMER (a reminder)"
+  pending_source_follow_up:    "case.pending_intent.source_kind == FOLLOW_UP"
+  rejection_cap_ok:            "case.rejection_count < policy.approvals.max_rejections_per_case (2)"
+  has_open_seller_expectation: "SELLER_DECISION is active for the case (it is armed only by a verified evidence_request and cancelled when that expectation ends)"
+  has_open_ops_expectation:    "OPS_TIMEOUT is active for the case"
+  no_verified_credit:          "the case has no POST_CREDIT action in VERIFIED (including verified by a human)"
+  verified_kind_seller:        "verified_kind in [evidence_request, reminder]"
+  verified_kind_request:       "verified_kind == evidence_request"
+  verified_kind_reminder:      "verified_kind == reminder"
+  verified_kind_ops:           "verified_kind == remeasurement_issue"
+  verified_kind_upheld:        "verified_kind == upheld_explanation"
+  verified_kind_credit:        "verified_kind == credit"
+  verified_kind_confirmation:  "verified_kind == credit_confirmation"
+  verified_kind_notice:        "verified_kind == handed_to_human_notice"
+  credit_verified_for_case:    "the case has exactly one VERIFIED POST_CREDIT action"
+  within_reopen_window:        "now < case.closed_at + policy.timers.reopen_window_days (7d)"
+  reopen_cap_ok:               "case.reopen_count < policy.cases.max_agent_reopens (2)"
+  not_superseded:              "case.superseded_by_case_id is null"
+  reopen_guards_fail:          "NOT (within_reopen_window AND reopen_cap_ok); and not_superseded"
+  actor_is_human:              "event.actor.kind == HUMAN"
+  notify_seller:               "HUMAN_TOOK_CASE payload notify_seller == true"
+  no_notify_seller:            "HUMAN_TOOK_CASE payload notify_seller == false"
+  unknown_actions_resolved:    "no action of the case is in PLANNED, SENT or UNKNOWN after applying the event's resolutions"
+
+# Steps: what each step may produce. `rest` = no transition (only VERIFYING and the reminder step).
+# Any step may also produce `escalate` (an unexpected exception inside a step is escalate(internal_error)).
+steps:
+  eligibility:     {in: [RECEIVED],           produces: [eligibility_passed, eligibility_failed, escalate]}
+  gather_evidence: {in: [GATHERING_EVIDENCE], produces: [evidence_recorded, escalate]}
+  assess:          {in: [CALCULATING],        produces: [assessment_ready, assessment_ineligible, escalate]}
+  investigate:     {in: [INVESTIGATING],      produces: [verdict_allow, verdict_require_approval, proposal_wait, escalate]}
+  execute:         {in: [EXECUTING],          produces: [action_sent, escalate]}
+  verify:          {in: [VERIFYING],          produces: [action_verified, follow_up_allow, follow_up_require_approval, rest, escalate]}
+  reminder:        {in: [AWAITING_SELLER],    produces: [reminder_allow, reminder_require_approval, rest, escalate],
+                    note: "rest = REMINDER_SKIPPED (policy denied the reminder, e.g. contact limit)"}
+  apply_approval:  {in: [AWAITING_APPROVAL],  produces: [approval_granted, approval_rejected, escalate],
+                    note: "rejection of a FOLLOW_UP intent -> escalate(follow_up_rejected); over rejection cap -> escalate(approval_rejected_limit); execution re-check fails -> escalate(policy_denied)"}
+  hand_off:        {in: [NEEDS_HUMAN_REVIEW], produces: [human_took_case, follow_up_allow, follow_up_require_approval, follow_up_blocked]}
+
+transitions:
+  - {id: T00, from: null,               to: RECEIVED,            trigger: case_opened}
+
+  # Deterministic stage (no AI)
+  - {id: T01, from: RECEIVED,           to: GATHERING_EVIDENCE,  trigger: eligibility_passed}
+  - {id: T02, from: RECEIVED,           to: REJECTED_INELIGIBLE, trigger: eligibility_failed,
+     effects: {cancel_timers: all, record_outcome: true}}
+  - {id: T03, from: GATHERING_EVIDENCE, to: CALCULATING,         trigger: evidence_recorded}
+  - {id: T04, from: CALCULATING,        to: INVESTIGATING,       trigger: assessment_ready}
+  - {id: T05, from: CALCULATING,        to: REJECTED_INELIGIBLE, trigger: assessment_ineligible,
+     effects: {cancel_timers: all, record_outcome: true}}
+
+  # Planning: one proposal -> one intent -> one verdict
+  # Expectation timers (SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT) survive the re-evaluation
+  # that a reply or finding starts (T26, T31), so that `wait` can return to the open expectation
+  # (T08, T09). Any new primary plan (T06, T07) ends the old expectation and cancels them.
+  - {id: T06, from: INVESTIGATING,      to: EXECUTING,           trigger: verdict_allow,
+     guards: [intent_is_not_credit, action_planned],
+     effects: {cancel_timers: [SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT]}}
+  - {id: T07, from: INVESTIGATING,      to: AWAITING_APPROVAL,   trigger: verdict_require_approval,
+     effects: {cancel_timers: [SELLER_REMINDER, SELLER_DECISION, OPS_TIMEOUT], schedule_timers: [APPROVAL_EXPIRY]}}
+  - {id: T08, from: INVESTIGATING,      to: AWAITING_SELLER,     trigger: proposal_wait,
+     guards: [has_open_seller_expectation],
+     note: "e.g. an irrelevant or partial reply; the original 72 h deadline still applies"}
+  - {id: T09, from: INVESTIGATING,      to: AWAITING_OPS,        trigger: proposal_wait,
+     guards: [has_open_ops_expectation]}
+
+  # Approvals
+  - {id: T10, from: AWAITING_APPROVAL,  to: EXECUTING,           trigger: approval_granted,
+     guards: [approval_matches_pending, action_planned],
+     effects: {cancel_timers: [APPROVAL_EXPIRY]}}
+  - {id: T11, from: AWAITING_APPROVAL,  to: INVESTIGATING,       trigger: approval_rejected,
+     guards: [approval_matches_pending, pending_source_proposal, rejection_cap_ok],
+     effects: {cancel_timers: [APPROVAL_EXPIRY], clear_pending: true, increment: [rejection_count]}}
+  - {id: T12, from: AWAITING_APPROVAL,  to: AWAITING_SELLER,     trigger: approval_rejected,
+     guards: [approval_matches_pending, pending_source_timer],
+     effects: {cancel_timers: [APPROVAL_EXPIRY], clear_pending: true},
+     note: "a rejected reminder is skipped; the seller timers keep running"}
+  - {id: T13, from: AWAITING_APPROVAL,  to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
+     guards: [pending_source_proposal],
+     effects: {supersede_pending: true, cancel_timers: [APPROVAL_EXPIRY]},
+     note: "new evidence makes a pending proposal stale; re-evaluate from evidence"}
+  - {id: T14, from: AWAITING_APPROVAL,  to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
+     guards: [pending_source_timer],
+     effects: {supersede_pending: true, cancel_timers: [APPROVAL_EXPIRY]},
+     note: "the seller replied while a reminder awaited approval; the reminder is dropped, the deadline stays"}
+  - {id: T15, from: AWAITING_APPROVAL,  to: GATHERING_EVIDENCE,  trigger: ops_finding_received,
+     guards: [pending_source_proposal],
+     effects: {supersede_pending: true, cancel_timers: [APPROVAL_EXPIRY]}}
+  - {id: T16, from: AWAITING_APPROVAL,  to: CLOSED_NO_RESPONSE,  trigger: seller_decision_due,
+     guards: [pending_source_timer],
+     effects: {supersede_pending: true, cancel_timers: all, record_outcome: true},
+     note: "the decision deadline passed while a reminder awaited approval"}
+
+  # Execution and verification
+  - {id: T17, from: EXECUTING,          to: VERIFYING,           trigger: action_sent}
+  - {id: T18, from: VERIFYING,          to: AWAITING_SELLER,     trigger: action_verified,
+     guards: [verified_kind_request],
+     effects: {clear_pending: true, cancel_timers: [VERIFY_RETRY], schedule_timers: [SELLER_REMINDER, SELLER_DECISION]}}
+  - {id: T19, from: VERIFYING,          to: AWAITING_SELLER,     trigger: action_verified,
+     guards: [verified_kind_reminder],
+     effects: {clear_pending: true, cancel_timers: [VERIFY_RETRY]},
+     note: "SELLER_DECISION stays armed from the original request; the window is not reset"}
+  - {id: T20, from: VERIFYING,          to: AWAITING_OPS,        trigger: action_verified,
+     guards: [verified_kind_ops],
+     effects: {clear_pending: true, cancel_timers: [VERIFY_RETRY], schedule_timers: [OPS_TIMEOUT]}}
+  - {id: T21, from: VERIFYING,          to: RESOLVED_UPHELD,     trigger: action_verified,
+     guards: [verified_kind_upheld],
+     effects: {clear_pending: true, cancel_timers: all, record_outcome: true}}
+  - {id: T22, from: VERIFYING,          to: AWAITING_APPROVAL,   trigger: follow_up_require_approval,
+     guards: [verified_kind_credit],
+     effects: {cancel_timers: [VERIFY_RETRY], schedule_timers: [APPROVAL_EXPIRY]},
+     note: "credit verified; the credit_confirmation message is a deterministic follow-up"}
+  - {id: T23, from: VERIFYING,          to: EXECUTING,           trigger: follow_up_allow,
+     guards: [verified_kind_credit, intent_is_not_credit, action_planned],
+     effects: {cancel_timers: [VERIFY_RETRY]}}
+  - {id: T24, from: VERIFYING,          to: RESOLVED_CREDITED,   trigger: action_verified,
+     guards: [verified_kind_confirmation, credit_verified_for_case],
+     effects: {clear_pending: true, cancel_timers: all, record_outcome: true}}
+  - {id: T25, from: VERIFYING,          to: HANDED_TO_HUMAN,     trigger: action_verified,
+     guards: [verified_kind_notice],
+     effects: {clear_pending: true, cancel_timers: all, record_outcome: true}}
+
+  # Waiting for the seller
+  - {id: T26, from: AWAITING_SELLER,    to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
+     note: "seller timers stay armed until a new plan (T06/T07) or `wait` (T08) decides"}
+  - {id: T27, from: AWAITING_SELLER,    to: AWAITING_APPROVAL,   trigger: reminder_require_approval,
+     effects: {schedule_timers: [APPROVAL_EXPIRY]},
+     note: "SELLER_DECISION stays armed"}
+  - {id: T28, from: AWAITING_SELLER,    to: EXECUTING,           trigger: reminder_allow,
+     guards: [intent_is_not_credit, action_planned]}
+  - {id: T29, from: AWAITING_SELLER,    to: CLOSED_NO_RESPONSE,  trigger: seller_decision_due,
+     effects: {cancel_timers: all, record_outcome: true},
+     note: "a silent seller is never resolved (D7)"}
+  - {id: T30, from: AWAITING_SELLER,    to: WITHDRAWN,           trigger: dispute_withdrawn,
+     effects: {cancel_timers: all, record_outcome: true}}
+
+  # Waiting for operations
+  - {id: T31, from: AWAITING_OPS,       to: GATHERING_EVIDENCE,  trigger: ops_finding_received,
+     note: "OPS_TIMEOUT stays armed until a new plan (T06/T07) or `wait` (T09) decides"}
+  - {id: T32, from: AWAITING_OPS,       to: WITHDRAWN,           trigger: dispute_withdrawn,
+     effects: {cancel_timers: all, record_outcome: true}}
+
+  # Human review (the agent does nothing here on its own)
+  - {id: T33, from: NEEDS_HUMAN_REVIEW, to: HANDED_TO_HUMAN,     trigger: human_took_case,
+     guards: [actor_is_human, no_notify_seller],
+     effects: {cancel_timers: all, clear_review_reason: true, record_outcome: true}}
+  - {id: T34, from: NEEDS_HUMAN_REVIEW, to: AWAITING_APPROVAL,   trigger: follow_up_require_approval,
+     guards: [actor_is_human, notify_seller],
+     effects: {schedule_timers: [APPROVAL_EXPIRY]},
+     note: "the handed_to_human_notice is drafted and goes through the review queue"}
+  - {id: T35, from: NEEDS_HUMAN_REVIEW, to: EXECUTING,           trigger: follow_up_allow,
+     guards: [actor_is_human, notify_seller, intent_is_not_credit, action_planned]}
+  - {id: T36, from: NEEDS_HUMAN_REVIEW, to: HANDED_TO_HUMAN,     trigger: follow_up_blocked,
+     guards: [actor_is_human, notify_seller],
+     effects: {cancel_timers: all, clear_review_reason: true, record_outcome: true},
+     note: "the human owns the case either way; NOTICE_NOT_SENT is recorded so the human knows"}
+  - {id: T37, from: NEEDS_HUMAN_REVIEW, to: GATHERING_EVIDENCE,  trigger: human_returned_case,
+     guards: [actor_is_human, unknown_actions_resolved, no_verified_credit],
+     effects: {clear_review_reason: true, clear_pending: true},
+     note: "re-runs the whole deterministic stage; never resumes a stale plan. A case whose credit is already verified cannot return to the agent: the human takes it (T33-T36)"}
+  - {id: T38, from: NEEDS_HUMAN_REVIEW, to: WITHDRAWN,           trigger: human_confirmed_withdrawal,
+     guards: [actor_is_human],
+     effects: {cancel_timers: all, clear_review_reason: true, record_outcome: true}}
+
+  # Reopening
+  - {id: T39, from: CLOSED_NO_RESPONSE, to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
+     guards: [within_reopen_window, reopen_cap_ok, not_superseded],
+     effects: {increment: [reopen_count]}}
+  - {id: T40, from: RESOLVED_UPHELD,    to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
+     guards: [within_reopen_window, reopen_cap_ok, not_superseded],
+     effects: {increment: [reopen_count]}}
+  - {id: T41, from: RESOLVED_UPHELD,    to: GATHERING_EVIDENCE,  trigger: ops_finding_received,
+     guards: [within_reopen_window, reopen_cap_ok, not_superseded],
+     effects: {increment: [reopen_count]}}
+  - {id: T42, from: RESOLVED_UPHELD,    to: GATHERING_EVIDENCE,  trigger: dispute_raised_again,
+     guards: [within_reopen_window, reopen_cap_ok, not_superseded],
+     effects: {increment: [reopen_count]}}
+  - {id: T48, from: CLOSED_NO_RESPONSE, to: GATHERING_EVIDENCE,  trigger: dispute_raised_again,
+     guards: [within_reopen_window, reopen_cap_ok, not_superseded],
+     effects: {increment: [reopen_count]},
+     note: "intake routes a new dispute here only inside the reopen window (orchestrator.md section 2)"}
+  - {id: T43, from: CLOSED_NO_RESPONSE, to: NEEDS_HUMAN_REVIEW,  trigger: late_inbound,
+     guards: [reopen_guards_fail],
+     effects: {set_review_reason: true, increment: [reopen_count]},
+     note: "late reply outside the window or over the cap: a person decides; never silently dropped"}
+  - {id: T44, from: RESOLVED_UPHELD,    to: NEEDS_HUMAN_REVIEW,  trigger: late_inbound,
+     guards: [reopen_guards_fail],
+     effects: {set_review_reason: true, increment: [reopen_count]}}
+  - {id: T45, from: RESOLVED_CREDITED,  to: GATHERING_EVIDENCE,  trigger: human_reopened_case,
+     guards: [actor_is_human, not_superseded], effects: {increment: [reopen_count]}}
+  - {id: T46, from: WITHDRAWN,          to: GATHERING_EVIDENCE,  trigger: human_reopened_case,
+     guards: [actor_is_human, not_superseded], effects: {increment: [reopen_count]}}
+  - {id: T47, from: REJECTED_INELIGIBLE, to: GATHERING_EVIDENCE, trigger: human_reopened_case,
+     guards: [actor_is_human, not_superseded], effects: {increment: [reopen_count]}}
+
+  # Escalation: every escalable state can always reach a human (I4, I6, I10, I15)
+  - {id: T90, from_group: escalable,    to: NEEDS_HUMAN_REVIEW,  trigger: escalate,
+     effects: {cancel_timers: all, supersede_pending: true, mark_in_flight_unknown: true, set_review_reason: true},
+     note: "an action left PLANNED or SENT may already have happened, so it becomes UNKNOWN and a human must resolve it before the case returns (T37). With reason approval_expired, the pending intent and approval become EXPIRED instead of SUPERSEDED"}
+
+# Event acceptance matrix. For every state and every inbound event type (TIMER_FIRED split by kind):
+#   transition:<trigger>   apply that trigger (guards pick among same-trigger transitions; if no
+#                          transition's guards hold, the alternative after `|` applies)
+#   step:<name>            run the named step (it decides the trigger)
+#   absorb                 append the event; no transition (it becomes evidence for the next gather)
+#   defer                  append the event; inbox status DEFERRED; redelivered after the next
+#                          transition into a state whose reaction is not `defer`
+#   ignore                 append the event and EVENT_IGNORED(reason); no transition
+# Pre-dispatch rules that override this matrix:
+#   P1 TIMER_FIRED for a timer that is cancelled, voided, already consumed, or belongs to another case
+#      -> ignore (stale_timer). A timer that fired and whose event was deferred is NOT stale: it is
+#      consumed (timers.consumed_at) only when its event is processed with a reaction other than defer.
+#   P2 APPROVAL_DECIDED whose approval is not the pending intent's approval -> ignore (stale_approval)
+#   P3 HUMAN_* event whose actor is not HUMAN -> ignore (not_human)
+#   P4 any event for a case with superseded_by_case_id set -> ignore (superseded_case)
+# `*` is the default for event types not listed under that state.
+accept:
+  RECEIVED:            {DISPUTE_RAISED: absorb, "*": defer}
+  GATHERING_EVIDENCE:  {DISPUTE_RAISED: absorb, "*": defer}
+  CALCULATING:         {DISPUTE_RAISED: absorb, "*": defer}
+  INVESTIGATING:       {DISPUTE_RAISED: absorb, "*": defer}
+  EXECUTING:           {DISPUTE_RAISED: absorb, "*": defer}
+  VERIFYING:
+    DISPUTE_RAISED: absorb
+    TIMER_FIRED.VERIFY_RETRY: step:verify
+    DELIVERY_FAILURE_RECEIVED: "transition:escalate(delivery_failed)"
+    "*": defer
+  AWAITING_SELLER:
+    DISPUTE_RAISED: absorb
+    SELLER_REPLY_RECEIVED: transition:seller_reply_received
+    DISPUTE_WITHDRAWN: transition:dispute_withdrawn
+    DELIVERY_FAILURE_RECEIVED: "transition:escalate(delivery_failed)"
+    OPS_FINDING_RECEIVED: absorb
+    APPROVAL_DECIDED: ignore
+    TIMER_FIRED.SELLER_REMINDER: step:reminder
+    TIMER_FIRED.SELLER_DECISION: transition:seller_decision_due
+    TIMER_FIRED.OPS_TIMEOUT: ignore
+    TIMER_FIRED.APPROVAL_EXPIRY: ignore
+    TIMER_FIRED.VERIFY_RETRY: ignore
+    HUMAN_TOOK_CASE: ignore
+    HUMAN_RETURNED_CASE: ignore
+    HUMAN_REOPENED_CASE: ignore
+    HUMAN_CONFIRMED_WITHDRAWAL: ignore
+  AWAITING_OPS:
+    DISPUTE_RAISED: absorb
+    SELLER_REPLY_RECEIVED: defer
+    DISPUTE_WITHDRAWN: transition:dispute_withdrawn
+    DELIVERY_FAILURE_RECEIVED: "transition:escalate(delivery_failed)"
+    OPS_FINDING_RECEIVED: transition:ops_finding_received
+    APPROVAL_DECIDED: ignore
+    TIMER_FIRED.SELLER_REMINDER: ignore
+    TIMER_FIRED.SELLER_DECISION: ignore
+    TIMER_FIRED.OPS_TIMEOUT: "transition:escalate(ops_timeout)"
+    TIMER_FIRED.APPROVAL_EXPIRY: ignore
+    TIMER_FIRED.VERIFY_RETRY: ignore
+    HUMAN_TOOK_CASE: ignore
+    HUMAN_RETURNED_CASE: ignore
+    HUMAN_REOPENED_CASE: ignore
+    HUMAN_CONFIRMED_WITHDRAWAL: ignore
+  AWAITING_APPROVAL:
+    DISPUTE_RAISED: absorb
+    SELLER_REPLY_RECEIVED: "transition:seller_reply_received | defer"        # T13/T14; follow-up pending -> defer
+    DISPUTE_WITHDRAWN: defer
+    DELIVERY_FAILURE_RECEIVED: "transition:escalate(delivery_failed)"
+    OPS_FINDING_RECEIVED: "transition:ops_finding_received | defer"          # T15; otherwise defer
+    APPROVAL_DECIDED: step:apply_approval                                    # -> approval_granted | approval_rejected | escalate
+    TIMER_FIRED.SELLER_REMINDER: ignore
+    TIMER_FIRED.SELLER_DECISION: "transition:seller_decision_due | ignore"   # T16 only when a reminder is pending
+    TIMER_FIRED.OPS_TIMEOUT: ignore
+    TIMER_FIRED.APPROVAL_EXPIRY: "transition:escalate(approval_expired)"
+    TIMER_FIRED.VERIFY_RETRY: ignore
+    HUMAN_TOOK_CASE: ignore
+    HUMAN_RETURNED_CASE: ignore
+    HUMAN_REOPENED_CASE: ignore
+    HUMAN_CONFIRMED_WITHDRAWAL: ignore
+  NEEDS_HUMAN_REVIEW:
+    DISPUTE_RAISED: absorb
+    SELLER_REPLY_RECEIVED: absorb
+    DISPUTE_WITHDRAWN: absorb
+    DELIVERY_FAILURE_RECEIVED: absorb
+    OPS_FINDING_RECEIVED: absorb
+    APPROVAL_DECIDED: ignore
+    TIMER_FIRED.SELLER_REMINDER: ignore
+    TIMER_FIRED.SELLER_DECISION: ignore
+    TIMER_FIRED.OPS_TIMEOUT: ignore
+    TIMER_FIRED.APPROVAL_EXPIRY: ignore
+    TIMER_FIRED.VERIFY_RETRY: ignore
+    HUMAN_TOOK_CASE: step:hand_off                                           # T33 | T34 | T35 | T36
+    HUMAN_RETURNED_CASE: transition:human_returned_case
+    HUMAN_REOPENED_CASE: ignore
+    HUMAN_CONFIRMED_WITHDRAWAL: transition:human_confirmed_withdrawal
+  RESOLVED_UPHELD:
+    DISPUTE_RAISED: "transition:dispute_raised_again | transition:late_inbound"
+    SELLER_REPLY_RECEIVED: "transition:seller_reply_received | transition:late_inbound"
+    OPS_FINDING_RECEIVED: "transition:ops_finding_received | transition:late_inbound"
+    "*": ignore
+  CLOSED_NO_RESPONSE:
+    SELLER_REPLY_RECEIVED: "transition:seller_reply_received | transition:late_inbound"
+    DISPUTE_RAISED: "transition:dispute_raised_again | transition:late_inbound"
+    "*": ignore
+  RESOLVED_CREDITED:   {HUMAN_REOPENED_CASE: transition:human_reopened_case, "*": ignore}
+  WITHDRAWN:           {HUMAN_REOPENED_CASE: transition:human_reopened_case, "*": ignore}
+  REJECTED_INELIGIBLE: {HUMAN_REOPENED_CASE: transition:human_reopened_case, "*": ignore}
+  HANDED_TO_HUMAN:     {"*": ignore}
+
+input_event_types: [DISPUTE_RAISED, SELLER_REPLY_RECEIVED, DISPUTE_WITHDRAWN, DELIVERY_FAILURE_RECEIVED,
+                    OPS_FINDING_RECEIVED, APPROVAL_DECIDED, TIMER_FIRED.SELLER_REMINDER,
+                    TIMER_FIRED.SELLER_DECISION, TIMER_FIRED.OPS_TIMEOUT, TIMER_FIRED.APPROVAL_EXPIRY,
+                    TIMER_FIRED.VERIFY_RETRY, HUMAN_TOOK_CASE, HUMAN_RETURNED_CASE, HUMAN_REOPENED_CASE,
+                    HUMAN_CONFIRMED_WITHDRAWAL]
+
+# Differences from docs/FLOW.md section 2. Each is decided; the reason is stated.
+discrepancies:
+  - id: X1
+    flow: "INVESTIGATING -> REJECTED_INELIGIBLE (rules show the claim is ineligible)"
+    decision: "Replaced by CALCULATING -> REJECTED_INELIGIBLE (T05)."
+    why: "Ineligibility is a deterministic rule result produced by DomainPack.assess. None of the six proposal actions means 'reject', so an AI step could never trigger it. Keeping the decision in code is required by FLOW section 5."
+  - id: X2
+    flow: "AWAITING_SELLER / AWAITING_OPS / CLOSED_NO_RESPONSE / RESOLVED_UPHELD -> INVESTIGATING on new input"
+    decision: "Re-entry goes to GATHERING_EVIDENCE (T13-T15, T26, T31, T37, T39-T47)."
+    why: "New input is new evidence. Re-running the deterministic stage makes the recalculation visible in the audit trail and enforces FLOW section 4: 'never resumes stale conclusions'."
+  - id: X3
+    flow: "AWAITING_SELLER -> WITHDRAWN when the seller withdraws in writing"
+    decision: "Only a structured, authenticated DISPUTE_WITHDRAWN event moves to WITHDRAWN (T30, T32). A free-text withdrawal is read as evidence; policy escalates it with reason seller_withdrawal_claimed, and a human confirms (T38)."
+    why: "I5: text from outside the system can never change state. An AI reading of an email (which could be spoofed or injected) must not close a dispute. ADR 0009."
+  - id: X4
+    flow: "No transition for the `wait` proposal"
+    decision: "INVESTIGATING -> AWAITING_SELLER / AWAITING_OPS only when that expectation is still open (T08, T09). Otherwise policy denies `wait` and the case escalates (wait_without_expectation)."
+    why: "`wait` is meaningful only when something is outstanding; a wait with nothing to wait for would stall a case forever."
+  - id: X5
+    flow: "No path for reminders (48 h) through approval"
+    decision: "SELLER_REMINDER runs a deterministic reminder step: AWAITING_SELLER -> AWAITING_APPROVAL | EXECUTING (T27, T28). The decision timer keeps its original anchor (T19). A denied reminder (contact limit) is skipped: REMINDER_SKIPPED, no transition."
+    why: "Reminders are message kinds that need review in the pilot (D6). Resetting the 72 h window on every reminder would let a case wait forever."
+  - id: X6
+    flow: "VERIFYING -> RESOLVED_CREDITED when the credit transaction is verified"
+    decision: "Credit verified -> deterministic follow-up credit_confirmation message (T22/T23) -> RESOLVED_CREDITED only when the confirmation is verified (T24). A blocked or failed confirmation escalates."
+    why: "credit_confirmation is a message kind that needs approval (D6), so it needs states to wait in. 'Resolved' then means credited and the seller told. ADR 0012."
+  - id: X7
+    flow: "NEEDS_HUMAN_REVIEW -> HANDED_TO_HUMAN only; no way back to the agent"
+    decision: "Added NEEDS_HUMAN_REVIEW -> GATHERING_EVIDENCE on HUMAN_RETURNED_CASE (T37), which needs every UNKNOWN action resolved by the human. The handed_to_human_notice is sent on the hand-off path (T34-T36)."
+    why: "Without a return path every temporary failure (module disabled, kill switch, provider outage) would permanently lose the case. Requiring UNKNOWN actions to be resolved first keeps I3 and I4 intact."
+  - id: X8
+    flow: "Reopen: RESOLVED_CREDITED, WITHDRAWN, REJECTED_INELIGIBLE and HANDED_TO_HUMAN reopen only by a human"
+    decision: "HANDED_TO_HUMAN never reopens (no outgoing transitions). The other three reopen by HUMAN_REOPENED_CASE (T45-T47)."
+    why: "D9 (handed to a human is final for the agent) is a later, owner-approved decision and wins."
+  - id: X9
+    flow: "CLOSED_NO_RESPONSE -> INVESTIGATING on a late reply, with no window"
+    decision: "Agent reopen only within the 7-day reopen window and under the agent reopen cap (2). Outside them a late reply moves the case to NEEDS_HUMAN_REVIEW (T43) rather than being dropped."
+    why: "An unbounded reopen lets a seller keep a case alive forever; dropping a late reply silently is worse. A person decides."
+  - id: X10
+    flow: "AWAITING_APPROVAL has only approve/reject exits"
+    decision: "Added: approval expiry escalates (APPROVAL_EXPIRY); new evidence supersedes a pending proposal (T13-T15); the decision deadline closes a case whose reminder still awaits approval (T16); a rejected reminder returns to AWAITING_SELLER (T12); repeated rejections over the cap escalate."
+    why: "Without these a case could sit in AWAITING_APPROVAL forever or act on a stale plan."
+  - id: X11
+    flow: "AWAITING_OPS has no timeout"
+    decision: "OPS_TIMEOUT (120 h, illustrative) escalates with reason ops_timeout."
+    why: "Every waiting state needs a bounded wait."
+  - id: X12
+    flow: "VERIFYING is a pass-through"
+    decision: "VERIFYING may rest while a read-back is not yet visible, retrying on VERIFY_RETRY up to executor.verify_deadline_s, then escalates (verification_failed)."
+    why: "External systems are eventually consistent; one immediate read-back would turn normal lag into UNKNOWN outcomes. ADR 0010."
+  - id: X13
+    flow: "'any working state -> NEEDS_HUMAN_REVIEW'"
+    decision: "Every working state except NEEDS_HUMAN_REVIEW itself (T90). Escalating from review is a no-op, not a transition."
+    why: "A self-transition would write a misleading STATE_CHANGED event."
+
+# Checks run on this table (results in docs/spec/orchestrator.md, appendix A). Phase 1 turns each
+# into a test in tests/unit/statemachine/test_table_properties.py.
+checks:
+  C1: "every state is reachable from T00"
+  C2: "every working state has a path to a terminal state"
+  C3: "terminal states leave only to GATHERING_EVIDENCE or NEEDS_HUMAN_REVIEW; HANDED_TO_HUMAN has no outgoing transition"
+  C4: "hard-terminal states leave only on human triggers with guard actor_is_human"
+  C5: "RESOLVED_CREDITED and RESOLVED_UPHELD are entered only from VERIFYING on action_verified (I4)"
+  C6: "CLOSED_NO_RESPONSE is entered only on seller_decision_due and is not resolved (D7)"
+  C7: "every transition into EXECUTING except from AWAITING_APPROVAL carries guard intent_is_not_credit (I3)"
+  C8: "every escalable state has an escalate transition to NEEDS_HUMAN_REVIEW (I4, I6, I10)"
+  C9: "the accept matrix has a reaction for every state x input event type"
+  C10: "every transition:<trigger> in the matrix names a trigger with a transition from that state"
+  C11: "NEEDS_HUMAN_REVIEW leaves only on human-originated triggers (the agent never acts on its own there)"
+  C12: "every transition into a terminal state cancels all timers and records an outcome"
+  C13: "every transition id is unique; every guard and trigger used is declared"
+  C14: "timer-guarded `wait` transitions are live: the re-evaluation chains T26-T03-T04 and T31-T03-T04 do not cancel SELLER_DECISION / OPS_TIMEOUT (added after the A1 review found T08/T09 unreachable in practice)"
