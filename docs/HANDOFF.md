@@ -4,7 +4,7 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4 (D44) and A5 are approved; ADRs 0004-0025 are accepted. `docs/spec/INDEX.md` lists every specification document with its status and the invariants it covers. Stage A5 added **109 task cards** across nine phases (`docs/spec/task-cards/`), an escalation guide, a risk register and milestone plan, and a task-card reference in every phase prompt. 44 cards are marked for an Opus review because they implement an invariant's enforcement point. After the owner approves, the repository is tagged **`arch-v1`** and `docs/spec/` is frozen: any change then needs an ADR and the owner's approval.
+No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4 (D44) and A5 (D45) are approved; ADRs 0004-0025 are accepted. `docs/spec/INDEX.md` lists every specification document with its status and the invariants it covers. Stage A5 added **109 task cards** across nine phases (`docs/spec/task-cards/`), an escalation guide, a risk register and milestone plan, and a task-card reference in every phase prompt. 44 cards are marked for an Opus review because they implement an invariant's enforcement point. The repository is tagged **`arch-v1`** and `docs/spec/` is **frozen**: any change now needs an ADR and the owner's approval (`docs/spec/escalation-guide.md` section 3).
 
 **Next action: Phase 0 (foundations and sockets).** Run `./scripts/stage-b-build.sh`, press Shift+Tab for plan mode, then `/phase-start 0`. Build from `docs/spec/task-cards/phase-0.md`.
 
@@ -72,6 +72,7 @@ No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4
 | D42 | (2026-11-03) `policy-rules.md` M05 is split in two: a secondary **spend cap** escalates `credit_cap_reached` (no route left, D17), while the secondary **failing for an availability reason** falls back to the rules-only baseline. The single merged row contradicted FLOW section 7b. |
 | D43 | (2026-11-03) The briefing per-field caps are tightened so the worst case (23,000 chars) fits the 24,000 total, with trusted evidence added to the shrink order. The previous caps summed to about 83,500, so the stated budget was unsatisfiable. |
 | D44 | (2026-11-03) Stage A4 approved: agent design, prompt review and revised prompts, 59 scenarios with machine-checked paths, draft release gates, synthetic data; ADRs 0024-0025 accepted. One open item carried to Phase 1: T90 from GATHERING_EVIDENCE has no scenario because nothing in the current design reaches it, so that branch needs a documented cause or removal. |
+| D45 | (2026-11-03) Stage A5 approved and the design frozen at tag `arch-v1`: 109 task cards across nine phases, `docs/spec/INDEX.md`, the escalation guide, the risk register and a derived milestone plan. From this point a change to `docs/spec/` needs an ADR and the owner's approval. Design is complete; Phase 0 begins. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

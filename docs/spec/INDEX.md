@@ -1,6 +1,6 @@
 # Specification index
 
-Status: Stage A5, awaiting owner approval and the `arch-v1` tag. Every document below is approved. After the tag, **any change to `docs/spec/` needs an ADR and the owner's approval** — see `escalation-guide.md`.
+Status: **frozen at `arch-v1`** (owner approval D45, 2026-11-03). Every document below is approved. **Any change to `docs/spec/` now needs an ADR and the owner's approval** — see `escalation-guide.md`.
 
 Authority order when documents disagree (`CLAUDE.md` section 18): `docs/spec/` beats `docs/ARCHITECTURE.md`, which beats a phase prompt, which beats a sketch in `docs/FLOW.md`. `CLAUDE.md` invariants beat everything.
 

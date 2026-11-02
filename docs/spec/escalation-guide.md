@@ -1,6 +1,6 @@
 # Escalation guide
 
-Status: Stage A5. When the building model must stop, and who it stops to. `CLAUDE.md` section 17 sets the model plan; this guide makes it specific to the situations this project will actually hit.
+Status: approved (D45), frozen at `arch-v1`. When the building model must stop, and who it stops to. `CLAUDE.md` section 17 sets the model plan; this guide makes it specific to the situations this project will actually hit.
 
 The short version: **Sonnet builds, Opus decides, the owner approves anything that changes a frozen spec or touches the outside world.** When unsure which applies, stop — a paused card costs minutes, a wrong decision baked into the kernel costs a phase.
 

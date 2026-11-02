@@ -8,7 +8,7 @@
 | A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
 | A3 Integrations and Foundry | Approved | Owner, 2026-11-02 (D37) | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
 | A4 Agent and evals | Approved | Owner, 2026-11-03 (D44) | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43); 59 scenarios, paths machine-checked |
-| A5 Build plan and freeze (`arch-v1`) | Drafted; awaiting owner approval and the tag | | 109 task cards across 9 phases, INDEX, escalation guide, risk register and milestone plan; all 9 phase prompts reference their cards |
+| A5 Build plan and freeze (`arch-v1`) | Approved; tagged | Owner, 2026-11-03 (D45) | 109 task cards across 9 phases, INDEX, escalation guide, risk register and milestone plan; all 9 phase prompts reference their cards; `docs/spec/` frozen at `arch-v1` |
 | 0 Foundations and sockets | Next | | Build from `docs/spec/task-cards/phase-0.md` (12 cards) |
 | 1 Kernel | Not started | | |
 | 2 Weight-dispute pack | Not started | | |

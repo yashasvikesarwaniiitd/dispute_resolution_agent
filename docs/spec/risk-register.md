@@ -1,6 +1,6 @@
 # Risk register and milestone plan
 
-Status: Stage A5. Risks that could stop this project or make its results untrustworthy, each with its trigger, mitigation and owner. `HANDOFF.md` section 9 lists the same themes; this is the operational version, mapped to cards.
+Status: approved (D45), frozen at `arch-v1`. Risks that could stop this project or make its results untrustworthy, each with its trigger, mitigation and owner. `HANDOFF.md` section 9 lists the same themes; this is the operational version, mapped to cards.
 
 ## 1. Risks
 
