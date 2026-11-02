@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PatternHypotheses",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "limits", "hypotheses", "investigation_request", "evidence_strength"],
+  "properties": {
+    "summary": {"type": "string", "maxLength": 600},
+    "limits": {"type": "array", "items": {"type": "string"}},
+    "hypotheses": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["statement", "kind", "confirm_with", "refute_with", "owner_team"],
+        "properties": {
+          "statement": {"type": "string", "maxLength": 400},
+          "kind": {"type": "string", "enum": ["operational", "product_packaging", "seller_process", "benign", "other"]},
+          "confirm_with": {"type": "string"},
+          "refute_with": {"type": "string"},
+          "owner_team": {"type": "string"}
+        }
+      }
+    },
+    "investigation_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "scope", "question", "evidence_refs"],
+      "properties": {
+        "title": {"type": "string", "maxLength": 150},
+        "scope": {"type": "string"},
+        "question": {"type": "string"},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "evidence_strength": {"type": "string", "enum": ["low", "medium", "high"]}
+  }
+}

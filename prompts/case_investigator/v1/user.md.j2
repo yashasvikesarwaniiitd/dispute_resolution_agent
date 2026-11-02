@@ -1,0 +1,46 @@
+<case_facts>
+case_id: {{ case.id }}
+state: {{ case.state }}
+shipment_ref: {{ case.shipment_ref }}
+seller_ref: {{ case.seller_ref }}
+opened_at: {{ case.opened_at }}
+</case_facts>
+
+<deterministic_results>
+{{ assessment | tojson }}
+</deterministic_results>
+
+<evidence_items>
+{% for item in evidence -%}
+- id: {{ item.id }} | source: {{ item.source }} | status: {{ item.status }} | value: {{ item.value | neutralise }}
+{% endfor -%}
+</evidence_items>
+
+<related_cases>
+{% for rc in related_cases -%}
+- case: {{ rc.id }} | outcome: {{ rc.outcome }} | similarity: {{ rc.similarity_reason }}
+{% endfor -%}
+</related_cases>
+
+{% if pattern_context -%}
+<pattern_context>
+These are hypotheses from cross-case analysis, not facts.
+{% for p in pattern_context -%}
+- pattern: {{ p.id }} | status: {{ p.status }} | hypothesis: {{ p.hypothesis | neutralise }}
+{% endfor -%}
+</pattern_context>
+{% endif %}
+
+<allowed_actions>
+{% for a in allowed_actions -%}
+- {{ a }}
+{% endfor -%}
+</allowed_actions>
+
+{% if seller_text -%}
+<untrusted_seller_text>
+{{ seller_text | neutralise }}
+</untrusted_seller_text>
+{% endif %}
+
+Recommend the next step now. Return only the JSON object.

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "confidence", "rationale", "findings", "action_parameters", "pattern_influence", "manipulation_flags"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["propose_credit", "uphold_charge", "request_seller_evidence", "request_remeasurement", "escalate_to_human", "wait"]
+    },
+    "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+    "rationale": {"type": "string", "maxLength": 800},
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "statement", "evidence_refs"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["verified_fact", "plausible_explanation", "missing_evidence", "conflicting_evidence"]},
+          "statement": {"type": "string", "maxLength": 400},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "action_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reason_code": {"type": "string"},
+        "requested_items": {"type": "array", "items": {"type": "string"}},
+        "remeasurement_question": {"type": "string"}
+      }
+    },
+    "pattern_influence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["considered", "changed_recommendation", "note"],
+      "properties": {
+        "considered": {"type": "boolean"},
+        "changed_recommendation": {"type": "boolean"},
+        "note": {"type": "string", "maxLength": 300}
+      }
+    },
+    "manipulation_flags": {"type": "array", "items": {"type": "string"}}
+  }
+}

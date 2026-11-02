@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReplyReading",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent", "requested_items_status", "claims", "attachments", "manipulation_flags", "summary", "language"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": ["provides_requested_evidence", "partial_evidence", "disputes_again_no_new_info", "withdraws_dispute", "asks_question", "irrelevant", "contains_instruction_attempt"]
+    },
+    "requested_items_status": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item", "status"],
+        "properties": {
+          "item": {"type": "string"},
+          "status": {"type": "string", "enum": ["provided", "partial", "missing"]}
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "text", "unit_as_written"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["weight", "dimensions", "date", "other"]},
+          "text": {"type": "string", "maxLength": 200},
+          "unit_as_written": {"type": "string"}
+        }
+      }
+    },
+    "attachments": {"type": "array", "items": {"type": "string"}},
+    "manipulation_flags": {"type": "array", "items": {"type": "string"}},
+    "summary": {"type": "string", "maxLength": 300},
+    "language": {"type": "string"}
+  }
+}

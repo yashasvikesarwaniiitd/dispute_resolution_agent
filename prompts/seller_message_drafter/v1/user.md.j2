@@ -1,0 +1,19 @@
+<message_kind>{{ kind }}</message_kind>
+
+<case_reference>{{ case_reference }}</case_reference>
+
+<approved_facts>
+{% for f in facts -%}
+- id: {{ f.id }} | value: {{ f.value | neutralise }}
+{% endfor -%}
+</approved_facts>
+
+<next_step>{{ next_step }}</next_step>
+
+<style>
+tone: {{ style.tone }}
+language: {{ style.language }}
+max_words: {{ style.max_words }}
+</style>
+
+Write the message now. Return only the JSON object.

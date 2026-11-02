@@ -1,0 +1,21 @@
+<case_summary>
+case_id: {{ case.id }}
+state: {{ case.state }}
+request_sent_at: {{ request.sent_at }}
+</case_summary>
+
+<outstanding_request>
+{% for item in request.items -%}
+- {{ item }}
+{% endfor -%}
+</outstanding_request>
+
+<untrusted_seller_reply>
+{{ reply.body | neutralise }}
+attachments:
+{% for a in reply.attachments -%}
+- {{ a.filename | neutralise }} ({{ a.content_type }})
+{% endfor -%}
+</untrusted_seller_reply>
+
+Describe the reply now. Return only the JSON object.

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DraftedMessage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["subject", "body", "numbers_used", "blocked_reason"],
+  "properties": {
+    "subject": {"type": "string", "maxLength": 150},
+    "body": {"type": "string", "maxLength": 2000},
+    "numbers_used": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "fact_id"],
+        "properties": {
+          "text": {"type": "string"},
+          "fact_id": {"type": "string"}
+        }
+      }
+    },
+    "blocked_reason": {"type": ["string", "null"]}
+  }
+}

@@ -1,0 +1,15 @@
+name: case_investigator
+version: v1
+status: active
+owner: product
+purpose: Recommend exactly one next step for a weight dispute from a structured briefing. Read-only; proposal only.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: optional (read-only tools only)
+temperature: 0
+max_output_tokens: 1200
+eval_suite: tests/evals/case_investigator
+pattern_context: optional; omitted when empty (Phase 7 activates it)
+changelog:
+  - v1: initial version

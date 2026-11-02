@@ -1,0 +1,14 @@
+name: seller_reply_interpreter
+version: v1
+status: active
+owner: product
+purpose: Describe a seller reply as structured data. Never decides or recommends.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+temperature: 0
+max_output_tokens: 600
+eval_suite: tests/evals/seller_reply_interpreter
+changelog:
+  - v1: initial version

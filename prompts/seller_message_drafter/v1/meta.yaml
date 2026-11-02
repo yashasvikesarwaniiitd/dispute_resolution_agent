@@ -1,0 +1,14 @@
+name: seller_message_drafter
+version: v1
+status: active
+owner: product
+purpose: Draft a seller message from approved facts only. Code validates every number before sending.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+temperature: 0.2
+max_output_tokens: 700
+eval_suite: tests/evals/seller_message_drafter
+changelog:
+  - v1: initial version

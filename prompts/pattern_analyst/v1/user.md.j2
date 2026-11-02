@@ -1,0 +1,11 @@
+<cluster_stats>
+{{ cluster | tojson }}
+</cluster_stats>
+
+<prior_findings>
+{% for f in prior_findings -%}
+- pattern: {{ f.id }} | status: {{ f.status }} | source: {{ f.source }}
+{% endfor -%}
+</prior_findings>
+
+Summarise the cluster now. Return only the JSON object.

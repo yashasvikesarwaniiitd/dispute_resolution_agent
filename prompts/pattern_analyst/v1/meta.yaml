@@ -1,0 +1,15 @@
+name: pattern_analyst
+version: v1
+status: inactive
+owner: product
+purpose: Turn code-produced cluster statistics into competing hypotheses and one investigation request. Hypotheses only; never actions.
+activation: Phase 7. Set status to active only after its eval suite passes.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+temperature: 0
+max_output_tokens: 1200
+eval_suite: tests/evals/pattern_analyst
+changelog:
+  - v1: initial version, inactive until Phase 7
