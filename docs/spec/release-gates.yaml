@@ -105,7 +105,7 @@ claims_not_to_make:
   - >-
     "Fully autonomous". Every credit and, in the pilot, every message is approved by a person (D6).
   - >-
-    "Accurate" or "correct" without the metric and the sample: always quote the scenario count and runs (for example "46 of 53 scenarios, 3 runs each").
+    "Accurate" or "correct" without the metric and the sample: always quote the scenario count and runs (for example "52 of 59 scenarios, 3 runs each").
   - >-
     "Injection-proof" or "secure against prompt injection". The claim is: no injection in the corpus succeeded, and money and messages need code-proven facts and approval (residual RR2).
   - >-

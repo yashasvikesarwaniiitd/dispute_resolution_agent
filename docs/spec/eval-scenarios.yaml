@@ -37,10 +37,23 @@
 #   invariants       what it exercises
 #   decision         owner decision that fixed a debatable outcome (D-number), if any
 #
-# Transitions T23 (credit -> confirmation without a separate approval) and T28 (reminder sent
-# without approval) are unreachable while the pilot reviews every message kind (D6). They are
-# covered by the same scenarios run with policy.messages.review_kinds reduced, in Phase 6 when
-# the owner relaxes review (O7). They are not dead transitions, and no scenario fakes them.
+# Transition coverage. A verifier walks every declared path against transitions.yaml; at the
+# time of writing 281 consecutive state pairs across 59 scenarios are legal and 45 of the 50
+# edges are walked. The five that are not:
+#   T23 (credit -> confirmation without a separate approval), T28 (reminder sent without
+#     approval) and T35 (hand-off notice sent without approval) are unreachable while the pilot
+#     reviews every message kind (D6). They become reachable in Phase 6 when the owner relaxes
+#     review (O7), and the same scenarios cover them with policy.messages.review_kinds reduced.
+#     They are not dead transitions, and no scenario fakes them.
+#   T37 (a person returns the case) is exercised by S12b and S19, which declare path_contains
+#     rather than an exact path because the full sequence depends on configuration. The edge is
+#     covered; an adjacency checker simply cannot see it.
+#   T90 from GATHERING_EVIDENCE has no scenario. Every evidence failure the specs describe ends
+#     as a FAILED evidence item that the assess or investigate step then acts on (orchestrator.md
+#     section 5), so nothing in the current design reaches the gather_evidence escalate branch.
+#     Either a cause exists that is not yet written down, or the branch is unreachable and should
+#     be removed. Resolve it in Phase 1, when the step is implemented -- do not invent a scenario
+#     for it here.
 
 version: 1
 
@@ -891,25 +904,132 @@ scenarios:
         secondary_model_calls stays 0 in the primary-cap run.
     invariants: [I14, I4]
 
-  - id: S43
-    title: A person reopens a credited, withdrawn or ineligible case (T45, T46, T47)
+  - id: S43a
+    title: A person reopens a credited case (T45)
     phase: 5
     fixture: calc_error_wrong_slab
     script: [S01 script, "human_reopened_case(reason=credit posted to the wrong account)@(S01 end + 1d)"]
     expect:
       actions: [escalate_to_human]
-      baseline: escalate_to_human   # B5: the existing verified credit blocks B3, then the image escalates
+      baseline: escalate_to_human   # B5: the verified credit blocks B3, then the image escalates
       path_suffix: [RESOLVED_CREDITED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, NEEDS_HUMAN_REVIEW]
       final: NEEDS_HUMAN_REVIEW
       counts: {ledger_credits: 1}
       notes: >-
-        only a human can reopen these three states, and the reopened case can never credit again
-        (R17 on the live credit). Repeated from WITHDRAWN (T46, fixture kurta_box_larger after
-        S18a) and from REJECTED_INELIGIBLE (T47, fixture not_delivered after S17). A fourth run
-        sends a late seller reply to the upheld case of S02 at +9 d, outside the reopen window,
-        which is T44 (RESOLVED_UPHELD -> NEEDS_HUMAN_REVIEW, review late_inbound) -- the upheld
-        counterpart of S09b.
+        only a human can reopen a resolved case, and the reopened case can never credit again
+        (R17 on the live credit, and the no_verified_credit guard keeps it from returning to the
+        agent). reopen_count = 1.
     invariants: [I3, I8]
+
+  - id: S43b
+    title: A person reopens a withdrawn case (T46)
+    phase: 4
+    fixture: kurta_box_larger
+    script: [S18a script, "human_reopened_case(reason=withdrawal was sent by mistake)@(S18a end + 1d)"]
+    expect:
+      actions: [escalate_to_human]
+      baseline: escalate_to_human   # B5: image evidence item
+      path_suffix: [WITHDRAWN, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, NEEDS_HUMAN_REVIEW]
+      final: NEEDS_HUMAN_REVIEW
+      notes: a withdrawal is final for the agent (D9); only a person can undo it, and the case then needs a person anyway
+    invariants: [I8]
+
+  - id: S43c
+    title: A person reopens an ineligible case (T47)
+    phase: 2
+    fixture: not_delivered
+    script: [S17 script, "human_reopened_case(reason=delivery scan arrived late)@(S17 end + 1d)"]
+    expect:
+      actions: [request_seller_evidence]
+      baseline: same   # B7: no image, no history, no reply on this fixture
+      path_suffix: [REJECTED_INELIGIBLE, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL]
+      final: AWAITING_APPROVAL
+      notes: >-
+        the only reopen that can go on to resolve normally, because nothing was decided against
+        the seller and no money moved. The case re-enters at GATHERING_EVIDENCE so eligibility is
+        re-proven from fresh evidence, never assumed.
+    invariants: [I8]
+
+  - id: S43d
+    title: A late reply to an upheld case, outside the reopen window (T44)
+    phase: 4
+    fixture: kurta_box_larger
+    script: [S02 script, seller_reply(any)@(S02 end + 9d)]
+    expect:
+      actions: n/a  # no proposal: the late reply escalates without re-entering the loop
+      baseline: n/a   # INVESTIGATING is not re-entered
+      path_suffix: [RESOLVED_UPHELD, NEEDS_HUMAN_REVIEW]
+      final: NEEDS_HUMAN_REVIEW
+      review: late_inbound
+      notes: >-
+        the upheld counterpart of S09b. Inside the 7-day window the case would reopen (T41, as
+        S26 does); outside it, the reply still reaches a person rather than being dropped, which
+        is the point of the guard.
+    invariants: [I4, I8]
+    decision: D22
+
+  - id: S44
+    title: Operations never respond and the remeasurement times out (T90 from AWAITING_OPS)
+    phase: 5
+    fixture: ambiguous_image
+    script: [dispute_raised@0h, timer(OPS_TIMEOUT)@121h]
+    expect:
+      actions: [request_remeasurement]
+      baseline: escalate_to_human   # B5: image evidence item
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING, AWAITING_OPS,
+             NEEDS_HUMAN_REVIEW]
+      final: NEEDS_HUMAN_REVIEW
+      review: ops_timeout
+      counts: {jira_issues: 1, emails_sent: 0}
+      notes: >-
+        the 120 h OPS_TIMEOUT (policy.timers.ops_timeout_hours) fires with no finding recorded.
+        The agent has asked the only question it can ask and has no way to answer it, so the case
+        goes to a person rather than waiting indefinitely or deciding without the measurement.
+        This is the only scenario for the ops_timeout review code.
+    invariants: [I4, I8]
+
+  - id: S45
+    title: The evidence request bounces while awaiting the seller (T90 from AWAITING_SELLER)
+    phase: 3
+    fixture: kurta_box_larger
+    faults: {email.bounce: hard_bounce_after_send}
+    script: [dispute_raised@0h, approve(evidence_request)@1h, bounce_received@2h]
+    expect:
+      actions: [request_seller_evidence]
+      baseline: escalate_to_human   # B5: image evidence item
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
+             VERIFYING, AWAITING_SELLER, NEEDS_HUMAN_REVIEW]
+      final: NEEDS_HUMAN_REVIEW
+      review: delivery_failed
+      counts: {emails_sent: 1}
+      notes: >-
+        the message was verified as sent (it is in Sent Items with the approved text) and then
+        bounced, which is exactly the gap ADR 0010 names: sent is not delivered. The seller timers
+        would otherwise run down to CLOSED_NO_RESPONSE against someone who never received the
+        message, so the bounce escalates instead. This is the only scenario for the
+        delivery_failed review code.
+    invariants: [I4, I8]
+
+  - id: S46
+    title: Eligibility cannot be determined at intake (T90 from RECEIVED)
+    phase: 2
+    fixture: kurta_box_larger
+    faults: {evidence.shipment_status: unavailable}   # down before the first gather round
+    script: [dispute_raised@0h]
+    expect:
+      actions: n/a  # the case never reaches INVESTIGATING
+      baseline: n/a   # INVESTIGATING is never reached
+      path: [RECEIVED, NEEDS_HUMAN_REVIEW]
+      final: NEEDS_HUMAN_REVIEW
+      review: module_unavailable:evidence
+      counts: {emails_sent: 0}
+      notes: >-
+        the eligibility step declares three outcomes (transitions.yaml steps.eligibility):
+        passed, failed and escalate. This is the escalate branch, and the only scenario for it.
+        The agent cannot prove the shipment delivered or not delivered, and eligibility decides
+        whether the case may proceed at all, so guessing either way is unsafe (I6). Contrast
+        S05b, where eligibility succeeds and the evidence module is missing one round later.
+    invariants: [I6, I4]
 
 # Every scenario additionally runs with sentinel secret values in settings and sentinel strings
 # in all untrusted text; after the run, the database, logs, spans and fixtures are scanned for

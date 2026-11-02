@@ -86,6 +86,11 @@ Ops findings used by scenarios (`findings.yaml`): `remeasured_lower` and `no_fau
 | `content_filter_block` | model gateway primary | HTTP 400 `content_filter` |
 | `unavailable` | model gateway primary | `TransientPortError(unavailable)` on every call |
 | `retry` | executor | the first write attempt raises a transient error |
+| `unavailable` | evidence source (`evidence.shipment_status`) | `ModuleUnavailable` before the first gather round, so the eligibility step cannot decide (S46) |
+| `hard_bounce_after_send` | email | the message is verified in Sent Items, then a hard bounce arrives as a `BOUNCE_RECEIVED` input event (S45) |
+| `agent_definition_drift` | model gateway primary | the deployed agent no longer matches the repo prompt hash; the drift check fails before the call (S42) |
+| `spend_cap_reached` | model gateway, either route | the route reports its cap exhausted; no failover past a cap (D17, S42) |
+
 
 ## 6. Volume for evals and the demo
 
