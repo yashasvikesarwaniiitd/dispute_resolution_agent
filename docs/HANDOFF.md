@@ -6,7 +6,7 @@ Read this first in every session. It is the single source for current state, dec
 
 No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` holds the kernel interfaces, schema, state machine, events catalog, orchestrator, executor and traceability table; ADRs 0004-0014 are accepted. Stage A2 (safety and policy specification) is drafted and awaiting owner approval: `policy-rules.md`, `threat-model.md`, `approvals.md`, `money-rules.md`, `test-charter.md`, ADRs 0015-0018. The verdict ordering and credit proof were approved at the checkpoint (D28-D31); an independent review's eight real defects are fixed (schema-level approval binding, credits netted against earlier credits, outcome and clarification messages exempt from contact limits, R10 mandatory, review-code mapping, ops-wait rule, number-validation exemptions).
 
-**Next action: the owner reviews Stage A2** (open decisions O11, O12). After approval: Stage A3 (integrations and Foundry) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a3`.
+**Next action: the owner reviews Stage A2.** After approval: Stage A3 (integrations and Foundry) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a3`.
 
 ## 2. The project in five lines
 
@@ -59,6 +59,8 @@ No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` hol
 | D29 | (2026-11-02) A credit is proposed only for a reason code proved by code from evidence; the AI's propose_credit is a request, never the basis. ADR 0016. |
 | D30 | (2026-11-02) No configured credit amount caps; the structural limit is the outstanding charge; every credit is human-approved. ADR 0016. |
 | D31 | (2026-11-02) Low model confidence on propose_credit or uphold_charge escalates to a person (R22). |
+| D32 | (2026-11-02) Review console authentication uses a local `REVIEW_CONSOLE_TOKEN` secret; CLAUDE.md I14 now says "the one permitted provider API key" and covers the token under the same rules. ADR 0018 accepted. |
+| D33 | (2026-11-02) The case_investigator and seller_message_drafter v1 prompts are aligned with D19 and D29 (pre-release edit; v1 was never run). |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -72,8 +74,6 @@ No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` hol
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
-| O11 | Review console authentication: a local `REVIEW_CONSOLE_TOKEN` secret (ADR 0018). CLAUDE.md I14 calls the Anthropic key "the one permitted API key"; this token is a local session secret, not a provider key | Use the local token; amend I14's wording to say "the one provider API key" | Owner, Stage A2 review |
-| O12 | The case_investigator v1 prompt says "wait: only when an outstanding request has not yet reached its due time", which conflicts with D19 (no wait after a seller reply) | Fix in Stage A4 (prompt v1 is unreleased; edit or create v2 per prompts/README.md) | Stage A4 |
 
 ## 6. What the owner must do (Claude Code never does these)
 

@@ -39,7 +39,7 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0015 | Verdicts form an ordered lattice; the strictest wins; model output only raises | accepted (D28) |
 | 0016 | Credits only for code-proven reasons; no amount caps, structural limit only | accepted (D29, D30) |
 | 0017 | Model-call budgets and failover live in one kernel decorator around ModelGateway | proposed |
-| 0018 | Human events are authenticated; the actor comes from the session | proposed |
+| 0018 | Human events are authenticated; the actor comes from the session | accepted (D32) |
 
 ## Session log
 

@@ -12,3 +12,4 @@ max_output_tokens: 700
 eval_suite: tests/evals/seller_message_drafter
 changelog:
   - v1: initial version
+  - v1 (pre-release edit, 2026-11-02): added the reminder and clarification_request kinds (owner decision D19). Edited in place because v1 has never been released or run.

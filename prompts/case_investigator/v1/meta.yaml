@@ -13,3 +13,4 @@ eval_suite: tests/evals/case_investigator
 pattern_context: optional; omitted when empty (Phase 7 activates it)
 changelog:
   - v1: initial version
+  - v1 (pre-release edit, 2026-11-02): aligned with owner decisions D19 (clarify an unclear reply once, never wait after a reply) and D29 (credits only for a code-proven definite error). Edited in place because v1 has never been released or run; from Phase 4 on, changes create v2.

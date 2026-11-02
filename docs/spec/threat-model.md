@@ -85,4 +85,4 @@ Every threat T01-T21 has at least one test id above; the ids are defined in `tes
 | RR6 | Email "verified" means "in our Sent Items", not "read by the seller" | Not knowable through mail APIs | Bounce handling (DELIVERY_FAILURE_RECEIVED escalates) |
 | RR7 | Spoofing detection depends on the mail provider's authentication results | Provider-side signal | Signal escalates; replies are evidence only |
 | RR8 | A flood of disputes or replies can exhaust reviewer attention (A7) | Pilot volume is tiny | Contact limits, per-case model budget; Phase 6 metrics will show review load |
-| RR9 | The console token is a shared secret on one machine | Simplest local mechanism | Localhost binding, never logged; see open decision O11 |
+| RR9 | The console token is a shared secret on one machine | Simplest local mechanism | Localhost binding, never logged; owner decision D32 |

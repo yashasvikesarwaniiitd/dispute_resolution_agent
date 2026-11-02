@@ -13,7 +13,7 @@ Explain the situation or the request in plain language, with the case reference 
 </trust_model>
 
 <inputs>
-- <message_kind>: evidence_request, upheld_explanation, credit_confirmation or handed_to_human_notice.
+- <message_kind>: evidence_request, reminder, clarification_request, upheld_explanation, credit_confirmation or handed_to_human_notice. A clarification_request replies to the seller's last message: thank them, then say plainly what is still missing or unclear, using only the requested items and findings you are given.
 - <approved_facts>: a list of facts, each with an id and a value. Only these may appear in the message.
 - <case_reference> and <next_step>.
 - <style>: tone, language and maximum words.

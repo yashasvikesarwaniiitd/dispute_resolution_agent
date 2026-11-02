@@ -1,6 +1,6 @@
 # ADR 0018: Human events are authenticated; the actor comes from the session, never the request
 
-Status: proposed
+Status: accepted (owner decision D32, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision
@@ -14,7 +14,7 @@ Every money and message control ends in "a human approved it". If the API truste
 - Entra ID sign-in for the console: right for a real deployment, heavy for a local pilot; revisit before any shared use.
 
 ## Consequences
-Easier: approvals are attributable and unforgeable through the pipeline. Harder: one more secret to manage. Watch: CLAUDE.md I14 says the Anthropic key is "the one permitted API key"; this token is a local session secret, not a provider API key, but it needs the owner's confirmation (open decision O11).
+Easier: approvals are attributable and unforgeable through the pipeline. Harder: one more secret to manage. Watch: CLAUDE.md I14 says the Anthropic key is "the one permitted API key"; this token is a local session secret, not a provider API key, and the owner confirmed it (D32); I14 was reworded accordingly.
 
 ## Sources
 Project documents (CLAUDE.md I12-I14; docs/spec/approvals.md section 6; docs/spec/threat-model.md T09).
