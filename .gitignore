@@ -12,3 +12,4 @@ __pycache__/
 .claude/agent-memory-local/
 codebase-map.html
 dist/
+data/

@@ -127,7 +127,7 @@ Model calls have no side effects, so retrying them is always safe. They only cos
 
 - **Local gates are authoritative** (O3); Foundry evaluations are supplementary. Evaluations are GA, some evaluators preview ([GA overview](https://learn.microsoft.com/en-us/azure/foundry/concepts/general-availability)).
 - **Red teaming:** GA as a capability, but cloud red teaming runs only in East US 2, France Central, Sweden Central, Switzerland West and North Central US, **not South India**. Prompt agents are a supported target ([AI Red Teaming Agent](https://learn.microsoft.com/en-us/azure/foundry/concepts/ai-red-teaming-agent)). The SDK exposes it under `.beta.red_teams` "(preview)".
-- Open decision O14 asks how to red-team. Default: run our own injection corpus (`test-charter.md` section 5), extended, as a local eval against the live South India agents, and skip Foundry cloud red teaming.
+- Owner decision D35 (O14): run our own injection corpus (`test-charter.md` section 5), extended in Phase 6, as a live local eval against the South India agents; Foundry cloud red teaming is not used.
 
 ## 12. Secondary route: Anthropic API, Haiku only (`modules/model_gateway/anthropic_direct`)
 
@@ -146,11 +146,11 @@ Model calls have no side effects, so retrying them is always safe. They only cos
 Done by the owner; Claude Code never creates cloud resources or reads secrets. Values go into `.env`, never chat. The full click-by-click version is `docs/FOUNDRY_SETUP.md`.
 
 **Before Phase 3 (email and Jira):**
-1. Get a Microsoft 365 test tenant (O13) and create one test mailbox (`GRAPH_MAILBOX`) and one test seller address (`TEST_SELLER_EMAIL`).
-2. In Entra: register an app (single tenant) and create a client secret (or upload a certificate). Record `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, and `GRAPH_CLIENT_SECRET` or `GRAPH_CLIENT_CERT_PATH`. **Do not** add tenant-wide Graph mail application permissions: access is granted only through Exchange RBAC in the next step (grants are a union, so a tenant-wide grant would void the scoping).
-3. As an Exchange administrator, `Connect-ExchangeOnline`, then: `New-ServicePrincipal` for the app; a management scope containing only the test mailbox; `New-ManagementRoleAssignment` for `Application Mail.Send`, `Application Mail.ReadWrite` and `Application Mail.Read` with that scope.
-4. Confirm in Entra that the app has no tenant-wide `Mail.*` application permissions.
-5. Wait up to 2 hours, then run `Test-ServicePrincipalAuthorization` against the test mailbox (allowed) and another mailbox (denied). Send one test message and record the topmost `Authentication-Results` authserv-id into `email.settings.trusted_authserv_id`; generate the `extended_property_guid` once.
+1. Create a **new Outlook.com account used only for this pilot** (`GRAPH_MAILBOX`), and a second address as the test seller (`TEST_SELLER_EMAIL`). Send a few normal emails first: new accounts start with a low sending quota.
+2. In the Entra admin centre (App registrations), register an app with supported account types "Accounts in any organizational directory and personal Microsoft accounts". Under Authentication, enable "Allow public client flows" (device code). Add **delegated** Microsoft Graph permissions `Mail.ReadWrite`, `Mail.Send`, `Mail.Read` and `offline_access`. Record `GRAPH_CLIENT_ID`. There is no client secret.
+3. Set `GRAPH_AUTHORITY=https://login.microsoftonline.com/consumers/` and `GRAPH_TOKEN_CACHE_PATH` (default `data/msal_cache.bin`).
+4. Run `make email-login` (Phase 3): it shows a device code; sign in as the pilot account and consent. It confirms a refresh token was cached (encrypted with Windows DPAPI). Repeat whenever `/healthz` shows `email: reauth_required` (at the latest every 90 days).
+5. Send one test message from the seller address to the pilot account; `make email-login --inspect-headers` prints the topmost `Authentication-Results` authserv-id (no content) so you can record it in `email.settings.trusted_authserv_id`. Generate `extended_property_guid` once.
 6. Jira Cloud: create a test project (`JIRA_PROJECT_KEY`) whose workflow has the issue type (`Task`), a `Done` status and a `Duplicate` resolution, and the custom fields in `integrations.md` section 2.4. Find their ids with `GET /rest/api/3/field` and put them in `config/modules.yaml`.
 7. Create a Jira API token (scoped recommended). Record its expiry date in `docs/PROGRESS.md`. Set `JIRA_BASE_URL` (site URL, or `https://api.atlassian.com/ex/jira/{cloudId}` for a scoped token), `JIRA_EMAIL`, `JIRA_API_TOKEN`.
 8. Set `REVIEW_CONSOLE_TOKEN` to a long random value.
@@ -184,7 +184,7 @@ Done by the owner; Claude Code never creates cloud resources or reads secrets. V
 | F4 | Free-trial subscriptions can have zero model quota | Upgrade to pay-as-you-go on day one (D18) |
 | F5 | 429 rate limits and regional session quota | In-adapter retries honouring `retry-after-ms`; F01 failover to Haiku; small per-case call budget (M01) |
 | F6 | Preview features (SDK GenAI tracing, Guardrails for Agents, red-team SDK) | Not used, or isolated behind `preview: true` adapters, never in `make verify` |
-| F7 | Cloud red teaming not available in South India | Local injection-corpus eval (O14) |
+| F7 | Cloud red teaming not available in South India | Local injection-corpus eval (D35) |
 | F8 | `store=false` is not a guarantee of zero retention | Synthetic data only (I11) |
 | F9 | Unpinned agent calls are undocumented | Always pin the version from the lock file |
 | F10 | Model retirement (gpt-5-mini 2027-07-13) | `make foundry-check` prints the model version; the project ends well before |

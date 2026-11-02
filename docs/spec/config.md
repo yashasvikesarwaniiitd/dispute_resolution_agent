@@ -32,7 +32,7 @@ modules:
       poll_interval_s: 60
       max_concurrency: 2                          # Graph allows 4 concurrent requests per mailbox
       extended_property_guid: "<fixed GUID, generated once and committed>"
-      trusted_authserv_id: "<this tenant's Exchange Online authserv-id, recorded at provisioning>"
+      trusted_authserv_id: null                    # optional; set from a test message (integrations.md 1.5); Outlook.com format is undocumented
   ticketing:
     enabled: true
     adapter: jira_cloud
@@ -66,7 +66,7 @@ modules:
 | `cross_case` | `null`, `sql_context` | `ticketing` when `sql_context` | disabled -> `null` adapter, never `Disabled` |
 | `evals` | `default` | — | |
 
-Start-up validation (refuses to start, naming the modules): unknown module or adapter; a missing dependency (for example `ledger` on without `approvals`); `reasoning: llm` with `model_gateway` off; `secondary_adapter` not `anthropic_direct` or equal to `adapter`; an adapter marked `preview: true` while `APP_ENV=ci`; a real adapter (`outlook_graph`, `jira_cloud`, `foundry_*`, `anthropic_direct`) whose environment variables are missing. A disabled module is wired to its `Disabled` adapter (I6), except `cross_case` (Null).
+Start-up validation (refuses to start, naming the modules): unknown module or adapter; a missing dependency (for example `ledger` on without `approvals`); `reasoning: llm` with `model_gateway` off; `secondary_adapter` not `anthropic_direct` or equal to `adapter`; an adapter marked `preview: true` while `APP_ENV=ci`; a real adapter (`outlook_graph`, `jira_cloud`, `foundry_*`, `anthropic_direct`) whose environment variables are missing. (`outlook_graph` with no cached refresh token starts, but reports `reauth_required` and escalates sends until `make email-login`.) A disabled module is wired to its `Disabled` adapter (I6), except `cross_case` (Null).
 
 ## 3. `config/policy.yaml`
 
@@ -196,9 +196,9 @@ gates:
 | `LLM_PRIMARY_SPEND_CAP_USD` | no | optional | policy |
 | `AZURE_CREDIT_EXPIRES_ON` | no | Foundry primary | policy (M04) |
 | `LLM_ALLOW_PAID_USAGE` | no | optional (default false) | policy (M04) |
-| `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID` | no | `outlook_graph` | email adapter |
-| `GRAPH_CLIENT_SECRET` | yes | `outlook_graph` with a secret credential | email adapter |
-| `GRAPH_CLIENT_CERT_PATH` | no (the file is secret, the path is not) | `outlook_graph` with a certificate credential, instead of the secret | email adapter |
+| `GRAPH_CLIENT_ID` | no | `outlook_graph` | email adapter (public client, no secret; D36) |
+| `GRAPH_AUTHORITY` | no | `outlook_graph` (default `https://login.microsoftonline.com/consumers/`) | email adapter |
+| `GRAPH_TOKEN_CACHE_PATH` | no (the **file** is a secret: encrypted, git-ignored) | `outlook_graph` (default `data/msal_cache.bin`) | email adapter |
 | `GRAPH_MAILBOX` | no | `outlook_graph` | the one mailbox the app sends from and reads |
 | `TEST_SELLER_EMAIL` | no | `email` on | recipient allowlist (I11) |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_PROJECT_KEY` | no | `jira_cloud` | ticketing adapter |

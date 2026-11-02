@@ -56,7 +56,7 @@ Claude Code never creates Azure resources or asks for secrets. You do these step
 
 - Agent Service supports Azure OpenAI deployments, but exact model and tool availability varies by region. The agent classic documentation noted that GPT-5 family agents could use only certain built-in tools; this project uses no tools, so that limit does not apply. Confirm in the current Agent Service documentation.
 - Agent definitions are created from `prompts/` by `make agents-sync`, which you run yourself. Runtime refuses drifted agents.
-- The SDK's GenAI tracing instrumentation is preview and is not used; the project emits its own spans with content recording off. Cloud red teaming does not run in South India (supported: East US 2, France Central, Sweden Central, Switzerland West, North Central US); see open decision O14.
+- The SDK's GenAI tracing instrumentation is preview and is not used; the project emits its own spans with content recording off. Cloud red teaming does not run in South India (supported: East US 2, France Central, Sweden Central, Switzerland West, North Central US); owner decision D35: red-team locally with the project's own injection suite instead.
 - Calls to agents always pin the agent version from `config/foundry_agents.lock.json` and use `store=false` (no stored responses; not a zero-retention guarantee, which is fine for synthetic data).
 - Synthetic data only. Do not send real seller data to any model.
 

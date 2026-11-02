@@ -67,6 +67,7 @@ Each row: threat, the mitigations that stop it, the invariant(s), and the test(s
 | T18 | **Misleading the approver** (persuasive AI rationale, seller text styled as system text) | Review screen order: consequence, exact payload, code facts first; AI and seller text labelled and boxed (`approvals.md` section 5) | I13 | TC-APR-09 (screen snapshot) |
 | T19 | **Real-person contact or real data** | Allowlisted recipients; synthetic data generator; test accounts only | I11 | TC-R06-*, TC-SEC-04 |
 | T20 | **Pattern poisoning** (Phase 7: a seller seeds many disputes to create a pattern) | Patterns only add caution (I7); outcomes decided with pattern help never confirm a pattern | I7 | TC-POL-P2, Phase 7 tests |
+| T22 | **Theft of the email token cache** (it can read and send as the pilot account) | Encrypted at rest with DPAPI via msal-extensions, never plain text; git-ignored `data/`; a dedicated pilot account limits the blast radius; revocable by changing the password | I12 | TC-SEC-05 |
 | T21 | **Database or ledger tampering through the application** (bug writing state directly) | State-change trigger refuses illegal pairs; events append-only triggers; action identity immutable; ledger in a separate file with its own constraints | I8, I3 | TC-SCH-S1..S27 |
 
 ## 5. Test coverage of threats
@@ -85,4 +86,5 @@ Every threat T01-T21 has at least one test id above; the ids are defined in `tes
 | RR6 | Email "verified" means "in our Sent Items", not "read by the seller" | Not knowable through mail APIs | Bounce handling (DELIVERY_FAILURE_RECEIVED escalates) |
 | RR7 | Spoofing detection depends on the mail provider's authentication results | Provider-side signal | Signal escalates; replies are evidence only |
 | RR8 | A flood of disputes or replies can exhaust reviewer attention (A7) | Pilot volume is tiny | Contact limits, per-case model budget; Phase 6 metrics will show review load |
+| RR10 | Delegated email access cannot be scoped below the whole pilot mailbox | A personal account cannot use app-only scoping (D36) | Dedicated pilot account; code touches only its own drafts, Sent Items and Inbox |
 | RR9 | The console token is a shared secret on one machine | Simplest local mechanism | Localhost binding, never logged; owner decision D32 |

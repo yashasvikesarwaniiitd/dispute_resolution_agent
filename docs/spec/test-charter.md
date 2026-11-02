@@ -98,6 +98,7 @@ Conventions: "fires" = the rule returns the stated verdict and reason; "refused"
 | TC-SEC-01 | T10 | sentinel secret values in settings; run the scenario suite; scan DB, logs, spans, fixtures -> sentinels absent | [6] |
 | TC-SEC-02 | T10 | an exception from an adapter whose message contains a token -> logged redacted | [3] |
 | TC-SEC-03 | T10 | `model_calls` rows and spans contain no prompt or response text with `capture_content` false | [4b] |
+| TC-SEC-05 | T22 | the token cache file is not readable as plain text, and the adapter refuses to start if only plain-text persistence is available | [3] |
 | TC-SEC-04 | T19 | the synthetic generator never emits an address outside the test domain | [2] |
 
 ## 5. Injection corpus (used by TC-INJ and TC-R21)

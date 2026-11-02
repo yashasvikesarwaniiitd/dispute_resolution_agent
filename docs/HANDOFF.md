@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is drafted and awaiting owner approval: `integrations.md`, `foundry.md`, `config.md`, `observability.md`, ADRs 0019-0022, and an updated `docs/FOUNDRY_SETUP.md`. Open decisions O13 and O14 came out of the documentation research.
+No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is drafted and awaiting owner approval: `integrations.md`, `foundry.md`, `config.md`, `observability.md`, ADRs 0019-0022, and an updated `docs/FOUNDRY_SETUP.md`. The research led to owner decisions D35 (local red teaming) and D36 (personal Outlook.com with delegated sign-in).
 
-**Next action: the owner reviews Stage A3** (open decisions O13, O14). An independent review's findings are fixed (draft-only lookups, composite-write time budget, unsent-draft read-back, forged Authentication-Results, auto-instrumentation, missing call timeouts, config completeness). After approval: Stage A4 (agent prompts and evals) on Opus.
+**Next action: the owner reviews Stage A3**. An independent review's findings are fixed (draft-only lookups, composite-write time budget, unsent-draft read-back, forged Authentication-Results, auto-instrumentation, missing call timeouts, config completeness). After approval: Stage A4 (agent prompts and evals) on Opus.
 
 ## 2. The project in five lines
 
@@ -62,6 +62,8 @@ No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are 
 | D32 | (2026-11-02) Review console authentication uses a local `REVIEW_CONSOLE_TOKEN` secret; CLAUDE.md I14 now says "the one permitted provider API key" and covers the token under the same rules. ADR 0018 accepted. |
 | D33 | (2026-11-02) The case_investigator and seller_message_drafter v1 prompts are aligned with D19 and D29 (pre-release edit; v1 was never run). |
 | D34 | (2026-11-02) Stage A2 safety, policy and money specification approved: policy-rules, threat-model, approvals, money-rules, test-charter; ADRs 0015-0018 accepted. |
+| D35 | (2026-11-02) Red teaming (O14): our own prompt-injection suite, extended in Phase 6, run as a live local eval against the South India agents; no Foundry cloud red teaming. |
+| D36 | (2026-11-02) Email account (O13): a personal Outlook.com account, ideally a new one used only for the pilot, with delegated sign-in (device code), an encrypted token cache and re-login about every 90 days. ADR 0023. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -71,12 +73,9 @@ No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are 
 | O2 | Guardrail integration: observe deployment guardrail results, or call a Prompt Shields API | Observe the deployment's content-filter annotations (the smaller option; foundry.md section 8) | Phase 4b |
 | O3 | Use Foundry evaluations | Optional and supplementary; local gates are authoritative | Phase 6 |
 | O4 | Microsoft Agent Framework | Not used; revisit only through an ADR | Backlog |
-| O5 | Graph authentication model | App-only client credentials, `Mail.Send` + `Mail.ReadWrite` + `Mail.Read` scoped to the test mailbox with RBAC for Applications (ADR 0019); depends on O13 | Stage A3 review |
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
-| O13 | Email account type. App-only Graph access (needed for unattended sending and polling) is not available for personal Outlook.com accounts | A Microsoft 365 test tenant (developer or business trial) with one scoped test mailbox; alternative: a personal account with delegated sign-in and a stored refresh token (weaker; needs an ADR) | Owner, before Phase 3 |
-| O14 | Red teaming. Foundry cloud red teaming does not run in South India | Run our own injection corpus (extended) as a local eval against the live South India agents; skip Foundry cloud red teaming. Alternative: a second project in a supported region just for red teaming (uses credit) | Owner, before Phase 6 |
 
 ## 6. What the owner must do (Claude Code never does these)
 
