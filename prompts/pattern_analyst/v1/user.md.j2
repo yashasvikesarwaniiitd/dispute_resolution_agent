@@ -4,8 +4,16 @@
 
 <prior_findings>
 {% for f in prior_findings -%}
-- pattern: {{ f.id }} | status: {{ f.status }} | source: {{ f.source }}
+- pattern: {{ f.id | neutralise }} | status: {{ f.status }} | source: {{ f.source | neutralise }}
 {% endfor -%}
 </prior_findings>
+
+{% if case_notes -%}
+<untrusted_case_notes>
+{% for n in case_notes -%}
+- case: {{ n.case_ref | neutralise }} | note: {{ n.text | neutralise }}
+{% endfor -%}
+</untrusted_case_notes>
+{% endif %}
 
 Summarise the cluster now. Return only the JSON object.

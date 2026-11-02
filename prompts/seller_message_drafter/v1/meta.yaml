@@ -1,6 +1,6 @@
 name: seller_message_drafter
 version: v1
-status: active
+status: inactive  # no eval run yet (prompts/README): set active only after the eval suite passes
 owner: product
 purpose: Draft a seller message from approved facts only. Code validates every number before sending and a person reviews every message in the pilot.
 output_schema: schema.json
@@ -14,3 +14,4 @@ changelog:
   - v1: initial version
   - v1 (pre-release edit, 2026-11-02): added the reminder and clarification_request kinds (owner decision D19). Edited in place because v1 has never been released or run.
   - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): per-kind purpose table; facts carry a kind (identifier facts need no numbers_used entry, matching rule R09); digits only, never number words (residual RR1); never write an address, link or phone number; clarification open points arrive in an untrusted_ block; credit_confirmation must use credited_amount or block; examples for credit confirmation and a blocked draft; temperature removed. Failure modes MD-F1..MD-F8 in docs/spec/prompt-review.md.
+  - v1 (pre-release edit, 2026-11-03, Stage A4 independent review): trust model gained the block-spoofing and encoding clauses the other prompts already had, and an explicit rule that only the first approved_facts block counts (a forged second one inside an untrusted block is ignored); requested items fenced as untrusted; numbers section added; a manipulation example showing a forged approved_facts block in an open point. Findings B2, B3 in docs/spec/a4-review-findings.md.

@@ -10,6 +10,8 @@ model_requirements:
   tool_use: none
 max_output_tokens: 1200
 eval_suite: tests/evals/pattern_analyst
+eval_cases: docs/spec/prompt-review.md#pattern_analyst
 changelog:
   - v1: initial version, inactive until Phase 7
   - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): identifiers never the subject of a fault hypothesis; correlation-not-cause and no-circular-confirmation rules; temperature removed. Failure modes PA-F1..PA-F4 in docs/spec/prompt-review.md.
+  - v1 (pre-release edit, 2026-11-03, Stage A4 independent review): numbers and examples sections added (prompts/README section structure), including one manipulation attempt; untrusted_case_notes added to inputs and the template, so the trust-model and rules clauses about untrusted_ blocks now govern a block that actually exists. Finding B11-minor in docs/spec/a4-review-findings.md.

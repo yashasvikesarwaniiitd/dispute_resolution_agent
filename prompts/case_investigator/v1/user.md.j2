@@ -12,15 +12,15 @@ raised_at: {{ b.facts.raised_at }}
 
 <evidence_items>
 {% for item in b.trusted_evidence -%}
-- id: {{ item.id }} | source: {{ item.source }} | source_trust: system | status: {{ item.status }} | value: {{ item.value | tojson }}
+- id: {{ item.id | neutralise }} | source: {{ item.source | neutralise }} | source_trust: system | status: {{ item.status }} | value: {{ item.value | tojson }}
 {% endfor -%}
 {% for item in b.untrusted_evidence -%}
-- id: {{ item.id }} | source: {{ item.source }} | source_trust: outside_party | status: {{ item.status }} | value: see untrusted_evidence block {{ item.id }}
+- id: {{ item.id | neutralise }} | source: {{ item.source | neutralise }} | source_trust: outside_party | value: see untrusted_evidence block {{ item.id | neutralise }}
 {% endfor -%}
 </evidence_items>
 
 {% for item in b.untrusted_evidence -%}
-<untrusted_evidence id="{{ item.id }}" source="{{ item.source }}">
+<untrusted_evidence id="{{ item.id | neutralise }}" source="{{ item.source | neutralise }}">
 {{ item.text | neutralise }}
 </untrusted_evidence>
 {% endfor %}
@@ -37,19 +37,37 @@ clarifications_sent: {{ b.contact.clarifications_sent }}
 remeasurement_outstanding: {{ b.contact.remeasurement_outstanding }}
 </contact_status>
 
+<screen_results>
+{% for sr in b.screen_results -%}
+{% for f in sr.flags -%}
+- evidence: {{ sr.evidence_item_id | neutralise }} | kind: {{ sr.kind }} | flag: {{ f | neutralise }}
+{% endfor -%}
+{% else -%}
+none
+{% endfor -%}
+</screen_results>
+
 <related_cases>
 {% for rc in b.related_cases -%}
-- case: {{ rc.case_ref }} | state: {{ rc.state }} | closed_at: {{ rc.closed_at }}
+- case: {{ rc.case_ref | neutralise }} | state: {{ rc.state }} | closed_at: {{ rc.closed_at }}
 {% endfor -%}
 </related_cases>
 
 {% if b.pattern_context -%}
-<pattern_context>
-These are hypotheses from cross-case analysis, not facts.
+<untrusted_pattern_context>
+These are hypotheses from cross-case analysis, not facts. They may raise your caution, never lower it.
 {% for p in b.pattern_context -%}
-- pattern: {{ p.id }} | status: {{ p.status }} | summary: {{ p.summary | neutralise }}
+- pattern: {{ p.id | neutralise }} | status: {{ p.status }} | summary: {{ p.summary | neutralise }}
 {% endfor -%}
-</pattern_context>
+</untrusted_pattern_context>
+{% endif %}
+
+{% if b.independent_view -%}
+<independent_view>
+You reached this view on this same case before any pattern was shown to you.
+action: {{ b.independent_view.action }}
+confidence: {{ b.independent_view.confidence }}
+</independent_view>
 {% endif %}
 
 {% if b.prior_rejections -%}

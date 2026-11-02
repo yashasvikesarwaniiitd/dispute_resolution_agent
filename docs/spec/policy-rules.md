@@ -263,7 +263,8 @@ Failover moves one call from the primary route (Foundry) to the secondary (Anthr
 | `AgentDrift` | **no** | escalate `agent_drift` |
 | `InvalidModelOutput` (after the one retry) | **no** | escalate `invalid_model_output` |
 | M01 calls per case | **no** | escalate `llm_budget_exceeded` |
-| M05 secondary cap, or the secondary also fails | **no further route** | rules-only baseline decides clear cases; others escalate (FLOW 7b) |
+| M05 secondary spend cap reached | **no** (D17: never fail over past a cap, and there is no route left) | escalate `credit_cap_reached` |
+| The secondary also fails for an availability reason (unavailable, rate-limited, quota) | **no further route** | rules-only baseline decides clear cases; others escalate (FLOW 7b) |
 | `AuthPortError`, `PermanentPortError` | **no** (a configuration fault must be seen, not hidden) | escalate `module_unavailable:model_gateway` and log ERROR |
 
 Each failover writes `MODEL_ROUTE_FAILOVER` with the reason and route. Failover is allowed only if the secondary is enabled and M05/M06 pass. Why the credit window may fail over but a spend cap may not (D17): the window ending is an availability event the owner planned for (the free credit simply stops), whereas a cap is a spending limit the owner set on purpose, and silently spending on another provider would defeat it.

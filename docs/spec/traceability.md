@@ -1,6 +1,6 @@
 # Invariant traceability (Stage A1)
 
-Status: draft for owner approval. Every invariant in `CLAUDE.md` section 3 mapped to the mechanisms that enforce it (more than one where it matters: code, type system and database) and at least one test that tries to break it. Stage A2 (`policy-rules.md`, `threat-model.md`, `test-charter.md`) adds rule ids and threat ids to this table.
+Status: draft for owner approval. Every invariant in `CLAUDE.md` section 3 mapped to the mechanisms that enforce it (more than one where it matters: code, type system and database) and at least one test that tries to break it. Stage A2 (`policy-rules.md`, `threat-model.md`, `test-charter.md`) adds rule ids and threat ids to this table. Stage A4 adds what the model sees and may answer (`agent-design.md`: the briefing trust table for I5, the proposal checks for T12 and I9, the caution order for I7, the rules-only baseline for I4 and I6) and the scenario that exercises each invariant (`eval-scenarios.yaml`, field `invariants`).
 
 | # | Invariant (short) | Mechanisms | Where specified | Test ideas (try to break it) |
 |---|-------------------|------------|-----------------|------------------------------|

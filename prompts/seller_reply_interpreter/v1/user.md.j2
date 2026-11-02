@@ -3,14 +3,17 @@ case_ref: {{ ctx.case_ref }}
 request_sent_at: {{ ctx.request_sent_at }}
 </case_summary>
 
-<outstanding_request>
+<untrusted_outstanding_request>
 {% for item in ctx.requested_items -%}
-- {{ item }}
+- {{ item | neutralise }}
 {% endfor -%}
-</outstanding_request>
+</untrusted_outstanding_request>
 
-<untrusted_seller_reply>
+<untrusted_seller_reply truncated="{{ ctx.reply_truncated | neutralise }}">
 {{ ctx.reply_text | neutralise }}
+{% if ctx.reply_truncated -%}
+[... this reply was longer than the limit and was cut here; you have not seen all of it ...]
+{% endif -%}
 </untrusted_seller_reply>
 
 <untrusted_attachments>

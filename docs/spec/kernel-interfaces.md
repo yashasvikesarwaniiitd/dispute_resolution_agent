@@ -1411,3 +1411,74 @@ def normalise_text(s: str) -> str:
 ```
 
 `MessageChannel` semantics (integrations.md 1.3): `find_sent` raises `AmbiguousOutcome` when the marked message is found only in Drafts. `TicketingSystem.find_issue` is best effort: a hit is reliable, a miss is not proof of absence (integrations.md 2.2).
+
+## 15. Amendments from Stage A4
+
+From `agent-design.md`. Stage A4 introduces no field the kernel does not carry; these are the carriers.
+
+### 15.1 Context models
+
+```python
+# CaseBriefing (section 4.7): new field
+    contact: "ContactStatus"          # the three contact counters the reasoner needs; the same values
+                                      # PolicyContext carries, copied onto the briefing so the model and
+                                      # the policy engine cannot drift apart (agent-design.md section 1)
+
+class ContactStatus(BaseModel):
+    reply_in_round: bool
+    clarifications_sent: int
+    remeasurement_outstanding: bool   # an OPS_TIMEOUT timer is armed and unfired
+
+# CaseBriefing (section 4.7): new field, set by the reasoning adapter on pass 2 only
+    independent_view: "IndependentView | None" = None
+
+class IndependentView(BaseModel):
+    """Pass 1's own result, shown back to the model on pass 2 (agent-design.md section 7).
+    Written by us, so it is trusted; it carries no rationale, only the two values the
+    anchoring control compares."""
+    action: ProposalAction
+    confidence: Literal["low", "medium", "high"]
+
+# ReplyContext (section 4.7): new fields
+    case_ref: str                     # display reference CASE-<n>; never the internal CaseId
+    request_sent_at: datetime | None  # when the outstanding request was verified as sent
+    reply_truncated: bool             # UntrustedText.truncated, rendered as an explicit marker so the
+                                      # model knows the reply was cut (agent-design.md section 1)
+    attachments: tuple["ReplyAttachment", ...] = ()
+
+class ReplyAttachment(BaseModel):
+    name: str                         # <= 255, seller-written: untrusted, rendered through neutralise
+    content_type: str                 # <= 128, as reported by the mail store
+
+# DraftContext (section 4.7): new fields
+    case_ref: str
+    open_points: tuple[str, ...] = () # clarification only; AI-derived, rendered untrusted
+    next_step: str                    # <= 200, what the message asks the seller to do
+    style: "DraftStyle"
+
+class DraftStyle(BaseModel):
+    tone: Literal["polite"] = "polite"
+    language: str = "en"              # ISO 639-1, from the seller's last reply
+    max_words: int = 180
+```
+
+`DraftContext.facts` renders as `fact_id`, `kind` and `rendered` (the approved-facts block); `DraftContext.seller_ref` stays, and the recipient is still set by the system, never by the model (R07).
+
+### 15.2 Baseline proposal
+
+`DomainPack.baseline_proposal(briefing)` returns a `Proposal` with `confidence = "high"`, exactly one `findings` entry of kind `verified_fact` naming the matched row, and `pattern_influence = {considered: False, changed_recommendation: False, note: ""}` (`agent-design.md` section 5).
+
+### 15.3 Two-pass reasoning
+
+```python
+class CautionRank(IntEnum):
+    """Total order for the Phase 7 anchoring control (agent-design.md section 7). Higher is more cautious."""
+    PROPOSE_CREDIT = 0
+    UPHOLD_CHARGE = 1
+    WAIT = 2
+    REQUEST_SELLER_EVIDENCE = 3
+    REQUEST_REMEASUREMENT = 4
+    ESCALATE_TO_HUMAN = 5
+```
+
+The adapter compares `CautionRank[P2.action]` with `CautionRank[P1.action]` and returns P1 whenever P2 ranks lower, or whenever P2 keeps the action but raises `confidence` or changes `action_parameters`. `Proposal.briefing_hash` stores the pass-2 hash; pass 1's hash is recorded on its own `model_calls` row.

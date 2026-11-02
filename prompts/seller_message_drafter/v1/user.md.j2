@@ -9,11 +9,11 @@
 </approved_facts>
 
 {% if ctx.requested_items -%}
-<requested_items>
+<untrusted_requested_items>
 {% for item in ctx.requested_items -%}
-- {{ item }}
+- {{ item | neutralise }}
 {% endfor -%}
-</requested_items>
+</untrusted_requested_items>
 {% endif %}
 
 {% if ctx.open_points -%}

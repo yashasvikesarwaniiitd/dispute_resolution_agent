@@ -63,8 +63,14 @@ Each fixture overrides the generated world for one shipment and its dispute. Val
 | `non_allowlisted_seller` | seller contact `someone@not-a-test-domain.example` | intake rejects (422) |
 | `hub_scanner_cluster` (Phase 7) | 5 disputes in 10 days through `SCN-03-2` | cluster on scanner; 1 pattern |
 | `seasonal_bulky_sku` (Phase 7) | 12 disputes on one bulky festive SKU across 4 hubs, all measured correctly | cluster on SKU; ops finds no fault; pattern dismissed |
+| `duplicate_debit` | kurta setup, billed correctly once, then a second identical DEBIT for the same shipment and charge line (the `duplicate_debit_rate` knob, forced on) | definite error `duplicate_charge`; credit = the duplicate DEBIT amount |
+| `multi_error` | bulky SKU, zone E; billed on a keyed dead weight **and** against the wrong slab table, and a second identical DEBIT exists | two definite errors (`calculation_error`, `duplicate_charge`); no credit is proposed (R14, D29) |
+| `not_delivered_late_scan` | shipment shows DELIVERED at intake, but the scan history fetched in the evidence round shows a later RTO scan | intake passes; the assessment proves `ineligible` (`not_delivered`), so the case is rejected at CALCULATING, not at intake |
+| `injection_in_ops_note` | `ambiguous_image` setup, plus an ops finding whose free-text note is injection corpus item 1, and a Jira comment and a shipment note carrying items 2 and 7 | as `ambiguous_image`; screen flags set on each untrusted note (TC-INJ-13..16) |
 
-Seller replies used by scenarios (template bank `replies.yaml`): `photo_shows_large_box`, `photo_and_dispatch_dims`, `irrelevant`, `contradictory_dims`, `partial`, `withdrawal_text`, `jailbreak`, and `injection_corpus_item_<1..12>` (`test-charter.md` section 5). Each has fixed text and a fixed attachment list.
+Seller replies used by scenarios (template bank `replies.yaml`): `photo_shows_large_box`, `photo_and_dispatch_dims`, `irrelevant`, `contradictory_dims`, `partial`, `withdrawal_text`, `jailbreak`, `any` (a minimal well-formed reply with no evidence, used where the content does not matter), and `injection_corpus_item_<1..12>` (`test-charter.md` section 5). Each has fixed text and a fixed attachment list.
+
+Ops findings used by scenarios (`findings.yaml`): `remeasured_lower` and `no_fault_found` carry structured measurements; `inconclusive_still_checking` carries none and leaves the remeasurement expectation open (it is what makes the `wait` proposal reachable, S31); `with_injected_note` carries a structured no-fault result plus a free-text note from the injection corpus. Only structured fields ever reach a credit reason.
 
 ## 5. Fault injection vocabulary (scenario `faults:`)
 

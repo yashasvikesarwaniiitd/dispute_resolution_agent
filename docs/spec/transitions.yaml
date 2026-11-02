@@ -69,7 +69,7 @@ timer_kinds:
   OPS_TIMEOUT:     {due: "anchor + policy.timers.ops_timeout_hours (120h)",    anchor: remeasurement issue verified_at}
   APPROVAL_EXPIRY: {due: "anchor + policy.approvals.expire_after_hours (72h)", anchor: approval requested_at}
   VERIFY_RETRY:    {due: "next entry of executor.verify_schedule_s after the last attempt", anchor: action sent_at}
-  EVIDENCE_RETRY:  {due: "now + policy.timers.evidence_retry_minutes (15)", anchor: the failed fetch, note: "at most policy.timers.evidence_max_retries (3) per gather round (D41)"}
+  EVIDENCE_RETRY:  {due: "now + policy.timers.evidence_retry_minutes (15)", anchor: the failed fetch, note: "at most policy.timers.evidence_max_retries (3) per gather round (D41); counted by timers.gather_round, which this kind alone carries"}
   # At most one active timer per (case, kind): a partial unique index enforces it (schema.sql).
 
 triggers:
@@ -136,7 +136,8 @@ guards:
   no_notify_seller:            "HUMAN_TOOK_CASE payload notify_seller == false"
   unknown_actions_resolved:    "no action of the case is in PLANNED, SENT or UNKNOWN after applying the event's resolutions"
 
-# Steps: what each step may produce. `rest` = no transition (only VERIFYING and the reminder step).
+# Steps: what each step may produce. `rest` = no transition (VERIFYING, the reminder step, and
+# gather_evidence while an EVIDENCE_RETRY timer is pending, D41).
 # Any step may also produce `escalate` (an unexpected exception inside a step is escalate(internal_error)).
 steps:
   eligibility:     {in: [RECEIVED],           produces: [eligibility_passed, eligibility_failed, escalate]}

@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is drafted and awaiting owner approval: `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (38 scenarios, full coverage), `release-gates.yaml` (draft), `synthetic-data.md`, revised `prompts/` (all v1, pre-release), ADR 0024. Coverage checkpoint and debatable outcomes decided (D38-D41). **Paused before the independent review**: next session, run the review, fix findings, then owner approval.
+No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is drafted and awaiting owner approval: `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (53 scenarios, full coverage), `release-gates.yaml` (draft), `synthetic-data.md`, revised `prompts/` (all v1, pre-release), ADR 0024. Coverage checkpoint and debatable outcomes decided (D38-D41). **The independent review has been run** (2026-11-03, three reviewers: spec consistency, prompts/adversarial, evals and gates). Findings are in `docs/spec/a4-review-findings.md`; all 9 blocking and 22 major findings are fixed, and the minors are folded in. Two owner decisions were taken during the fix: D42 and D43 below.
 
-**Next action: the owner reviews Stage A4.** After approval: Stage A5 (task cards and freeze, `arch-v1`).
+**Next action: the owner reviews Stage A4 (now post-review).** After approval: Stage A5 (task cards and freeze, `arch-v1`).
 
 ## 2. The project in five lines
 
@@ -69,6 +69,8 @@ No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs ar
 | D39 | (2026-11-02) Scenario S04: conflicting history -> ask the hub to check (remeasurement); history is never proof. |
 | D40 | (2026-11-02) Rejecting a code-proven credit sends the case to a person (`credit_rejected`) instead of re-planning. Transitions X15. |
 | D41 | (2026-11-02) A required evidence source that fails transiently is retried every 15 minutes, up to 3 times, before the case proceeds with the failure recorded. Transitions X16. |
+| D42 | (2026-11-03) `policy-rules.md` M05 is split in two: a secondary **spend cap** escalates `credit_cap_reached` (no route left, D17), while the secondary **failing for an availability reason** falls back to the rules-only baseline. The single merged row contradicted FLOW section 7b. |
+| D43 | (2026-11-03) The briefing per-field caps are tightened so the worst case (23,000 chars) fits the 24,000 total, with trusted evidence added to the shrink order. The previous caps summed to about 83,500, so the stated budget was unsatisfiable. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

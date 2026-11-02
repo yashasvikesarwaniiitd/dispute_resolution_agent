@@ -452,6 +452,10 @@ CREATE TABLE timers (
   anchor_at         TEXT    NOT NULL CHECK (anchor_at GLOB '????-??-??T??:??:??.??????Z'),
   armed_in_state    TEXT    NOT NULL,
   armed_at_version  INTEGER NOT NULL CHECK (armed_at_version >= 1),
+  gather_round      INTEGER CHECK (gather_round >= 1),  -- EVIDENCE_RETRY only: the gather round that armed it,
+                                                        -- so the D41 limit of 3 retries is counted per round and a
+                                                        -- later round does not start already at the limit
+
   correlation_id    TEXT    NOT NULL CHECK (correlation_id GLOB 'corr_*'),
   created_at        TEXT    NOT NULL CHECK (created_at GLOB '????-??-??T??:??:??.??????Z'),
   fired_at          TEXT    CHECK (fired_at GLOB '????-??-??T??:??:??.??????Z'),
@@ -463,7 +467,8 @@ CREATE TABLE timers (
   CHECK (consumed_at IS NULL OR fired_at IS NOT NULL),
   CHECK (voided_at IS NULL OR (fired_at IS NOT NULL AND consumed_at IS NULL)),
   CHECK ((cancelled_at IS NULL) = (cancel_reason IS NULL)),
-  CHECK (due_at >= anchor_at)
+  CHECK (due_at >= anchor_at),
+  CHECK ((gather_round IS NOT NULL) = (kind = 'EVIDENCE_RETRY'))
 ) STRICT;
 -- one active timer per case and kind
 CREATE UNIQUE INDEX ux_timers_active ON timers (case_id, kind) WHERE fired_at IS NULL AND cancelled_at IS NULL;

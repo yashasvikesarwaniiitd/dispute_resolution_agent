@@ -103,8 +103,13 @@ patterns:
   min_related_cases: 3
   window_days: 14
   match_min_verdict: REQUIRE_APPROVAL
+baseline:
+  tolerance_pct: 5                                 # rules-only baseline B7/B8: measured size within this % of
+                                                   # declared counts as agreeing (agent-design.md section 5)
 llm:
   max_calls_per_case: 6
+  max_calls_per_case_with_patterns: 10             # two-pass reasoning doubles the investigator call per
+                                                   # patterned round; start-up picks this when cross_case is on
   max_output_tokens: 1200
   call_timeout_s: 120                              # per model call (foundry.md section 7)
   pricing_file: config/pricing.yaml
