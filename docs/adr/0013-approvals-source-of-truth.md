@@ -1,6 +1,6 @@
 # ADR 0013: The kernel approvals table is the source of truth; ApprovalService only notifies
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

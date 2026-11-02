@@ -1,6 +1,6 @@
 # ADR 0005: State machine as data, with an event acceptance matrix
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

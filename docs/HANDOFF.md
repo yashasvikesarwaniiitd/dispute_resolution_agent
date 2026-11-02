@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stage A1 (kernel specification) is drafted and awaiting owner approval: `docs/spec/` holds `kernel-interfaces.md`, `schema.sql`, `transitions.yaml`, `events-catalog.md`, `orchestrator.md`, `executor.md` and `traceability.md`, with ADRs 0004-0013 (status proposed). The product decisions are made (D19-D26). The state machine table passed checks C1-C16, the schema loaded into SQLite and passed 27 negative tests, and an independent review's four real defects (duplicate credit path, stranded timer, credited case re-planned, crash re-send) are fixed (orchestrator.md appendix A).
+No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` holds the kernel interfaces, schema, state machine, events catalog, orchestrator, executor and traceability table; ADRs 0004-0014 are accepted. Stage A2 (safety and policy specification) is in progress.
 
-**Next action: the owner reviews Stage A1** (remaining: the engineering ADRs still marked proposed; decision O9). After approval: Stage A2 (safety and policy) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a2`.
+**Next action: finish Stage A2**, then the owner reviews it. After approval: Stage A3 (integrations and Foundry) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a3`.
 
 ## 2. The project in five lines
 
@@ -54,6 +54,7 @@ No code yet. Stage A1 (kernel specification) is drafted and awaiting owner appro
 | D24 | (2026-11-02) Kill switch: a blocked send moves the case to human review; a person returns it after the switch is off. |
 | D25 | (2026-11-02) A repeat dispute on a closed claim reopens it inside the 7-day window, otherwise opens a new linked case with extra caution. |
 | D26 | (2026-11-02) Illustrative limits accepted: ops timeout 120 h, approval expiry 72 h, 2 automatic reopens, 2 approval rejections per case, 10-minute verification deadline, 1 clarification per case. A3 owns the final config schema. |
+| D27 | (2026-11-02) Stage A1 kernel specification approved: docs/spec/ (kernel-interfaces, schema, transitions, events-catalog, orchestrator, executor, traceability) and ADRs 0004-0014 accepted. docs/spec/ now outranks ARCHITECTURE.md and FLOW.md (CLAUDE.md section 18). |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -67,7 +68,6 @@ No code yet. Stage A1 (kernel specification) is drafted and awaiting owner appro
 | O6 | Release gate thresholds | Drafted in Stage A4; approved in Phase 6 | Phase 6 |
 | O7 | When to relax message review (which kinds become automatic) | Review all until you decide, after watching real drafts | Owner, any time |
 | O8 | Secondary Haiku spend cap and the Haiku model id | $10 and `claude-haiku-5-5`; confirm both against the Anthropic pricing and model pages | Phase 4 |
-| O9 | Overall sign-off of the Stage A1 kernel spec. The product decisions inside it are made (D19-D26); what remains is the engineering ADRs 0004-0008, 0010, 0011, 0013 (still "proposed") and the rest of the X1-X14 list | As drafted | Owner, before Stage A2 |
 
 ## 6. What the owner must do (Claude Code never does these)
 
@@ -126,4 +126,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Owner review of Stage A1 (decision O9), then Stage A2: safety and policy specification on Opus.
+Stage A2: safety and policy specification on Opus (in progress), then owner review.

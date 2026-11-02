@@ -1,6 +1,6 @@
 # ADR 0006: Transactional inbox for inputs, outbox for outcomes
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

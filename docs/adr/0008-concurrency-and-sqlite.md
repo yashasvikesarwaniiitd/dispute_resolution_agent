@@ -1,6 +1,6 @@
 # ADR 0008: Optimistic versions, BEGIN IMMEDIATE, an action claim, one worker process
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

@@ -4,8 +4,8 @@
 
 | Stage or phase | Status | Approved by owner | Notes |
 |----------------|--------|-------------------|-------|
-| A1 Kernel specification | Drafted; awaiting owner approval | | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
-| A2 Safety and policy | Not started | | |
+| A1 Kernel specification | Approved | Owner, 2026-11-02 (D27) | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
+| A2 Safety and policy | In progress | | |
 | A3 Integrations and Foundry | Not started | | |
 | A4 Agent and evals | Not started | | |
 | A5 Build plan and freeze (`arch-v1`) | Not started | | |
@@ -25,16 +25,16 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| 0004 | Step-driven orchestrator, one committed transition per step | proposed |
-| 0005 | State machine as data, with an event acceptance matrix | proposed |
-| 0006 | Transactional inbox for inputs, outbox for outcomes | proposed |
-| 0007 | Idempotency keys include the action sequence; every write port supports lookup by key | proposed |
-| 0008 | Optimistic versions, BEGIN IMMEDIATE, an action claim, one worker process | proposed |
+| 0004 | Step-driven orchestrator, one committed transition per step | accepted |
+| 0005 | State machine as data, with an event acceptance matrix | accepted |
+| 0006 | Transactional inbox for inputs, outbox for outcomes | accepted |
+| 0007 | Idempotency keys include the action sequence; every write port supports lookup by key | accepted |
+| 0008 | Optimistic versions, BEGIN IMMEDIATE, an action claim, one worker process | accepted |
 | 0009 | A free-text withdrawal needs human confirmation | accepted (D20) |
-| 0010 | Read-back verification with a bounded retry window; "sent" is not "delivered" | proposed |
-| 0011 | Money as integer paise and weight as integer grams in storage | proposed |
+| 0010 | Read-back verification with a bounded retry window; "sent" is not "delivered" | accepted |
+| 0011 | Money as integer paise and weight as integer grams in storage | accepted |
 | 0012 | Deterministic follow-up actions; "resolved credited" means credited and told | accepted (D21) |
-| 0013 | The kernel approvals table is the source of truth; ApprovalService only notifies | proposed |
+| 0013 | The kernel approvals table is the source of truth; ApprovalService only notifies | accepted |
 | 0014 | An unclear seller reply gets one clarification, then a person | accepted (D19) |
 
 ## Session log

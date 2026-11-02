@@ -1,6 +1,6 @@
 # ADR 0010: Read-back verification with a bounded retry window; "sent" is not "delivered"
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

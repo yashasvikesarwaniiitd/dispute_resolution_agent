@@ -1,6 +1,6 @@
 # ADR 0011: Money as integer paise and weight as integer grams in storage; no rounding in the kernel
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

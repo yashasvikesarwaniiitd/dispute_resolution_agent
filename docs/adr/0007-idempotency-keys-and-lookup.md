@@ -1,6 +1,6 @@
 # ADR 0007: Idempotency keys include the action sequence; every write port supports lookup by key
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision

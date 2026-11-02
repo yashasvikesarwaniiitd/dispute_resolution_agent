@@ -1,6 +1,6 @@
 # ADR 0004: Step-driven orchestrator, one committed transition per step
 
-Status: proposed
+Status: accepted (owner, 2026-11-02)
 Date: 2026-11-02
 
 ## Decision
