@@ -1,6 +1,6 @@
 # ADR 0021: Foundry agents are called by pinned version, statelessly, and validated in our code
 
-Status: proposed
+Status: accepted (owner, 2026-11-02, D37)
 Date: 2026-11-02
 
 ## Decision

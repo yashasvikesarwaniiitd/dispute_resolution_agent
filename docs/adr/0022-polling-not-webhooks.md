@@ -1,6 +1,6 @@
 # ADR 0022: Poll for email replies and Jira findings; no webhooks in v1
 
-Status: proposed
+Status: accepted (owner, 2026-11-02, D37)
 Date: 2026-11-02
 
 ## Decision

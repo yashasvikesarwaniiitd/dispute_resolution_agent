@@ -6,8 +6,8 @@
 |----------------|--------|-------------------|-------|
 | A1 Kernel specification | Approved | Owner, 2026-11-02 (D27) | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
 | A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
-| A3 Integrations and Foundry | Drafted; awaiting owner approval | | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
-| A4 Agent and evals | Not started | | |
+| A3 Integrations and Foundry | Approved | Owner, 2026-11-02 (D37) | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
+| A4 Agent and evals | In progress | | |
 | A5 Build plan and freeze (`arch-v1`) | Not started | | |
 | 0 Foundations and sockets | Not started | | |
 | 1 Kernel | Not started | | |
@@ -40,10 +40,10 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0016 | Credits only for code-proven reasons; no amount caps, structural limit only | accepted (D29, D30) |
 | 0017 | Model-call budgets and failover live in one kernel decorator around ModelGateway | accepted (D34) |
 | 0018 | Human events are authenticated; the actor comes from the session | accepted (D32) |
-| 0019 | Email is sent as a marked draft, looked up by an extended property, read back by immutable id | proposed |
-| 0020 | Jira idempotency comes from our own action record; labels and a property are markers | proposed |
-| 0021 | Foundry agents are called by pinned version, statelessly, and validated in our code | proposed |
-| 0022 | Poll for email replies and Jira findings; no webhooks in v1 | proposed |
+| 0019 | Email is sent as a marked draft, looked up by an extended property, read back by immutable id | accepted (D37) |
+| 0020 | Jira idempotency comes from our own action record; labels and a property are markers | accepted (D37) |
+| 0021 | Foundry agents are called by pinned version, statelessly, and validated in our code | accepted (D37) |
+| 0022 | Poll for email replies and Jira findings; no webhooks in v1 | accepted (D37) |
 | 0023 | Email uses a personal Outlook.com account with delegated sign-in and an encrypted token cache | accepted (D36) |
 
 ## Session log

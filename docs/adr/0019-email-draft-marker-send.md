@@ -1,6 +1,6 @@
 # ADR 0019: Email is sent as a marked draft, looked up by an extended property, read back by immutable id
 
-Status: proposed
+Status: accepted (owner, 2026-11-02, D37)
 Date: 2026-11-02
 
 ## Decision

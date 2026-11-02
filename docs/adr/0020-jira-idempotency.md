@@ -1,6 +1,6 @@
 # ADR 0020: Jira idempotency comes from our own action record; labels and a property are markers, not locks
 
-Status: proposed
+Status: accepted (owner, 2026-11-02, D37)
 Date: 2026-11-02
 
 ## Decision

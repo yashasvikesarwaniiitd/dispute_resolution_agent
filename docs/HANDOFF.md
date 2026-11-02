@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is drafted and awaiting owner approval: `integrations.md`, `foundry.md`, `config.md`, `observability.md`, ADRs 0019-0022, and an updated `docs/FOUNDRY_SETUP.md`. The research led to owner decisions D35 (local red teaming) and D36 (personal Outlook.com with delegated sign-in).
+No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is in progress.
 
-**Next action: the owner reviews Stage A3**. An independent review's findings are fixed (draft-only lookups, composite-write time budget, unsent-draft read-back, forged Authentication-Results, auto-instrumentation, missing call timeouts, config completeness). After approval: Stage A4 (agent prompts and evals) on Opus.
+**Next action: finish Stage A4**, then the owner reviews it. After approval: Stage A5 (task cards and freeze, `arch-v1`).
 
 ## 2. The project in five lines
 
@@ -64,6 +64,7 @@ No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are 
 | D34 | (2026-11-02) Stage A2 safety, policy and money specification approved: policy-rules, threat-model, approvals, money-rules, test-charter; ADRs 0015-0018 accepted. |
 | D35 | (2026-11-02) Red teaming (O14): our own prompt-injection suite, extended in Phase 6, run as a live local eval against the South India agents; no Foundry cloud red teaming. |
 | D36 | (2026-11-02) Email account (O13): a personal Outlook.com account, ideally a new one used only for the pilot, with delegated sign-in (device code), an encrypted token cache and re-login about every 90 days. ADR 0023. |
+| D37 | (2026-11-02) Stage A3 integrations, Foundry, configuration and observability specification approved: integrations, foundry, config, observability; ADRs 0019-0023 accepted; FOUNDRY_SETUP.md corrected. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -134,4 +135,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Stage A3: integrations and Foundry specification on Opus (in progress), then owner review.
+Stage A4: agent design and evals on Opus (in progress), then owner review.
