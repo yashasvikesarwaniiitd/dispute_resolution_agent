@@ -6,6 +6,9 @@ Principal engineer setting up a repository that must stay clean through seven mo
 ## Context
 Read `CLAUDE.md`, `docs/ARCHITECTURE.md` and `docs/FLOW.md`. Nothing exists yet. This phase writes no business logic. It builds the skeleton, the tooling and every socket (port) that later phases plug into, including the empty socket for cross-case intelligence.
 
+
+**Task cards: `docs/spec/task-cards/phase-0.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 A runnable, empty, fully gated project in which the dependency rules are enforced by tests, modules can be switched on or off by configuration, and an unconnected cross-case socket already exists.
 

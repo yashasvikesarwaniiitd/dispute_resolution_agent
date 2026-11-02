@@ -10,6 +10,9 @@ The kernel works with fake ports. Read the public documentation pages listed bel
 - https://help.delhivery.com/docs/delhivery-miles-wallet
 These describe a public workflow. They do not describe any internal system. Treat every rate, limit and threshold as illustrative configuration.
 
+
+**Task cards: `docs/spec/task-cards/phase-2.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 For a synthetic disputed shipment the system gathers evidence from each source, records what is missing or failed, recalculates the charge deterministically, and reconciles it against a simulated ledger.
 

@@ -6,6 +6,9 @@ Principal engineer proving the system behaves, and recording exactly what that p
 ## Context
 The single-case flow works with real email and Jira, human approval and a simulated ledger. This phase measures it and attacks it. Cross-case is still off.
 
+
+**Task cards: `docs/spec/task-cards/phase-6.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 A complete scenario suite, metrics, explicit release gates, failure drills and documentation that states honestly what the results do and do not show.
 

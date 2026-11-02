@@ -6,6 +6,9 @@ Principal AI engineer adding the reasoning step inside the guardrails the kernel
 ## Context
 Channels and verification work. The reasoning module is currently the rules-only baseline. Read `prompts/README.md` and the prompt files under `prompts/`. This phase stays local and offline: it defines the `ModelGateway` port and runs on fakes and recorded fixtures. The only live path is an optional check through the Haiku-only `anthropic_direct` adapter. The Foundry adapters come in Phase 4b.
 
+
+**Task cards: `docs/spec/task-cards/phase-4.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 An LLM-backed `Reasoner`, `ReplyInterpreter` and `MessageDrafter` behind their ports that only read and propose, with every output validated, every prompt versioned, and a first eval suite that compares the LLM path with the rules-only baseline.
 

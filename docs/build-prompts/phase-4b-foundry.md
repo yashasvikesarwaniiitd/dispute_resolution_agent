@@ -13,6 +13,9 @@ Phase 4 is done: the reasoning module runs on `FakeModelGateway` and recorded fi
 - The `azure-ai-projects` package (version 2.3.0 or later) README on learn.microsoft.com
 The owner has created the Azure resources by following `docs/FOUNDRY_SETUP.md` (region South India, a `gpt-5-mini` Global Standard deployment). You never create Azure resources.
 
+
+**Task cards: `docs/spec/task-cards/phase-4b.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 The reasoning path calls prompt agents in Foundry Agent Service through `ModelGateway` with Entra ID, and fails over to the Haiku-only Anthropic route only for availability, rate-limit, quota and credit-window errors. Agent definitions are built from the repo's prompt files and are drift-checked. Calls are traced without content, metered per call against spend caps, screened by an advisory guardrail, and any guardrail block, budget breach, spend-cap breach or drift ends in human review.
 

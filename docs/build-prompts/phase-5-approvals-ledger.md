@@ -6,6 +6,9 @@ Principal engineer making money movement safe and provable.
 ## Context
 Reasoning works and proposes. Read `docs/FLOW.md` and the wallet-sequence assumptions recorded in the Phase 2 ADR. The ledger here is a simulation and never touches a real wallet.
 
+
+**Task cards: `docs/spec/task-cards/phase-5.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 A credit can only happen after a stored human approval, is posted idempotently to a simulated ledger, and is independently verified before the case can resolve.
 

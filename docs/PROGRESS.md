@@ -8,8 +8,8 @@
 | A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
 | A3 Integrations and Foundry | Approved | Owner, 2026-11-02 (D37) | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
 | A4 Agent and evals | Approved | Owner, 2026-11-03 (D44) | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43); 59 scenarios, paths machine-checked |
-| A5 Build plan and freeze (`arch-v1`) | Next | | The last design stage; after it the build phases begin |
-| 0 Foundations and sockets | Not started | | |
+| A5 Build plan and freeze (`arch-v1`) | Drafted; awaiting owner approval and the tag | | 109 task cards across 9 phases, INDEX, escalation guide, risk register and milestone plan; all 9 phase prompts reference their cards |
+| 0 Foundations and sockets | Next | | Build from `docs/spec/task-cards/phase-0.md` (12 cards) |
 | 1 Kernel | Not started | | |
 | 2 Weight-dispute pack | Not started | | |
 | 3 Real channels | Not started | | |
@@ -58,3 +58,4 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 2026-11-02 | A3 | Opus + 3 research subagents | not recorded | Official docs researched (Graph, Jira, Foundry, Anthropic); integrations, foundry, config, observability specs; ADRs 0019-0022; FOUNDRY_SETUP.md corrected | Owner approves A3 (O13, O14), then A4 |
 | 2026-11-02 | A4 | Opus | not recorded | 39 scenarios with checked state paths (59 after the review); owner decided 4 debatable outcomes (D38-D41, two spec changes); agent design; adversarial prompt review (29 failure modes); draft release gates; synthetic data spec; ADR 0024 | Owner approves A4, then A5 |
 | 2026-11-03 | A4 | Opus + 3 independent review subagents | not recorded | Independent review of the A4 draft across spec consistency, prompts (adversarial) and evals/gates; 9 blocking and 22 major findings, all verified against the files and fixed; 20 scenarios added (59 total); all paths machine-checked by scripts/check_scenarios.py; kernel-interfaces amendment section 15; owner decisions D42, D43; ADR 0025 | Owner approves A4, then A5 |
+| 2026-11-03 | A5 | Opus | not recorded | 109 task cards for phases 0-7 and 4b, each with files, spec sections, tests-first, acceptance command, size, dependencies and model; `docs/spec/INDEX.md`; escalation guide; risk register and a derived milestone plan; task-card reference added to all 9 phase prompts | Owner approves A5, then tag `arch-v1` and start Phase 0 |

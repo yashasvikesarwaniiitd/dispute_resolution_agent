@@ -6,6 +6,9 @@ Principal engineer connecting the system to two real services without compromisi
 ## Context
 Evidence and calculation work. The executor and policy exist with fakes. Read the current official documentation for Microsoft Graph mail (send and read) and Jira Cloud REST before coding, and link them in the ADR. Do not rely on memory.
 
+
+**Task cards: `docs/spec/task-cards/phase-3.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 One synthetic dispute becomes a saved case, sends a real Outlook email after you approve it in a review queue, resumes on a real reply, and opens a real Jira issue that is read back and verified. No AI yet; messages are templated.
 

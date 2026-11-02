@@ -6,6 +6,9 @@ Principal engineer building the safety core that every later phase depends on.
 ## Context
 Phase 0 is done: ports, registry and tooling exist. Read `docs/FLOW.md` sections 1 to 4 and the transition table.
 
+
+**Task cards: `docs/spec/task-cards/phase-1.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 A kernel that opens one persistent case per dispute, moves it only along legal transitions, logs every change, and runs an orchestrator skeleton end to end with fake ports and no AI.
 

@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (D27), A2 (D34), A3 (D37) and A4 (D44) are approved; their specs are in `docs/spec/` and ADRs 0004-0025 are accepted. Stage A4 delivered `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (59 scenarios, full coverage, paths machine-checked by `scripts/check_scenarios.py`), `release-gates.yaml` (draft thresholds; values approved in Phase 6 under O6), `synthetic-data.md`, `a4-review-findings.md` and revised `prompts/` (all v1, pre-release, `status: inactive` until an eval run). Its independent review ran on 2026-11-03 across three dimensions; all 9 blocking and 22 major findings are fixed (D42, D43). Stage A5 (task cards and the `arch-v1` freeze) is the last design stage; after it the build phases begin.
+No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4 (D44) and A5 are approved; ADRs 0004-0025 are accepted. `docs/spec/INDEX.md` lists every specification document with its status and the invariants it covers. Stage A5 added **109 task cards** across nine phases (`docs/spec/task-cards/`), an escalation guide, a risk register and milestone plan, and a task-card reference in every phase prompt. 44 cards are marked for an Opus review because they implement an invariant's enforcement point. After the owner approves, the repository is tagged **`arch-v1`** and `docs/spec/` is frozen: any change then needs an ADR and the owner's approval.
 
-**Next action: Stage A5 (task cards and freeze, `arch-v1`) on Opus.** It is the last stage before code.
+**Next action: Phase 0 (foundations and sockets).** Run `./scripts/stage-b-build.sh`, press Shift+Tab for plan mode, then `/phase-start 0`. Build from `docs/spec/task-cards/phase-0.md`.
 
 ## 2. The project in five lines
 
@@ -108,7 +108,10 @@ No code yet. Stages A1 (D27), A2 (D34), A3 (D37) and A4 (D44) are approved; thei
 | Rules every session must follow | `CLAUDE.md` |
 | Architecture, ports, modules, Foundry | `docs/ARCHITECTURE.md`, `docs/spec/` after Stage A |
 | Flow, states, orchestrator loop | `docs/FLOW.md` |
-| What to do in each phase | `docs/build-prompts/` |
+| What to do in each phase | `docs/build-prompts/` and `docs/spec/task-cards/` |
+| Every spec document and its status | `docs/spec/INDEX.md` |
+| When to stop and ask | `docs/spec/escalation-guide.md` |
+| Risks and milestones | `docs/spec/risk-register.md` |
 | The agent's own prompts | `prompts/` |
 | Model and cost playbook | `docs/MODEL_STRATEGY.md` |
 | Azure and Foundry setup for the owner | `docs/FOUNDRY_SETUP.md` |
@@ -142,4 +145,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Stage A5: build plan, task cards and the `arch-v1` freeze, on Opus. Run `./scripts/stage-a-opus.sh`, then `/phase-start a5`.
+Phase 0: foundations and sockets. Run `./scripts/stage-b-build.sh`, Shift+Tab for plan mode, then `/phase-start 0`.

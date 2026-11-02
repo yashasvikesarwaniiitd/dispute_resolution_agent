@@ -6,6 +6,9 @@ Principal engineer proving the architecture by adding a whole capability without
 ## Context
 Phases 0 to 6 are complete. The socket already exists: `PatternContextProvider`, `CaseOutcomeObserver`, `CautionSignal`, the empty `pattern_context` slot, the caution policy rule, and Null adapters. Read `docs/FLOW.md` section 6 carefully.
 
+
+**Task cards: `docs/spec/task-cards/phase-7.md`.** They are the executable form of the tasks below: each names its files, the spec sections it implements, the tests to write first and the command that proves it. Where a card and this prompt differ, the card is newer — it was written against the frozen `docs/spec/` (`CLAUDE.md` section 18). Read `docs/spec/INDEX.md` and `docs/spec/escalation-guide.md` first.
+
 ## Objective
 A scheduled analyzer finds patterns across disputes and opens linked Jira investigations through the normal policy and executor path. New cases receive matching patterns as caution-only context, and recurrence after a confirmed fix is measured.
 
