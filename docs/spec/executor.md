@@ -69,7 +69,9 @@ Lease length: `executor.claim_lease_s` (default 300 s). It must exceed the worst
    - `REQUIRE_APPROVAL` **and** an approval with decision APPROVED, `used_by_action_id` null, `request.intent_id == intent.id`, `request.payload_hash == intent.payload_hash`, and for credits `request.amount == intent.payload.amount` exactly, and `expires_at > now`.
    Anything else raises `PolicyRefused` (the step escalates with `policy_denied`). This is what makes the executor safe to call directly: there is no parameter by which a caller can assert "this is approved" (I2, I13, Phase 1 acceptance).
 3. Extra hard checks, independent of the rule set (defence in depth):
-   - POST_CREDIT always needs an approval, whatever the verdict says (I3; the schema CHECK backs it).
+   - POST_CREDIT always needs an approval, whatever the verdict says (I3; the schema CHECK and `tr_actions_approval_binding` back it).
+   - A SEND_MESSAGE whose kind is in `policy.messages.review_required_kinds` (or in neither list) always needs an approval, read from the configuration directly, whatever the verdict says (I13; independent of rule R10).
+   - Any approval used must have `decided_by` of kind HUMAN and `payload_hash_seen == payload_hash` (`approvals.md` section 3).
    - POST_CREDIT is refused if `ActionStore.live_credits(shipment_ref, reason_code)` is non-empty: any POST_CREDIT action for the same shipment and reason, in **any case**, in PLANNED, SENT, UNKNOWN or VERIFIED. Only a FAILED credit (proven not applied, including a human's `confirmed_not_done`) frees the slot. The partial unique index `ux_actions_one_credit` enforces the same rule in the database, so two concurrent planners cannot both pass (I3). `plan` copies `shipment_ref` and `reason_code` into the action's `credit_*` columns for that index.
    - SEND_MESSAGE `to` must equal `case.facts.seller_contact`.
    - Kill switch engaged -> `KillSwitchEngaged` (I10).

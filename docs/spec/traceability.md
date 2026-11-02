@@ -24,3 +24,27 @@ Status: draft for owner approval. Every invariant in `CLAUDE.md` section 3 mappe
 
 - I3 limits (per-credit and per-day amounts), I9 number validation, I11 allowlist and I13 rule ids are completed by Stage A2 rules; the mechanisms they plug into are fixed here.
 - I14 provider details (Entra, Haiku allowlist, failover) are Stage A3 `foundry.md`; the ports and tables they use are fixed here.
+
+## Stage A2 additions
+
+Rule ids (`policy-rules.md`), threats (`threat-model.md`) and tests (`test-charter.md`) per invariant:
+
+| # | Rules | Threats | Key tests |
+|---|-------|---------|-----------|
+| I1 | (no rule can be lowered by model output, P5) | T01, T12 | TC-POL-P6, TC-MOD-* |
+| I2 | R10, R13, R25 at execution | T06, T15 | TC-EXE-* |
+| I3 | R13, R14, R15, R16, R17, R18, R25 | T06, T07, T09, T21 | TC-R13-*..TC-R18-*, TC-POL-P5 |
+| I4 | R11, R22 | T12, T17 | TC-SM-P2 |
+| I5 | R07, R20, R21 | T01, T02, T03, T04, T16 | TC-INJ-*, TC-R20-*, TC-R21-1 |
+| I6 | R03 | T17 | TC-R03-* |
+| I7 | R24 and all signals | T20 | TC-POL-P2 |
+| I8 | R01 | T21 | TC-SM-P1, TC-SM-P3 |
+| I9 | R09, R14, R15 | T07, T12 | TC-R09-*, TC-CALC-P1, TC-MONEY-P* |
+| I10 | R02 | T15 | TC-R02-*, TC-EXE-KS |
+| I11 | R06 | T04, T19 | TC-R06-*, TC-SEC-04 |
+| I12 | — | T10 | TC-SEC-01, TC-SEC-02 |
+| I13 | R04, R05, R08, R09, R10, R25 | T05, T08, T18 | TC-APR-*, TC-R10-* |
+| I14 | M01-M06, F01 | T11, T13, T14 | TC-M*, TC-F01-*, TC-SEC-03 |
+| I15 | R21, R23, screen signals | T01, T14 | TC-R23-*, TC-POL-P2 |
+
+Proof that no credit is allowed without an approval: `policy-rules.md` section 2 (approved, D28), property test TC-POL-P5.

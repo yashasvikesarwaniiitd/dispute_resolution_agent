@@ -371,7 +371,27 @@ CREATE TABLE actions (
   CHECK (status <> 'FAILED' OR (failed_at IS NOT NULL AND last_error_code IS NOT NULL)),
   CHECK (status <> 'UNKNOWN' OR unknown_at IS NOT NULL)
 ) STRICT;
+-- (actions.payload_hash is copied from the intent at planning; tr_actions_approval_binding below
+--  checks the three hashes agree.)
 CREATE INDEX ix_actions_in_flight ON actions (status) WHERE status IN ('PLANNED','SENT');
+
+-- An action that carries an approval must be covered by it: same intent, same payload hash,
+-- APPROVED by a human, unused, right subject, and for credits the same amount. This makes proof
+-- layer L3 (policy-rules.md section 2) hold even if every Python check were removed.
+-- (A2 review finding 1.) NULL-safe: NOT EXISTS is TRUE when no matching row exists.
+CREATE TRIGGER tr_actions_approval_binding BEFORE INSERT ON actions
+WHEN NEW.approval_id IS NOT NULL AND NOT EXISTS (
+  SELECT 1 FROM approvals a JOIN action_intents i ON i.id = NEW.intent_id
+  WHERE a.id = NEW.approval_id
+    AND a.intent_id = NEW.intent_id
+    AND a.payload_hash = NEW.payload_hash
+    AND i.payload_hash = NEW.payload_hash
+    AND a.decision = 'APPROVED'
+    AND a.decided_by GLOB 'human:*'
+    AND a.used_by_action_id IS NULL
+    AND a.subject = (CASE NEW.action_type WHEN 'POST_CREDIT' THEN 'CREDIT' ELSE 'MESSAGE' END)
+    AND (NEW.action_type <> 'POST_CREDIT' OR a.amount_paise IS i.amount_paise))
+BEGIN SELECT RAISE(ABORT, 'approval_does_not_cover_action'); END;
 -- At most one credit per shipment and reason that is live or done (PLANNED, SENT, UNKNOWN, VERIFIED),
 -- across all cases. Only a FAILED credit (proven not applied) frees the slot. (I3, review finding 1/5)
 CREATE UNIQUE INDEX ux_actions_one_credit ON actions (credit_shipment_ref, credit_reason_code)

@@ -1322,3 +1322,64 @@ These keys are new. A3 (`config.md`) owns their final schema; the defaults below
 | `PromptRegistry.load(name, version)` | adds `variables` and `untrusted` | untrusted text is passed separately so it can only land in delimited blocks (I5) |
 | `DomainPack` | adds `version`, `parse_facts`, `baseline_proposal`, `render_template`; `assess` takes the case id and round | the rules-only reasoner and templates are domain knowledge; assessments are stored per round |
 | No `KillSwitch`, `ModuleStatus` ports | added | I10 needs a fresh read inside the executor; I6 needs module state in policy |
+
+## 13. Amendments from Stage A2
+
+These additions come from `policy-rules.md`, `money-rules.md` and `approvals.md`. Phase 0 and 1 implement them as part of the models above.
+
+```python
+# PolicyContext (section 7): new fields
+    reply_in_round: bool
+    clarifications_sent: int
+    draft_blocked_reason: str | None
+    message_tokens: tuple["NumberToken", ...]      # from extract_numbers (policy-rules.md section 7)
+    kernel_facts: tuple[Fact, ...]                 # case refs, reply_due_at
+    prior_case_outcome: CaseState | None
+    outstanding_charge: Money | None               # charged for the claim line minus verified credits
+
+class NumberToken(BaseModel):
+    text: str; value: Decimal; unit: Literal["inr", "kg", "g", "cm", "%", "none"]; start: int; end: int
+
+# ChargeAssessment (section 4.6): new optional fields
+    recalculated_remeasured: Money | None          # with a structured ops remeasurement
+    duplicate_debit_total: Money | None            # debits beyond the first for the same claim line
+
+# Approval (section 4.8): new fields
+    payload_hash_seen: PayloadHash | None          # set iff decided; must equal request.payload_hash when APPROVED
+    presentation_version: str | None
+    withdrawn_at: datetime | None
+
+# TransientPortError (section 5): the reason drives failover rule F01
+class TransientPortError(PortError):
+    def __init__(self, detail: str, retry_after_s: float | None = None,
+                 reason: Literal["unavailable", "rate_limited", "quota_exceeded", "credit_window_ended", "other"] = "other") -> None: ...
+
+# New port: spend so far, for model-call rules M01-M05
+class ModelUsageLedger(Protocol):
+    def calls_for_case(self, case_id: CaseId) -> int: ...
+    def spent_usd(self, route: str, since: datetime | None = None) -> Decimal: ...
+    def record(self, row: "ModelCallRecord") -> None: ...   # writes model_calls; no content (I14)
+
+# New kernel decorator (kernel/policy/model_calls.py): the only ModelGateway the app hands to reasoning adapters
+class BudgetedModelGateway:   # implements ModelGateway
+    def __init__(self, primary: ModelGateway, secondary: ModelGateway | None, usage: ModelUsageLedger,
+                 config: "LlmConfig", clock: Clock) -> None: ...
+    def complete(self, req: ModelRequest) -> ModelResponse:
+        """Applies M01-M05 before each call and F01 on failure. Raises BudgetExceeded, GuardrailBlocked,
+        AgentDrift, InvalidModelOutput, ModuleUnavailable."""
+
+# Policy engine start-up check
+MANDATORY_RULES: Final = frozenset({"R02", "R03", "R10", "R13", "R17"})   # PolicyEngine refuses to construct without them
+```
+
+```python
+# ReviewCode (section 3): new members
+    MANIPULATION_SUSPECTED = "manipulation_suspected"; LOW_CONFIDENCE = "low_confidence"
+    MULTIPLE_DEFINITE_ERRORS = "multiple_definite_errors"; LEDGER_STATE_UNKNOWN = "ledger_state_unknown"
+    SENDER_UNAUTHENTICATED = "sender_unauthenticated"; CREDIT_WINDOW_ENDED = "credit_window_ended"
+
+# Fact (section 4.6): new field, used by R09
+    kind: Literal["quantity", "identifier", "date", "template_constant"] = "quantity"
+```
+
+Which rule reason maps to which `ReviewCode` is the table in `policy-rules.md` section 8. `credit_amount` takes the already-credited totals (`money-rules.md` section 3).
