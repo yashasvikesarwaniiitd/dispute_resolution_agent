@@ -1,0 +1,142 @@
+[project]
+name = "dispute-agent"
+version = "0.1.0"
+description = "Weight dispute resolution and cross-case intelligence agent. Independent portfolio project on synthetic data."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "structlog>=24.4",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "hypothesis>=6.112",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "import-linter>=2.1",
+    "pre-commit>=4.0",
+    "httpx>=0.27",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dispute_agent"]
+
+# --- ruff -------------------------------------------------------------------
+
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "A",        # builtins shadowing
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "TCH",      # type-checking imports
+    "RUF",
+]
+ignore = [
+    "E501",     # line length is handled by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may shadow builtins in fixtures and use assert freely.
+"tests/**" = ["A002", "A003"]
+
+# --- mypy -------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+warn_unreachable = true
+# CLAUDE.md section 7: no Any without a comment. Surface them rather than hide them.
+disallow_any_explicit = false
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+# Tests stay strict on types that matter but need not annotate every fixture.
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: touches a real external service; needs explicit opt-in (CLAUDE.md section 8)",
+    "live_model: calls a real model; opt-in eval only",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/dispute_agent/kernel"]
+
+[tool.coverage.report]
+# CLAUDE.md section 8: branch coverage of kernel/ at or above 90%.
+# Enforced from Phase 1, when the kernel has behaviour to cover.
+fail_under = 0
+show_missing = true
+
+# --- import-linter ----------------------------------------------------------
+# Contracts transcribed from docs/ARCHITECTURE.md section 2 (frozen at arch-v1).
+
+[tool.importlinter]
+root_package = "dispute_agent"
+# Required because "Kernel is pure" forbids external packages (sqlalchemy, httpx, ...).
+# A tooling flag, not a change to the contracts, which are verbatim from ARCHITECTURE section 2.
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Kernel is pure"
+type = "forbidden"
+source_modules = ["dispute_agent.kernel"]
+forbidden_modules = [
+  "dispute_agent.modules", "dispute_agent.packs", "dispute_agent.infra",
+  "dispute_agent.api", "dispute_agent.app",
+  "sqlalchemy", "httpx", "requests", "msal", "anthropic", "openai", "fastapi", "streamlit",
+  "azure", "opentelemetry",
+]
+
+[[tool.importlinter.contracts]]
+name = "Modules are independent"
+type = "independence"
+modules = [
+  "dispute_agent.modules.reasoning", "dispute_agent.modules.email",
+  "dispute_agent.modules.ticketing", "dispute_agent.modules.ledger",
+  "dispute_agent.modules.approvals", "dispute_agent.modules.evidence",
+  "dispute_agent.modules.cross_case", "dispute_agent.modules.evals",
+  "dispute_agent.modules.model_gateway", "dispute_agent.modules.input_screen",
+  "dispute_agent.modules.tracing",
+]
+
+[[tool.importlinter.contracts]]
+name = "Packs depend on kernel only"
+type = "forbidden"
+source_modules = ["dispute_agent.packs"]
+forbidden_modules = ["dispute_agent.modules", "dispute_agent.infra", "dispute_agent.api", "dispute_agent.app"]

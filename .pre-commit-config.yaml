@@ -1,0 +1,19 @@
+# Card P0-02. Runs the fast half of `make verify` before every commit.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+      - id: detect-private-key          # I12: no secret ever reaches the repo
+      - id: no-commit-to-branch
+        args: [--branch, main]          # main moves only by a reviewed merge

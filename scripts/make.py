@@ -1,0 +1,140 @@
+"""The single implementation behind every `make` target (CLAUDE.md section 15).
+
+GNU Make is not available on every machine this project is built on, so the Makefile
+delegates each target here rather than holding the commands itself. That keeps one
+implementation and lets `make verify` mean the same thing on Windows, Linux and CI.
+
+Run directly:   uv run python scripts/make.py verify
+Through make:   make verify          (Makefile, make.cmd or ./make.sh)
+
+A target with nothing to run yet exits 0 and names the phase that fills it, so
+`make verify` is green from the first commit (card P0-02).
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+ROOT = __file__.rsplit("scripts", 1)[0].rstrip("\\/")
+
+
+def run(*argv: str) -> int:
+    """Run one command, streaming its output. Returns its exit code."""
+    print(f"$ {' '.join(argv)}", flush=True)
+    return subprocess.call(argv, cwd=ROOT)
+
+
+def pending(target: str, phase: str) -> int:
+    print(f"{target}: nothing to run yet - filled in {phase}.")
+    return 0
+
+
+def uv(*argv: str) -> int:
+    return run("uv", "run", *argv)
+
+
+# --- targets ----------------------------------------------------------------
+
+
+def setup() -> int:
+    code = run("uv", "sync", "--python", "3.12")
+    if code:
+        return code
+    return uv("pre-commit", "install")
+
+
+def lint() -> int:
+    code = uv("ruff", "check", "src", "tests", "scripts")
+    return code or uv("ruff", "format", "--check", "src", "tests", "scripts")
+
+
+def typecheck() -> int:
+    return uv("mypy")
+
+
+def arch() -> int:
+    return uv("lint-imports")
+
+
+def test() -> int:
+    """Unit, contract, architecture and scenario tests. Never integration (CLAUDE.md section 8)."""
+    return uv("pytest", "-m", "not integration and not live_model")
+
+
+def test_integration() -> int:
+    return uv("pytest", "-m", "integration")
+
+
+def verify() -> int:
+    """The definition of done (CLAUDE.md section 14). Fails on the first failing step."""
+    for name, step in (("lint", lint), ("typecheck", typecheck), ("arch", arch), ("test", test)):
+        print(f"\n=== verify: {name} ===", flush=True)
+        code = step()
+        if code:
+            print(f"\nverify FAILED at {name}", file=sys.stderr)
+            return code
+    print("\nverify: PASS")
+    return 0
+
+
+def scenarios() -> int:
+    """Check the scenario catalogue against the state machine (Stage A5 tooling)."""
+    return uv("python", "scripts/check_scenarios.py", ".")
+
+
+def run_api() -> int:
+    return uv("uvicorn", "dispute_agent.app:create_app", "--factory", "--reload")
+
+
+def run_approvals() -> int:
+    return pending("run-approvals", "Phase 3 (card P3-06)")
+
+
+def demo() -> int:
+    return pending("demo", "Phase 3 (card P3-10), extended in Phase 5 (card P5-09)")
+
+
+def evaluate() -> int:
+    return pending("eval", "Phase 4 (card P4-11), enforced in Phase 6 (card P6-03)")
+
+
+TARGETS = {
+    "setup": setup,
+    "verify": verify,
+    "test": test,
+    "test-integration": test_integration,
+    "lint": lint,
+    "typecheck": typecheck,
+    "arch": arch,
+    "scenarios": scenarios,
+    "run-api": run_api,
+    "run-approvals": run_approvals,
+    "demo": demo,
+    "eval": evaluate,
+}
+
+
+def main(argv: Sequence[str]) -> int:
+    if not argv:
+        print("targets: " + "  ".join(sorted(TARGETS)))
+        return 0
+    code = 0
+    for name in argv:
+        target = TARGETS.get(name)
+        if target is None:
+            print(f"unknown target: {name}", file=sys.stderr)
+            print("targets: " + "  ".join(sorted(TARGETS)), file=sys.stderr)
+            return 2
+        code = target()
+        if code:
+            return code
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

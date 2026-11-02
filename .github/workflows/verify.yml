@@ -1,0 +1,19 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --python 3.12
+      - name: make verify
+        run: uv run python scripts/make.py verify
+      - name: scenario catalogue
+        run: uv run python scripts/check_scenarios.py .
