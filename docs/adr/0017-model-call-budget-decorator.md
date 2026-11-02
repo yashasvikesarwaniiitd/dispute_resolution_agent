@@ -1,6 +1,6 @@
 # ADR 0017: Model-call budgets and failover live in one kernel decorator around ModelGateway
 
-Status: proposed
+Status: accepted (owner, 2026-11-02, D34)
 Date: 2026-11-02
 
 ## Decision

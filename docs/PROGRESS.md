@@ -5,8 +5,8 @@
 | Stage or phase | Status | Approved by owner | Notes |
 |----------------|--------|-------------------|-------|
 | A1 Kernel specification | Approved | Owner, 2026-11-02 (D27) | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
-| A2 Safety and policy | Drafted; awaiting owner approval | | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
-| A3 Integrations and Foundry | Not started | | |
+| A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
+| A3 Integrations and Foundry | In progress | | |
 | A4 Agent and evals | Not started | | |
 | A5 Build plan and freeze (`arch-v1`) | Not started | | |
 | 0 Foundations and sockets | Not started | | |
@@ -38,7 +38,7 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0014 | An unclear seller reply gets one clarification, then a person | accepted (D19) |
 | 0015 | Verdicts form an ordered lattice; the strictest wins; model output only raises | accepted (D28) |
 | 0016 | Credits only for code-proven reasons; no amount caps, structural limit only | accepted (D29, D30) |
-| 0017 | Model-call budgets and failover live in one kernel decorator around ModelGateway | proposed |
+| 0017 | Model-call budgets and failover live in one kernel decorator around ModelGateway | accepted (D34) |
 | 0018 | Human events are authenticated; the actor comes from the session | accepted (D32) |
 
 ## Session log

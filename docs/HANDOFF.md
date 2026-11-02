@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` holds the kernel interfaces, schema, state machine, events catalog, orchestrator, executor and traceability table; ADRs 0004-0014 are accepted. Stage A2 (safety and policy specification) is drafted and awaiting owner approval: `policy-rules.md`, `threat-model.md`, `approvals.md`, `money-rules.md`, `test-charter.md`, ADRs 0015-0018. The verdict ordering and credit proof were approved at the checkpoint (D28-D31); an independent review's eight real defects are fixed (schema-level approval binding, credits netted against earlier credits, outcome and clarification messages exempt from contact limits, R10 mandatory, review-code mapping, ops-wait rule, number-validation exemptions).
+No code yet. Stages A1 (kernel, D27) and A2 (safety, policy and money, D34) are approved; their specs are in `docs/spec/` and ADRs 0004-0018 are accepted. Stage A3 (integrations, Foundry, configuration, observability) is in progress.
 
-**Next action: the owner reviews Stage A2.** After approval: Stage A3 (integrations and Foundry) on Opus: `./scripts/stage-a-opus.sh`, then `/phase-start a3`.
+**Next action: finish Stage A3**, then the owner reviews it. After approval: Stage A4 (agent prompts and evals) on Opus.
 
 ## 2. The project in five lines
 
@@ -61,6 +61,7 @@ No code yet. Stage A1 (kernel specification) is approved (D27): `docs/spec/` hol
 | D31 | (2026-11-02) Low model confidence on propose_credit or uphold_charge escalates to a person (R22). |
 | D32 | (2026-11-02) Review console authentication uses a local `REVIEW_CONSOLE_TOKEN` secret; CLAUDE.md I14 now says "the one permitted provider API key" and covers the token under the same rules. ADR 0018 accepted. |
 | D33 | (2026-11-02) The case_investigator and seller_message_drafter v1 prompts are aligned with D19 and D29 (pre-release edit; v1 was never run). |
+| D34 | (2026-11-02) Stage A2 safety, policy and money specification approved: policy-rules, threat-model, approvals, money-rules, test-charter; ADRs 0015-0018 accepted. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -132,4 +133,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Stage A2: safety and policy specification on Opus (in progress), then owner review.
+Stage A3: integrations and Foundry specification on Opus (in progress), then owner review.
