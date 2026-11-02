@@ -1,6 +1,6 @@
 # ADR 0024: The briefing separates trusted facts from untrusted text, and the rules-only baseline is the bar
 
-Status: proposed
+Status: accepted (D44)
 Date: 2026-11-02
 
 ## Decision

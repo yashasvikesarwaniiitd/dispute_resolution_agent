@@ -7,8 +7,8 @@
 | A1 Kernel specification | Approved | Owner, 2026-11-02 (D27) | `docs/spec/` (7 files), ADRs 0004-0013; table checks C1-C16 and 27 schema checks pass; review findings fixed; product decisions D19-D26 recorded |
 | A2 Safety and policy | Approved | Owner, 2026-11-02 (D34) | 5 spec files, ADRs 0015-0018; checkpoint D28-D31 approved |
 | A3 Integrations and Foundry | Approved | Owner, 2026-11-02 (D37) | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
-| A4 Agent and evals | Reviewed; findings fixed; awaiting owner approval | | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43) |
-| A5 Build plan and freeze (`arch-v1`) | Not started | | |
+| A4 Agent and evals | Approved | Owner, 2026-11-03 (D44) | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43); 59 scenarios, paths machine-checked |
+| A5 Build plan and freeze (`arch-v1`) | Next | | The last design stage; after it the build phases begin |
 | 0 Foundations and sockets | Not started | | |
 | 1 Kernel | Not started | | |
 | 2 Weight-dispute pack | Not started | | |
@@ -45,8 +45,8 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0021 | Foundry agents are called by pinned version, statelessly, and validated in our code | accepted (D37) |
 | 0022 | Poll for email replies and Jira findings; no webhooks in v1 | accepted (D37) |
 | 0023 | Email uses a personal Outlook.com account with delegated sign-in and an encrypted token cache | accepted (D36) |
-| 0024 | The briefing separates trusted facts from untrusted text; the rules-only baseline is the bar | proposed |
-| 0025 | The pattern anchoring control is a total caution order enforced in code, not a model self-report | proposed |
+| 0024 | The briefing separates trusted facts from untrusted text; the rules-only baseline is the bar | accepted (D44) |
+| 0025 | The pattern anchoring control is a total caution order enforced in code, not a model self-report | accepted (D44) |
 
 ## Session log
 

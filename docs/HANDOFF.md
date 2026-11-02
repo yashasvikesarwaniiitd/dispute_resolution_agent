@@ -4,9 +4,9 @@ Read this first in every session. It is the single source for current state, dec
 
 ## 1. Status
 
-No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs are in `docs/spec/` and ADRs 0004-0023 are accepted. Stage A4 (agent design, prompts, scenarios, evals) is drafted and awaiting owner approval: `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (59 scenarios, full coverage, paths machine-checked), `release-gates.yaml` (draft), `synthetic-data.md`, revised `prompts/` (all v1, pre-release), ADR 0024. Coverage checkpoint and debatable outcomes decided (D38-D41). **The independent review has been run** (2026-11-03, three reviewers: spec consistency, prompts/adversarial, evals and gates). Findings are in `docs/spec/a4-review-findings.md`; all 9 blocking and 22 major findings are fixed, and the minors are folded in. Two owner decisions were taken during the fix: D42 and D43 below.
+No code yet. Stages A1 (D27), A2 (D34), A3 (D37) and A4 (D44) are approved; their specs are in `docs/spec/` and ADRs 0004-0025 are accepted. Stage A4 delivered `agent-design.md`, `prompt-review.md`, `eval-scenarios.yaml` (59 scenarios, full coverage, paths machine-checked by `scripts/check_scenarios.py`), `release-gates.yaml` (draft thresholds; values approved in Phase 6 under O6), `synthetic-data.md`, `a4-review-findings.md` and revised `prompts/` (all v1, pre-release, `status: inactive` until an eval run). Its independent review ran on 2026-11-03 across three dimensions; all 9 blocking and 22 major findings are fixed (D42, D43). Stage A5 (task cards and the `arch-v1` freeze) is the last design stage; after it the build phases begin.
 
-**Next action: the owner reviews Stage A4 (now post-review).** After approval: Stage A5 (task cards and freeze, `arch-v1`).
+**Next action: Stage A5 (task cards and freeze, `arch-v1`) on Opus.** It is the last stage before code.
 
 ## 2. The project in five lines
 
@@ -71,6 +71,7 @@ No code yet. Stages A1 (D27), A2 (D34) and A3 (D37) are approved; their specs ar
 | D41 | (2026-11-02) A required evidence source that fails transiently is retried every 15 minutes, up to 3 times, before the case proceeds with the failure recorded. Transitions X16. |
 | D42 | (2026-11-03) `policy-rules.md` M05 is split in two: a secondary **spend cap** escalates `credit_cap_reached` (no route left, D17), while the secondary **failing for an availability reason** falls back to the rules-only baseline. The single merged row contradicted FLOW section 7b. |
 | D43 | (2026-11-03) The briefing per-field caps are tightened so the worst case (23,000 chars) fits the 24,000 total, with trusted evidence added to the shrink order. The previous caps summed to about 83,500, so the stated budget was unsatisfiable. |
+| D44 | (2026-11-03) Stage A4 approved: agent design, prompt review and revised prompts, 59 scenarios with machine-checked paths, draft release gates, synthetic data; ADRs 0024-0025 accepted. One open item carried to Phase 1: T90 from GATHERING_EVIDENCE has no scenario because nothing in the current design reaches it, so that branch needs a documented cause or removal. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
@@ -141,4 +142,4 @@ Plan first and wait for approval. Small tested steps. Stay in the phase. Explain
 
 ## 12. Next action
 
-Stage A4: agent design and evals on Opus (in progress), then owner review.
+Stage A5: build plan, task cards and the `arch-v1` freeze, on Opus. Run `./scripts/stage-a-opus.sh`, then `/phase-start a5`.

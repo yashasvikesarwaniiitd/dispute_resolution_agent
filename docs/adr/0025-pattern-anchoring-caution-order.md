@@ -1,6 +1,6 @@
 # ADR 0025: The pattern anchoring control is a total caution order enforced in code
 
-Status: proposed (Stage A4, after the independent review). Supersedes the step 3 wording of `agent-design.md` section 7 as first drafted.
+Status: accepted (D44, Stage A4, after the independent review). Supersedes the step 3 wording of `agent-design.md` section 7 as first drafted.
 
 ## Decision
 
