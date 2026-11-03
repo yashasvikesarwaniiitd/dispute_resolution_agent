@@ -56,11 +56,17 @@ def with_llm_overrides(
     values. The cap may only come from the environment *lower* or higher - it is the
     owner's money - but paid usage is never on unless the environment says so explicitly.
     """
-    primary = policy.llm_primary.model_copy(
-        update={
-            "credit_expires_on": credit_expires_on or policy.llm_primary.credit_expires_on,
-            "allow_paid_usage": allow_paid_usage,
-            "spend_cap_usd": spend_cap_usd or policy.llm_primary.spend_cap_usd,
-        }
-    )
+    current = policy.llm_primary
+    try:
+        # Validated, not copied: a cap of 0 or a negative cap is an error, not a quiet
+        # fall-back to the file's value (review, LOW).
+        primary = type(current).model_validate(
+            {
+                "credit_expires_on": credit_expires_on or current.credit_expires_on,
+                "allow_paid_usage": allow_paid_usage,
+                "spend_cap_usd": current.spend_cap_usd if spend_cap_usd is None else spend_cap_usd,
+            }
+        )
+    except ValueError as bad:
+        raise ConfigError(f"LLM spending settings are invalid: {bad}") from None
     return policy.model_copy(update={"llm_primary": primary})

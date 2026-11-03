@@ -21,11 +21,22 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from dispute_agent.kernel.domain.errors import AgentDrift, GuardrailBlocked, TransientPortError
+from dispute_agent.kernel.domain.errors import (
+    AgentDrift,
+    GuardrailBlocked,
+    KernelError,
+    TransientPortError,
+)
+from dispute_agent.kernel.domain.reasoning import ModelUsage
 from dispute_agent.modules.model_gateway.foundry_agent_service.lock import definition_hash
-from dispute_agent.modules.model_gateway.output import RawReply, complete_with_one_retry
+from dispute_agent.modules.model_gateway.output import (
+    RawReply,
+    add_usage,
+    complete_with_one_retry,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,8 +77,13 @@ class FoundryAgentServiceGateway:
     def complete(self, req: ModelRequest) -> ModelResponse:
         agent = self._checked_agent(req)
         user = req.prompt.messages[-1].content
+        # The agent's instructions are billed as input too, though we do not send them;
+        # the worst-case estimate counts every message (review, LOW).
+        prompt_chars = sum(len(m.content) for m in req.prompt.messages)
         return complete_with_one_retry(
-            req, lambda r: self._call(agent, user, r.max_output_tokens), route=ROUTE
+            req,
+            lambda r: self._call(agent, user, r.max_output_tokens, prompt_chars),
+            route=ROUTE,
         )
 
     # -- drift ---------------------------------------------------------------------------------
@@ -101,14 +117,29 @@ class FoundryAgentServiceGateway:
 
     # -- one provider call -----------------------------------------------------------------------
 
-    def _call(self, agent: AgentLockEntry, user: str, max_output_tokens: int) -> RawReply:
+    def _worst(self, prompt_chars: int, max_output_tokens: int) -> ModelUsage:
+        """What one call costs at most: every prompt token, and every output token allowed."""
+        tokens_in = prompt_chars // CHARS_PER_TOKEN_WORST + 1
+        return ModelUsage(
+            input_tokens=tokens_in,
+            output_tokens=max_output_tokens,
+            latency_ms=0,
+            cost_usd=self.price.cost(tokens_in, max_output_tokens),
+        )
+
+    def _call(
+        self, agent: AgentLockEntry, user: str, max_output_tokens: int, prompt_chars: int
+    ) -> RawReply:
         started = self.monotonic()
-        reply = self._with_retries(agent, user, max_output_tokens)
+        reply, failed_cost = self._with_retries(agent, user, max_output_tokens, prompt_chars)
         self.sent_log.append(reply.sent)
         latency_ms = int((self.monotonic() - started) * 1000)
 
         if reply.status == "incomplete" and "content_filter" in (reply.incomplete_reason or ""):
-            raise GuardrailBlocked("the deployment's content filter stopped the answer")
+            # Stopped mid-answer: the generation up to the stop was billed (review, M1).
+            blocked = GuardrailBlocked("the deployment's content filter stopped the answer")
+            blocked.usage = add_usage(failed_cost, self._worst(prompt_chars, max_output_tokens))
+            raise blocked
         # A response cut short (max_output_tokens) is not an answer (foundry.md section 6):
         # an empty text makes it invalid, and it gets the one retry like any other.
         text = reply.text if reply.status == "completed" else ""
@@ -116,27 +147,36 @@ class FoundryAgentServiceGateway:
         tokens_in = reply.input_tokens
         tokens_out = reply.output_tokens
         if tokens_in is None or tokens_out is None:
-            tokens_in = len(user) // CHARS_PER_TOKEN_WORST + 1
-            tokens_out = max_output_tokens
+            worst = self._worst(prompt_chars, max_output_tokens)
+            tokens_in, tokens_out = worst.input_tokens, worst.output_tokens
+        # Earlier attempts in this call that may have been billed are carried on this reply,
+        # so a success after a timeout still records the timeout's cost.
         return RawReply(
             text=text,
-            input_tokens=tokens_in,
-            output_tokens=tokens_out,
+            input_tokens=tokens_in + failed_cost.input_tokens,
+            output_tokens=tokens_out + failed_cost.output_tokens,
             latency_ms=latency_ms,
-            cost_usd=self.price.cost(tokens_in, tokens_out),
+            cost_usd=self.price.cost(tokens_in, tokens_out) + failed_cost.cost_usd,
             model_id=reply.model or agent.deployment,
         )
 
     def _with_retries(
-        self, agent: AgentLockEntry, user: str, max_output_tokens: int
-    ) -> ProviderReply:
+        self, agent: AgentLockEntry, user: str, max_output_tokens: int, prompt_chars: int
+    ) -> tuple[ProviderReply, ModelUsage]:
+        """The reply, and the worst-case cost of earlier attempts that may have been billed."""
+        failed_cost = ModelUsage(input_tokens=0, output_tokens=0, latency_ms=0, cost_usd=Decimal(0))
         for attempt in range(IN_ADAPTER_RETRIES + 1):
             try:
-                return self.client.respond(agent, user, max_output_tokens)
-            except TransientPortError as transient:
-                if attempt == IN_ADAPTER_RETRIES:
+                return self.client.respond(agent, user, max_output_tokens), failed_cost
+            except KernelError as failed:
+                if failed.maybe_billed:
+                    failed_cost = add_usage(
+                        failed_cost, self._worst(prompt_chars, max_output_tokens)
+                    )
+                if not isinstance(failed, TransientPortError) or attempt == IN_ADAPTER_RETRIES:
+                    failed.usage = add_usage(failed_cost, failed.usage)
                     raise
-                wait = transient.retry_after_s or BACKOFF_S[attempt]
+                wait = failed.retry_after_s or BACKOFF_S[attempt]
                 self.sleep(min(wait, MAX_WAIT_S))
         raise AssertionError("unreachable")  # pragma: no cover
 

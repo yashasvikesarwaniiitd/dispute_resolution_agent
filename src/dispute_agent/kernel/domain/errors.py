@@ -20,9 +20,17 @@ if TYPE_CHECKING:
 
 
 class KernelError(Exception):
-    """Base. Every error carries a stable `code` string for logs and events."""
+    """Base. Every error carries a stable `code` string for logs and events.
+
+    `usage` and `maybe_billed` matter only on the model path. A model call that fails may
+    still have been paid for (a timeout does not stop the generation it timed out on), so a
+    failure carries what it is known or assumed to have cost, and the spending guard records
+    that rather than zero (Phase 4P safety review, M1).
+    """
 
     code: ClassVar[str] = "kernel_error"
+    usage: object | None = None
+    maybe_billed: bool = False
 
 
 class DomainValidationError(KernelError):

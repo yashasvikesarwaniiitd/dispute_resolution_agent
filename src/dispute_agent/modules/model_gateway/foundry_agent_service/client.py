@@ -26,6 +26,7 @@ from dispute_agent.kernel.domain.errors import (
     AgentDrift,
     AuthPortError,
     GuardrailBlocked,
+    KernelError,
     PermanentPortError,
     TransientPortError,
 )
@@ -156,8 +157,33 @@ def _translated() -> Iterator[None]:
         raise mapped from None
 
 
-def map_error(exc: BaseException) -> Exception | None:
-    """The error table, as one function, so it can be tested row by row."""
+def map_error(exc: BaseException) -> KernelError | None:
+    """The error table, as one function, so it can be tested row by row.
+
+    `maybe_billed` marks the failures after which Azure may still charge for a generation:
+    a timeout (the server keeps generating), a 5xx, and anything unrecognised. The gateway
+    charges those at the worst case (review, M1). A 429, a refused connection or an auth
+    failure never reached a model.
+    """
+    mapped = _map(exc)
+    if mapped is not None and _maybe_billed(exc):
+        mapped.maybe_billed = True
+    return mapped
+
+
+def _maybe_billed(exc: BaseException) -> bool:
+    import openai
+    from azure.core import exceptions as azure_errors
+
+    if isinstance(exc, openai.APITimeoutError):
+        return True
+    if isinstance(exc, openai.APIStatusError | azure_errors.HttpResponseError):
+        return int(getattr(exc, "status_code", 0) or 0) >= 500
+    known = (openai.APIConnectionError, openai.APIStatusError, azure_errors.AzureError)
+    return isinstance(exc, openai.OpenAIError) and not isinstance(exc, known)
+
+
+def _map(exc: BaseException) -> KernelError | None:
     import openai
     from azure.core import exceptions as azure_errors
 
@@ -193,6 +219,10 @@ def map_error(exc: BaseException) -> Exception | None:
         if status == 429 or status >= 500:
             return TransientPortError(f"Foundry returned {status}")
         return PermanentPortError(f"Foundry returned {status}", status=status or None)
+    if isinstance(exc, openai.OpenAIError | azure_errors.AzureError):
+        # A provider failure no row above names (a malformed response, a new error type).
+        # Typed, so it is recorded and the case escalates rather than crashing (review, M2).
+        return PermanentPortError(f"unexpected provider error ({type(exc).__name__})")
     return None
 
 

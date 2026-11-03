@@ -27,7 +27,11 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from dispute_agent.kernel.domain.enums import ProposalAction
-from dispute_agent.kernel.domain.errors import InvalidModelOutput
+from dispute_agent.kernel.domain.errors import (
+    InvalidModelOutput,
+    ModuleUnavailable,
+    TransientPortError,
+)
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import ProposalId
 from dispute_agent.kernel.domain.reasoning import ModelRequest, Proposal
@@ -73,7 +77,16 @@ class LlmReasoner:
 
         last: InvalidModelOutput | None = None
         for _ in range(ATTEMPTS):
-            response = self.gateway.complete(request)
+            try:
+                response = self.gateway.complete(request)
+            except (TransientPortError, ModuleUnavailable) as failed:
+                if last is None:
+                    raise
+                # The first answer was already rejected; the step must not hand this case
+                # to the rules as if the model had merely been unreachable (review, M3).
+                raise InvalidModelOutput(
+                    f"proposal rejected, then the retry failed ({failed.code})"
+                ) from failed
             try:
                 check(response.output, briefing, view)
                 return self._proposal(response, briefing, briefing_hash, rendered.hash)

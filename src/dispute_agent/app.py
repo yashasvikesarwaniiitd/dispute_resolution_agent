@@ -69,7 +69,10 @@ if TYPE_CHECKING:
         Tracer,
     )
 
-DEFAULT_CONFIG_DIR = Path("config")
+#: The project folder, so config, prompts and the call log are found from any working
+#: directory (Phase 4P safety review, LOW).
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
 
 
 @dataclass(frozen=True)
@@ -325,10 +328,12 @@ def _build_runtime(
 
 # -- the model path (Phase 4P, ADR 0029) ------------------------------------------------------
 
-PROMPTS_DIR = Path("prompts")
-FOUNDRY_LOCK = DEFAULT_CONFIG_DIR / "foundry_agents.lock.json"
-PRICING = DEFAULT_CONFIG_DIR / "pricing.yaml"
-MODEL_CALL_LOG = Path("data") / "model_calls.sqlite3"
+#: Anchored to the project folder, not the working directory: run from anywhere else, a
+#: relative `data/` would be a fresh, empty call log, and the spending cap would read $0.
+PROMPTS_DIR = PROJECT_ROOT / "prompts"
+FOUNDRY_LOCK = PROJECT_ROOT / "config" / "foundry_agents.lock.json"
+PRICING = PROJECT_ROOT / "config" / "pricing.yaml"
+MODEL_CALL_LOG = PROJECT_ROOT / "data" / "model_calls.sqlite3"
 
 
 def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
@@ -422,11 +427,19 @@ def build_llm_reasoner(
     clock: Clock,
     ids: IdGenerator,
 ) -> Reasoner:
-    from dispute_agent.modules.reasoning.llm.reasoner import LlmReasoner
+    from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    status = str(registry.meta(PROMPT, "v1").get("status", "inactive")).split()[0]
+    if status != "active" and not settings.prompts_allow_inactive:
+        # Fail at start-up, not on the first case (review, M4).
+        raise ConfigError(
+            f"prompt {PROMPT}/v1 is {status}: set PROMPTS_ALLOW_INACTIVE=true only to "
+            "knowingly test an un-evaluated prompt (docs/SETUP_FOUNDRY.md)"
+        )
     return LlmReasoner(
-        prompts=FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive),
+        prompts=registry,
         gateway=gateway,
         ids=ids,
         clock=clock,

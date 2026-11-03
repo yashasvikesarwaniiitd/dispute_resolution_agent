@@ -307,3 +307,30 @@ class TestTheTrialCommand:
     def test_a_case_that_stops_early_never_asks_the_model(self) -> None:
         report: Any = self.trial("not_delivered", [valid_answer()])
         assert report.proposal is None
+
+
+class TestSafetyReviewFindings:
+    """Phase 4P safety review, M3 and M4, end to end."""
+
+    def test_a_rejected_answer_then_an_unreachable_model_goes_to_a_person(
+        self, engine: Any
+    ) -> None:
+        """Not to the rules: the model already got this case wrong once (M3)."""
+        invented = valid_answer(
+            findings=[{"kind": "verified_fact", "statement": "x", "evidence_refs": ["evi_X"]}]
+        )
+        gateway = FakeModelGateway(script=[invented, "unavailable"])
+        factory, _ = model(gateway)
+        case, approvals, _, _ = run(engine, "scanner_fault", reasoner=factory, fallback=True)
+        assert review_code(case) is ReviewCode.INVALID_MODEL_OUTPUT
+        assert approvals == []
+
+    def test_a_refused_credential_goes_to_a_person_with_a_reason(self, engine: Any) -> None:
+        """It used to escape the step with no reason at all (M4)."""
+        gateway = FakeModelGateway(script=["auth"])
+        factory, _ = model(gateway)
+        case, approvals, _, _ = run(engine, "scanner_fault", reasoner=factory, fallback=True)
+        assert case.state is CaseState.NEEDS_HUMAN_REVIEW
+        assert review_code(case) is ReviewCode.MODULE_UNAVAILABLE
+        assert case.review_reason.module == "model_gateway"
+        assert approvals == []

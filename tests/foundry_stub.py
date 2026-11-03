@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.reasoning import RenderedPrompt
 
 DEPLOYMENT = "gpt-5-mini"
-FAULTS = ("guardrail", "rate_limit", "auth", "unavailable")
+FAULTS = ("guardrail", "rate_limit", "timeout", "auth", "unavailable")
 PRICE = Price(input_per_mtok=Decimal("0.25"), output_per_mtok=Decimal("2.00"), source="test")
 
 
@@ -86,6 +86,10 @@ class StubAgentService:
             raise GuardrailBlocked("the deployment's content filter blocked the input")
         if step == "rate_limit":
             raise TransientPortError("rate limited", retry_after_s=0.5)
+        if step == "timeout":
+            timed_out = TransientPortError("Foundry did not respond in time")
+            timed_out.maybe_billed = True
+            raise timed_out
         if step == "auth":
             raise AuthPortError("the Foundry project refused this identity", status=401)
         if step == "unavailable":

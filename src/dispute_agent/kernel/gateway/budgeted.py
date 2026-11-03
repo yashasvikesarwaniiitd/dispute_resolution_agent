@@ -49,6 +49,10 @@ if TYPE_CHECKING:
 _NO_USAGE = ModelUsage(input_tokens=0, output_tokens=0, latency_ms=0, cost_usd=Decimal(0))
 
 
+def _usage_of(failed: KernelError) -> ModelUsage:
+    return failed.usage if isinstance(failed.usage, ModelUsage) else _NO_USAGE
+
+
 @dataclass
 class BudgetedModelGateway:
     """Implements ModelGateway, around exactly one primary route."""
@@ -70,14 +74,18 @@ class BudgetedModelGateway:
         try:
             response = self.primary.complete(req)
         except InvalidModelOutput as invalid:
-            usage = invalid.usage if isinstance(invalid.usage, ModelUsage) else _NO_USAGE
-            self._record(req, "invalid_output", usage, error_code=invalid.code)
+            self._record(req, "invalid_output", _usage_of(invalid), error_code=invalid.code)
             raise
         except (GuardrailBlocked, AgentDrift) as stopped:
-            self._record(req, "blocked", _NO_USAGE, error_code=stopped.code)
+            self._record(req, "blocked", _usage_of(stopped), error_code=stopped.code)
             raise
         except KernelError as failed:
-            self._record(req, "error", _NO_USAGE, error_code=failed.code)
+            self._record(req, "error", _usage_of(failed), error_code=failed.code)
+            raise
+        except Exception as unexpected:
+            # Not a typed error: a bug, or a provider failure no adapter mapped. It is still
+            # recorded, so it counts against the per-case cap (review, M2).
+            self._record(req, "error", _NO_USAGE, error_code=type(unexpected).__name__[:60])
             raise
         self._record(req, "ok", response.usage, model_id=response.model_id)
         return response

@@ -21,7 +21,12 @@ from typing import TYPE_CHECKING, Any
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from dispute_agent.kernel.domain.errors import InvalidModelOutput
+from dispute_agent.kernel.domain.errors import (
+    InvalidModelOutput,
+    KernelError,
+    ModuleUnavailable,
+    TransientPortError,
+)
 from dispute_agent.kernel.domain.reasoning import ModelResponse, ModelUsage
 
 if TYPE_CHECKING:
@@ -82,7 +87,21 @@ def complete_with_one_retry(
     spent: list[RawReply] = []
     last_error: InvalidModelOutput | None = None
     for _ in range(ATTEMPTS):
-        reply = call(req)
+        try:
+            reply = call(req)
+        except KernelError as failed:
+            usage = add_usage(_total(spent), failed.usage)
+            if last_error is not None and isinstance(
+                failed, TransientPortError | ModuleUnavailable
+            ):
+                # The model already answered badly once. A retry that then could not be
+                # made does not turn that into "the model was unavailable" - which would
+                # let the rules decide a case the model got wrong (review, M3).
+                raise InvalidModelOutput(
+                    f"invalid, then the retry failed ({failed.code})", usage=usage
+                ) from failed
+            failed.usage = usage
+            raise
         spent.append(reply)
         try:
             output = parse(reply.text, req.prompt.output_schema)
@@ -98,6 +117,18 @@ def complete_with_one_retry(
     ) from last_error
 
 
+def add_usage(base: ModelUsage, extra: object | None) -> ModelUsage:
+    """`base` plus `extra` when `extra` is a ModelUsage; the spend guard reads the sum."""
+    if not isinstance(extra, ModelUsage):
+        return base
+    return ModelUsage(
+        input_tokens=base.input_tokens + extra.input_tokens,
+        output_tokens=base.output_tokens + extra.output_tokens,
+        latency_ms=base.latency_ms + extra.latency_ms,
+        cost_usd=base.cost_usd + extra.cost_usd,
+    )
+
+
 def _total(replies: list[RawReply]) -> ModelUsage:
     return ModelUsage(
         input_tokens=sum(r.input_tokens for r in replies),
@@ -107,4 +138,4 @@ def _total(replies: list[RawReply]) -> ModelUsage:
     )
 
 
-__all__ = ["ATTEMPTS", "RawReply", "complete_with_one_retry", "parse"]
+__all__ = ["ATTEMPTS", "RawReply", "add_usage", "complete_with_one_retry", "parse"]

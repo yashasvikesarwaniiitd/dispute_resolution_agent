@@ -54,6 +54,8 @@ from dispute_agent.kernel.domain.errors import (
     GuardrailBlocked,
     InvalidModelOutput,
     ModuleUnavailable,
+    NotFound,
+    PermanentPortError,
     TransientPortError,
 )
 from dispute_agent.kernel.domain.hashing import payload_hash
@@ -190,6 +192,22 @@ class InvestigateStep:
             return _escalate(ReviewCode.GUARDRAIL_BLOCKED, str(blocked))
         except AgentDrift as drift:
             return _escalate(ReviewCode.AGENT_DRIFT, str(drift))
+        except PermanentPortError as refused:
+            # 401/403, 410 Gone, a refused request: retrying or falling back cannot fix a
+            # credential or a retired model, and the owner has to look (foundry.md section 7).
+            return StepOutcome(
+                trigger=Trigger.ESCALATE,
+                review_reason=ReviewReason(
+                    code=ReviewCode.MODULE_UNAVAILABLE,
+                    module="model_gateway",
+                    detail=f"the model route refused the call ({refused.code})",
+                ),
+                detail=f"model_refused: {refused.code}",
+            )
+        except (DomainValidationError, NotFound) as broken:
+            # The prompt could not be loaded or rendered. A configuration fault, normally
+            # caught at start-up; if it reaches a case, a person looks (review, M4).
+            return _escalate(ReviewCode.INTERNAL_ERROR, f"prompt: {broken}")
 
     # -- building the briefing ---------------------------------------------------------------
 

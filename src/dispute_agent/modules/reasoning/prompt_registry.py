@@ -10,7 +10,8 @@ its eval suite has passed (prompts/README.md). The prototype phase runs before t
 harness exists, so the prototype needs this prompt while it is still inactive. Rather than
 switch the rule off, the registry takes `allow_inactive`, which is off by default and set
 only by `PROMPTS_ALLOW_INACTIVE=true` - "I am knowingly testing an un-evaluated prompt".
-Without it, the system keeps using the rules-only reasoner.
+Without it, building the model reasoner fails at start-up (`app.build_llm_reasoner`), and
+a case that somehow reaches an inactive prompt goes to a person.
 """
 
 from __future__ import annotations

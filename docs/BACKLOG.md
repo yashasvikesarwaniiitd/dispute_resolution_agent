@@ -202,3 +202,12 @@ now saved after every transition (`advance(..., commit=...)`), as orchestrator.m
 - **The cap is checked before the call, the cost known after**: the last call can exceed the
   cap by one call's price. A pre-call estimate (prompt tokens + `max_output_tokens` at output
   price, foundry.md section 10) would close it.
+- **From the Phase 4P safety review, accepted rather than changed:**
+  - *The reasoner holds a gateway object whose guard has a ledger with a `record` method.*
+    The reasoner is typed against the `ModelGateway` port (one method, `complete`), and the
+    ledger writes only spend rows, never case state. Python cannot hide an attribute; a
+    narrower wrapper adds code without changing what the type allows. Revisit if a reasoner
+    ever gains code that inspects its dependencies.
+  - *The per-case cap counts guarded calls, and one guarded call can include its retries*
+    (up to 2 answer attempts x 3 transport attempts). Each retry is costed, so the lifetime
+    cap sees all of it; the policy comment now says what is counted.

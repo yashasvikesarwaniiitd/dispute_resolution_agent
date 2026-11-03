@@ -7,8 +7,9 @@ write a closing tag for the block they are in and then speak as the system.
 
 Two things it does, both from the prompts/README contract:
 
-1. **Every tag-like sequence loses its markup.** `<` becomes `&lt;` in any sequence shaped
-   like an opening or closing tag, for every tag name, not only the reserved ones. The text
+1. **Every tag-like sequence loses its markup.** Every `<` that could open a tag becomes
+   `&lt;`, for every tag name, not only the reserved ones, after look-alike characters are
+   normalised to the plain `<`. The text
    stays readable to the model as literal text - it can still see that the seller *tried* -
    but it can no longer be mistaken for structure.
 2. **Invisible characters are removed.** Zero-width and bidirectional-override characters
@@ -21,6 +22,7 @@ relying on the prompt's instructions to the model.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -28,8 +30,13 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 if TYPE_CHECKING:
     from pathlib import Path
 
-#: Anything shaped like a tag, opening or closing, any name (prompts/README.md).
-TAG_LIKE = re.compile(r"</?[A-Za-z_][A-Za-z0-9_-]*\s*[^>]*>")
+#: Any `<` that could begin markup: followed (after optional whitespace) by `/`, `!`, `?`
+#: or a name character. Matching the opening character alone, rather than a whole tag, is
+#: deliberate: a whole-tag pattern can be made to swallow a real tag behind a malformed one
+#: (`</a </untrusted_evidence>` - Phase 4P safety review, H1), and escaping only what a
+#: pattern spans leaves the rest live. This is wider than prompts/README's tag pattern, so
+#: stricter; a `<` before a digit or a space-then-digit ("2 < 3") still reads normally.
+TAG_LIKE = re.compile(r"<(?=\s*[/!?A-Za-z_])")
 
 #: Zero-width, bidirectional and invisible formatting characters that can hide markup.
 #: U+2066-2069 (bidi isolates, "Trojan Source") go beyond the prompts/README list: stricter.
@@ -56,8 +63,11 @@ def neutralise(value: object) -> str:
     type would fail the whole render - and a failed render on a hostile input is the input
     winning.
     """
-    text = INVISIBLE.sub("", "" if value is None else str(value))
-    return TAG_LIKE.sub(lambda match: "&lt;" + match.group()[1:], text)
+    # NFKC first, so look-alikes such as the full-width < (U+FF1C) or the small < (U+FE64)
+    # become the plain character and are then defused like it.
+    text = unicodedata.normalize("NFKC", "" if value is None else str(value))
+    text = INVISIBLE.sub("", text)
+    return TAG_LIKE.sub("&lt;", text)
 
 
 def make_environment(root: Path) -> Environment:

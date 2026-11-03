@@ -60,7 +60,7 @@ patterns:
   match_min_verdict: 1                            # REQUIRE_APPROVAL; a pattern may only raise (I7)
 
 llm:
-  max_calls_per_case: 6                           # every model call counts, retries included
+  max_calls_per_case: 6                           # guarded calls per case; one may include its retries
   max_output_tokens: 1200
   call_timeout_s: 120                             # reasoning models can take tens of seconds
 

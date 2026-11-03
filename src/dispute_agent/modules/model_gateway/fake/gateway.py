@@ -36,7 +36,7 @@ ROUTE = "fake"
 MODEL_ID = "fake-model"
 
 #: Faults a script step can name instead of an answer.
-FAULTS = ("guardrail", "rate_limit", "auth", "unavailable")
+FAULTS = ("guardrail", "rate_limit", "timeout", "auth", "unavailable")
 
 #: Notional prices, so the spending cap has real numbers to compare against in tests.
 #: Not any provider's tariff.
@@ -96,6 +96,10 @@ def _raise(fault: str) -> None:
         raise GuardrailBlocked("the provider's content filter blocked the input")
     if fault == "rate_limit":
         raise TransientPortError("rate limited", retry_after_s=20.0)
+    if fault == "timeout":
+        timed_out = TransientPortError("the model did not answer in time")
+        timed_out.maybe_billed = True
+        raise timed_out
     if fault == "auth":
         raise AuthPortError("the model credentials were refused", status=401)
     raise ModuleUnavailable(MODULE)
