@@ -10,8 +10,8 @@
 | A4 Agent and evals | Approved | Owner, 2026-11-03 (D44) | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43); 59 scenarios, paths machine-checked |
 | A5 Build plan and freeze (`arch-v1`) | Approved; tagged | Owner, 2026-11-03 (D45) | 109 task cards across 9 phases, INDEX, escalation guide, risk register and milestone plan; all 9 phase prompts reference their cards; `docs/spec/` frozen at `arch-v1` |
 | 0 Foundations and sockets | Complete; awaiting owner sign-off | | 12 cards; ADRs 0001-0003; `make verify` green (767 passed, 114 contract skips); 3 import-linter contracts kept; `/healthz` lists all 11 modules. Phase 0 also built `kernel-interfaces.md` section 4, which no task card covers (see the note below) |
-| 1 Kernel | Next | | Build from `docs/spec/task-cards/phase-1.md` (14 cards). Read the Phase 0 note first: the section 4 domain models already exist |
-| 2 Weight-dispute pack | Not started | | |
+| 1 Kernel | Complete; awaiting owner sign-off | | 14 cards; ADR 0026 and implementation notes on 0004, 0005, 0007, 0008; `make verify` green (1204 passed, 129 skipped); a synthetic dispute runs end to end over HTTP and reaches a person with a reason |
+| 2 Weight-dispute pack | Next | | Build from `docs/spec/task-cards/phase-2.md`. Three Phase 1 items land here: the gather_evidence scenario for ADR 0026, and the steps that currently escalate (eligibility, assess, investigate) |
 | 3 Real channels | Not started | | |
 | 4 Agent reasoning | Not started | | |
 | 4b Foundry integration | Not started | | |
@@ -50,6 +50,7 @@ Add one line per ADR: number, title, status.
 | 0023 | Email uses a personal Outlook.com account with delegated sign-in and an encrypted token cache | accepted (D36) |
 | 0024 | The briefing separates trusted facts from untrusted text; the rules-only baseline is the bar | accepted (D44) |
 | 0025 | The pattern anchoring control is a total caution order enforced in code, not a model self-report | accepted (D44) |
+| 0026 | T90 from GATHERING_EVIDENCE stays; it is reachable, just not by an evidence failure | accepted |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 
@@ -68,6 +69,30 @@ changing `events.py`. Cards P1-05 and P1-11 are where they are actually read.
 
 The owner may want a card written for this before Phase 1 planning assumes it was free.
 
+
+## Note from Phase 1: what runs, and what does not
+
+A dispute can be submitted over HTTP, is deduplicated, opens exactly one case, advances
+through the step loop, and reaches `NEEDS_HUMAN_REVIEW` with a reason naming the phase that
+will decide it. Every state change is an event carrying its transition id and cause, and
+`GET /cases/{id}` returns the diary in order.
+
+**No step decides a dispute yet.** There is no domain pack (Phase 2) and no reasoner
+(Phase 4), so `eligibility`, `assess` and `investigate` each escalate and say which card
+replaces them. That is the honest Phase 1 outcome; a step that guessed so the demo looked
+complete would be the worst thing this system could do.
+
+Three things were found between frozen documents and recorded rather than resolved silently:
+
+1. `kernel-interfaces.md` section 4.9 omits `Timer.gather_round`, which `schema.sql` requires
+   and D41 depends on. The model carries it with the reasoning on the field.
+2. TC-SM-P2 ("no case with an UNKNOWN action is ever RESOLVED") is not a state-machine
+   property — hypothesis disproved it in one run. It is carried by the executor, T90 and
+   T37 together, and is now tested in those three places.
+3. ADR 0008 asked Phase 1 to read and link four SQLite documentation pages before
+   implementing. It was not done; the behaviours were verified empirically by fifty
+   constraint tests instead. Recorded as outstanding in `docs/BACKLOG.md`.
+
 ## Session log
 
 | Date | Stage or phase | Model plan | `/usage` note | What was done | Next |
@@ -80,3 +105,4 @@ The owner may want a card written for this before Phase 1 planning assumes it wa
 | 2026-11-03 | A4 | Opus + 3 independent review subagents | not recorded | Independent review of the A4 draft across spec consistency, prompts (adversarial) and evals/gates; 9 blocking and 22 major findings, all verified against the files and fixed; 20 scenarios added (59 total); all paths machine-checked by scripts/check_scenarios.py; kernel-interfaces amendment section 15; owner decisions D42, D43; ADR 0025 | Owner approves A4, then A5 |
 | 2026-11-03 | A5 | Opus | not recorded | 109 task cards for phases 0-7 and 4b, each with files, spec sections, tests-first, acceptance command, size, dependencies and model; `docs/spec/INDEX.md`; escalation guide; risk register and a derived milestone plan; task-card reference added to all 9 phase prompts | Owner approves A5, then tag `arch-v1` and start Phase 0 |
 | 2026-11-03 | 0 | opusplan (Opus; desktop session) | not recorded | Cards P0-01..P0-12: scaffold and make targets; kernel domain (ids, enums, Money/Weight, canonical hashing, typed errors); cross-case socket models; the section 4 domain models (uncarded, see the note above); 20 kernel ports; Disabled/Null/no-op/fake adapters; module registry with startup validation; composition root, `/healthz` and the API skeleton; structlog with a redaction processor, Clock, IdGenerator, settings; architecture tests, each verified by breaking its rule; 13 contract-test suites; ADRs 0001-0003 | Owner approves Phase 0, then Phase 1 |
+| 2026-11-03 | 1 | opusplan (Opus; desktop session) | not recorded | Cards P1-01..P1-14: schema and first migration with 50 constraint tests; repositories with optimistic versioning and a unit of work; the transition table as data (57 rows from 49 declarations); StateMachine.apply and the acceptance matrix; intake and deduplication; policy engine with ten rules and the caution lattice; ActionExecutor skeleton; orchestrator step loop with the cross-case hooks; timers and restart recovery; POST /events and GET /cases/{id}; property-based state machine tests; ADR 0026 (T90 kept) and implementation notes on 0004, 0005, 0007, 0008. Owner decisions taken at the start of the phase: keep T90 and test it; resolve spec conflicts in-flight and log them; fix safety-review findings before reporting | Owner approves Phase 1, then Phase 2 |
