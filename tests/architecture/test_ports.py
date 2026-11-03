@@ -40,14 +40,22 @@ def test_every_port_in_the_architecture_sketch_exists() -> None:
 
 
 def test_the_card_list_is_complete() -> None:
-    """The 18 the P0-05 card names, plus KillSwitch and ModuleStatus from section 6.1."""
+    """The 18 the P0-05 card names, plus KillSwitch and ModuleStatus from section 6.1.
+
+    `EvidenceStore` and `AssessmentStore` were added in Phase 2. Both are in
+    `kernel-interfaces.md` section 6.2 and neither was on any card - the same gap as the
+    section 4 models, recorded in BACKLOG.md. They are here rather than quietly imported
+    where needed, so the next person counting ports gets the real number.
+    """
     expected = {
         "ApprovalService",
+        "AssessmentStore",
         "CaseOutcomeObserver",
         "CaseRepository",
         "Clock",
         "EventLog",
         "EvidenceSource",
+        "EvidenceStore",
         "IdGenerator",
         "InputScreen",
         "KillSwitch",

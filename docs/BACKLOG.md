@@ -45,3 +45,59 @@ From the Phase 1 safety review (2026-11-03), carried rather than fixed:
   consult one; `settings.kill_switch` is read by nothing. I10 holds because the executor
   checks its own switch in `plan` and `execute`, but nothing can currently engage it.
   Phase 3 needs the adapter and the control_flags row behind it.
+
+## Found during Phase 2 (P2-06)
+
+- **`EvidenceStore` and `TimerStore` were never built.** `kernel-interfaces.md` section 6.2
+  specifies both; no Phase 0 or 1 card creates them, which is the same gap as the section 4
+  models. P2-06 works around it by keeping the gather round pure — it decides and returns
+  the results, and the caller records them — which is the right shape anyway, but the ports
+  still have to exist before P2-09 can wire the step into the orchestrator.
+- ~~`TimerStore` has no way to count fired EVIDENCE_RETRY timers for a gather round.~~
+  Withdrawn: `SqliteTimerStore.retries_this_round(case_id, gather_round)` was built in Phase
+  1. `gather()` still takes the count as an argument, which keeps it pure and testable
+  without a database; P2-09 supplies it from that method.
+- **Reply interpretation is not in the gather round yet.** `orchestrator.md` has the step
+  interpret unread seller replies into AI_DERIVED items. That needs `MessageRecord` (not
+  built) and a `ReplyInterpreter` adapter (Phase 4). The source half is complete and tested;
+  the reply half is a seam, not an omission to forget.
+- **P2-07's card lists `modules/ledger/simulated/` among its files**, but its Build, Tests
+  and Acceptance are entirely about `reconcile.py`, and the Ledger contract suite defers the
+  simulated adapter to Phase 5 (card P5-02). Built `reconcile.py` only. If the intent was to
+  build the adapter in Phase 2, that is a card conflict to settle before Phase 5.
+- **`WeightDisputePack` does not yet satisfy `DomainPack`.** `render_template` is Phase 3,
+  and the port declares `baseline_proposal(briefing)` while the pack needs an id and a
+  timestamp it cannot mint itself. Both the orchestrator steps and the `rules_only` adapter
+  therefore depend on narrow protocols (`CasePack`, `BaselinePack`) covering only what each
+  uses — better design regardless, and it keeps the gap visible rather than casting over it.
+  Settle the port's signature when Phase 3 adds `render_template`.
+- **`config/modules.yaml` still has `rules_only` disabled**, with the comment "on from Phase
+  2, when the pack baseline exists". It exists now. Turning it on is a composition-root
+  change and belongs with P2-09's wiring being finished, not with the adapter being written.
+
+## From the Phase 2 safety review (2026-11-03)
+
+Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here instead.
+
+- **`credit_amount` still has no caller.** `reconcile.credit_amount` is the only code that
+  nets a credit against earlier ones (money-rules.md section 3), and nothing in `src/` calls
+  it: `orchestrator.md` section 3.6 says the credit amount is `assessment.discrepancy`,
+  which carries no netting. The assessment now carries `recalculated_remeasured` and
+  `duplicate_debit_total` so the amount *can* be derived from the proven reason, but the
+  derivation belongs with the proposal-to-intent step in Phase 4. **Until that is wired, do
+  not take `assessment.discrepancy` as the credit amount**: money-rules' own worked example
+  (case A credited 200, case B proves 600 → B owes 200) would pay 400.
+- **B7's "no evidence request sent yet" is approximated by `gather_round <= 1`.**
+  `agent-design.md` section 5 says what it means; `ContactStatus` carries
+  `clarifications_sent` but no evidence-request flag, so there is nothing exact to read. It
+  is mostly shielded by B5 — any round carrying a reply escalates first — but it is a
+  substitution, not a reading. Add the field to `ContactStatus` when Phase 3 builds the
+  briefing for real.
+- **`SqliteEvidenceStore.bundle` does not verify `content_hash`.** The hash is computed and
+  stored for exactly this check and never recomputed on read. Low while the case database is
+  the only writer; worth doing when anything else can write evidence rows.
+- **`DomainPack.assess` has no way to say which charge line a dispute is about.** The pack's
+  `assess` now takes `claim_ref` as a keyword the port does not declare, because without it
+  the pack took the first DEBIT in the round and a shipment with two charge lines
+  recalculated one dispute against the other's charge. Settle the port's signature (add
+  `facts` or `claim_ref`) with an ADR when Phase 3 revisits `DomainPack`.

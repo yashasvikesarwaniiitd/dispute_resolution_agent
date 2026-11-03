@@ -145,6 +145,12 @@ class ChargeAssessment(BaseModel):
     charged: Money | None = None
     recalculated: Money | None = None
     discrepancy: Money | None = None
+    #: The corrected charges behind the other two provable reasons (money-rules.md section
+    #: 3, applied to kernel-interfaces.md section 13). Without them a `remeasurement_lower`
+    #: or `duplicate_charge` credit has no amount: `discrepancy` is charged minus
+    #: recalculated, which is zero by definition when the error is not a calculation error.
+    recalculated_remeasured: Money | None = None
+    duplicate_debit_total: Money | None = None
     definite_errors: tuple[str, ...] = ()
     facts: tuple[Fact, ...] = ()
     input_hash: PayloadHash
