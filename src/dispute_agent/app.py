@@ -14,7 +14,6 @@ could reach any adapter in the system and the dependency rule would be decoratio
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,6 +22,10 @@ import yaml
 from fastapi import FastAPI
 
 from dispute_agent.api import build_router
+from dispute_agent.infra.clock import SystemClock
+from dispute_agent.infra.ids import UlidIdGenerator
+from dispute_agent.infra.logging import configure_logging
+from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.errors import ConfigError
 from dispute_agent.kernel.registry.registry import ModulesFile, Registry
 from dispute_agent.kernel.registry.validation import validate_modules
@@ -46,7 +49,9 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.ports import (
         ApprovalService,
         CaseOutcomeObserver,
+        Clock,
         EvidenceSource,
+        IdGenerator,
         InputScreen,
         Ledger,
         MessageChannel,
@@ -60,7 +65,6 @@ if TYPE_CHECKING:
     )
 
 DEFAULT_CONFIG_DIR = Path("config")
-DEFAULT_APP_ENV = "local"
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,9 @@ class Application:
     registry: Registry
     adapters: Adapters
     app_env: str
+    settings: Settings
+    clock: Clock
+    ids: IdGenerator
 
 
 def load_modules_file(config_dir: Path) -> ModulesFile:
@@ -198,12 +205,32 @@ def build_adapters(registry: Registry) -> Adapters:
     )
 
 
-def build_application(config_dir: Path | None = None, app_env: str | None = None) -> Application:
-    """Read configuration, validate it, wire it. Raises ConfigError and starts nothing."""
+def build_application(
+    config_dir: Path | None = None,
+    app_env: str | None = None,
+    settings: Settings | None = None,
+) -> Application:
+    """Read configuration, validate it, wire it. Raises ConfigError and starts nothing.
+
+    Logging is configured here, with the loaded secrets handed to the redaction processor
+    (I12). It has to happen before anything else can log, and this is the only place that
+    knows what the secrets are.
+    """
     directory = DEFAULT_CONFIG_DIR if config_dir is None else config_dir
-    env = os.environ.get("APP_ENV", DEFAULT_APP_ENV) if app_env is None else app_env
+    loaded = Settings() if settings is None else settings
+    env = loaded.app_env if app_env is None else app_env
+
+    configure_logging(app_env=env, secrets=loaded.secret_values())
+
     registry = validate_modules(load_modules_file(directory), app_env=env)
-    return Application(registry=registry, adapters=build_adapters(registry), app_env=env)
+    return Application(
+        registry=registry,
+        adapters=build_adapters(registry),
+        app_env=env,
+        settings=loaded,
+        clock=SystemClock(),
+        ids=UlidIdGenerator(),
+    )
 
 
 def create_app(config_dir: Path | None = None, app_env: str | None = None) -> FastAPI:
