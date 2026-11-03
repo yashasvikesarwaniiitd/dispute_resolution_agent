@@ -357,7 +357,7 @@ def _eligible_from_evidence(
     status stays `unknown` rather than becoming eligible — proceeding on a parcel nobody can
     show was delivered is the guess this refuses to make.
     """
-    status = _str(bundle, STATUS, "status")
+    status = _latest_scan(bundle) or _str(bundle, STATUS, "status")
     if status is None:
         return "unknown", (eligibility_rules.STATUS_UNKNOWN_CODE,)
     if status == eligibility_rules.DELIVERED:
@@ -365,6 +365,29 @@ def _eligible_from_evidence(
     if status.upper() in eligibility_rules.NOT_DELIVERED:
         return "ineligible", (eligibility_rules.NOT_DELIVERED_CODE,)
     return "unknown", (eligibility_rules.STATUS_UNKNOWN_CODE,)
+
+
+def _latest_scan(bundle: EvidenceBundle) -> str | None:
+    """The status on the last scan in the history, if the history says one.
+
+    This is what makes S32 work: a parcel marked DELIVERED at intake and scanned RTO two
+    days later is not a delivered parcel, and the gather round is the first time the system
+    sees that. The last scan wins because scans are a sequence of events, not opinions.
+
+    A scan whose trailing word is not a status this pack knows is ignored rather than
+    guessed at. An unparsed line must not quietly become "we could not tell", which would
+    turn a formatting change in the scan feed into a wave of escalated cases.
+    """
+    entries = _value(bundle, HISTORY).get("entries")
+    if not isinstance(entries, list):
+        return None
+    for entry in reversed(entries):
+        if not isinstance(entry, str) or not entry.split():
+            continue
+        last = entry.split()[-1].upper()
+        if last == eligibility_rules.DELIVERED or last in eligibility_rules.NOT_DELIVERED:
+            return last
+    return None
 
 
 __all__ = ["EVIDENCE_PLAN", "FULL_MENU", "REQUIRED_KEYS", "WeightDisputePack"]

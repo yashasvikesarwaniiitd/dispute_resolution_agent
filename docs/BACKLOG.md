@@ -53,11 +53,10 @@ From the Phase 1 safety review (2026-11-03), carried rather than fixed:
   models. P2-06 works around it by keeping the gather round pure — it decides and returns
   the results, and the caller records them — which is the right shape anyway, but the ports
   still have to exist before P2-09 can wire the step into the orchestrator.
-- **`TimerStore` has no way to count fired EVIDENCE_RETRY timers for a gather round.** D41
-  limits retries to three *per round* and finding B22 added `timers.gather_round` so the
-  count is possible, but the port exposes `active`, `due` and `get` only — nothing reads
-  fired rows by round. `gather()` therefore takes the count as an argument. Adding the
-  method is a change to a frozen spec, so it needs an ADR at P2-09.
+- ~~`TimerStore` has no way to count fired EVIDENCE_RETRY timers for a gather round.~~
+  Withdrawn: `SqliteTimerStore.retries_this_round(case_id, gather_round)` was built in Phase
+  1. `gather()` still takes the count as an argument, which keeps it pure and testable
+  without a database; P2-09 supplies it from that method.
 - **Reply interpretation is not in the gather round yet.** `orchestrator.md` has the step
   interpret unread seller replies into AI_DERIVED items. That needs `MessageRecord` (not
   built) and a `ReplyInterpreter` adapter (Phase 4). The source half is complete and tested;

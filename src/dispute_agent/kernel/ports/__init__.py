@@ -11,11 +11,13 @@ it would read as a guarantee it cannot give.
 """
 
 from dispute_agent.kernel.ports.approval_service import ApprovalService
+from dispute_agent.kernel.ports.assessment_store import AssessmentStore
 from dispute_agent.kernel.ports.case_outcome_observer import CaseOutcomeObserver
 from dispute_agent.kernel.ports.case_repository import CaseRepository
 from dispute_agent.kernel.ports.clock import Clock
 from dispute_agent.kernel.ports.event_log import EventLog
 from dispute_agent.kernel.ports.evidence_source import EvidenceSource
+from dispute_agent.kernel.ports.evidence_store import EvidenceStore
 from dispute_agent.kernel.ports.id_generator import IdGenerator
 from dispute_agent.kernel.ports.input_screen import InputScreen
 from dispute_agent.kernel.ports.kill_switch import KillSwitch
@@ -33,11 +35,13 @@ from dispute_agent.kernel.ports.tracer import Tracer
 
 __all__ = [
     "ApprovalService",
+    "AssessmentStore",
     "CaseOutcomeObserver",
     "CaseRepository",
     "Clock",
     "EventLog",
     "EvidenceSource",
+    "EvidenceStore",
     "IdGenerator",
     "InputScreen",
     "KillSwitch",

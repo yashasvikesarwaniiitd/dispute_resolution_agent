@@ -20,6 +20,11 @@ from typing import TYPE_CHECKING, Self
 
 from dispute_agent.infra.sqlite.case_repository import SqliteCaseRepository
 from dispute_agent.infra.sqlite.event_log import SqliteEventLog
+from dispute_agent.infra.sqlite.evidence_store import (
+    SqliteAssessmentStore,
+    SqliteEvidenceStore,
+)
+from dispute_agent.infra.sqlite.timer_store import SqliteTimerStore
 from dispute_agent.kernel.domain.errors import ConcurrencyConflict
 
 if TYPE_CHECKING:
@@ -30,6 +35,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
     from dispute_agent.kernel.domain.ids import CaseId
+    from dispute_agent.kernel.ports import Clock
 
 
 class SqliteUnitOfWork:
@@ -40,12 +46,22 @@ class SqliteUnitOfWork:
     saying one thing and its events saying another.
     """
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(
+        self, engine: Engine, *, clock: Clock | None = None, pack: str = "weight_dispute"
+    ) -> None:
+        from dispute_agent.infra.clock import SystemClock
+
         self._engine = engine
+        # Injected so a test that fixes time gets the same `created_at` every run.
+        self._clock = clock or SystemClock()
+        self._pack = pack
         self._connection: Connection | None = None
         self._last_save: tuple[CaseId | None, int] = (None, 0)
         self.cases: SqliteCaseRepository
         self.events: SqliteEventLog
+        self.evidence: SqliteEvidenceStore
+        self.assessments: SqliteAssessmentStore
+        self.timers: SqliteTimerStore
 
     def __enter__(self) -> Self:
         self._connection = self._engine.connect()
@@ -53,6 +69,11 @@ class SqliteUnitOfWork:
         self._connection.begin()
         self.cases = SqliteCaseRepository(self._connection, on_save=self.note_save)
         self.events = SqliteEventLog(self._connection)
+        self.evidence = SqliteEvidenceStore(self._connection)
+        self.assessments = SqliteAssessmentStore(
+            self._connection, pack=self._pack, clock=self._clock
+        )
+        self.timers = SqliteTimerStore(self._connection)
         return self
 
     def __exit__(
@@ -106,10 +127,20 @@ class SqliteUnitOfWork:
         return self._connection
 
 
-def unit_of_work_factory(engine: Engine) -> Callable[[], SqliteUnitOfWork]:
-    """A `UnitOfWorkFactory`: the kernel asks for a unit of work without knowing the engine."""
+def unit_of_work_factory(
+    engine: Engine, *, clock: Clock | None = None, pack: str = "weight_dispute"
+) -> Callable[[], SqliteUnitOfWork]:
+    """A `UnitOfWorkFactory`: the kernel asks for a unit of work without knowing the engine.
+
+    The clock is injected rather than read from the wall, so a test that fixes time gets
+    the same `created_at` on every run (CLAUDE.md section 6). It defaults to the system
+    clock only so existing callers that never write an assessment keep working.
+    """
+    from dispute_agent.infra.clock import SystemClock
+
+    the_clock = clock or SystemClock()
 
     def factory() -> SqliteUnitOfWork:
-        return SqliteUnitOfWork(engine)
+        return SqliteUnitOfWork(engine, clock=the_clock, pack=pack)
 
     return factory

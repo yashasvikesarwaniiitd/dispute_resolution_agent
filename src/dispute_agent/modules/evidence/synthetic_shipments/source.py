@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.case import CaseFacts
     from dispute_agent.kernel.domain.evidence import EvidenceRequirement
     from dispute_agent.kernel.domain.ids import CaseId
+    from dispute_agent.kernel.ports import Clock
     from dispute_agent.modules.evidence.synthetic_shipments.fixtures import Fixture
 
 MODULE = "evidence"
@@ -71,6 +72,10 @@ class SyntheticShipmentSource:
     #: make `scanner_fault` prove `remeasurement_lower` before anybody remeasured anything,
     #: and S06's whole point is that round 1 has no finding, no image and no reply.
     finding_available: bool = False
+    #: Injected, never read from the wall. A fixture that stamped itself with the real
+    #: time would make two runs of the same scenario differ in the one field a reader
+    #: would never think to look at (CLAUDE.md section 6).
+    clock: Clock | None = None
     _calls: dict[str, int] = field(default_factory=dict)
 
     def fetch(
@@ -85,7 +90,7 @@ class SyntheticShipmentSource:
         attempt = self._calls.get(key, 0) + 1
         self._calls[key] = attempt
         fault = self.faults.get(key)
-        now = _now()
+        now = self.clock.now() if self.clock is not None else _now()
 
         if fault in UNAVAILABLE_FAULTS:
             # The module is off. That is I6's business, not a FAILED item's.
