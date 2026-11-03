@@ -48,6 +48,7 @@ ID_PREFIXES: Final[frozenset[str]] = frozenset(
         "out",
         "pat",
         "corr",
+        "mcl",  # model_calls rows (P4b-02)
     }
 )
 

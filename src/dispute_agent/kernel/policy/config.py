@@ -13,6 +13,8 @@ exactly the hole I13 exists to close, so the model refuses it rather than defaul
 
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -140,6 +142,30 @@ class PatternsConfig(BaseModel):
     )
 
 
+class LlmConfig(BaseModel):
+    """Per-case model-call limits (config.md section 3, ADR 0017)."""
+
+    model_config = _FROZEN
+
+    max_calls_per_case: int = Field(default=6, gt=0)
+    max_output_tokens: int = Field(default=1200, gt=0)
+
+
+class LlmPrimaryConfig(BaseModel):
+    """The primary route's money limits (D18, ADR 0029).
+
+    `allow_paid_usage` is the switch between "spend only the free credit" and "spend real
+    money". Off by default and only turned on by the owner (LLM_ALLOW_PAID_USAGE), so the
+    end of the credit window stops model calls rather than starting a bill.
+    """
+
+    model_config = _FROZEN
+
+    spend_cap_usd: Decimal = Field(default=Decimal("150.00"), gt=0)
+    credit_expires_on: date | None = None
+    allow_paid_usage: bool = False
+
+
 class PolicyConfig(BaseModel):
     """The kernel-facing part of config/policy.yaml."""
 
@@ -153,6 +179,8 @@ class PolicyConfig(BaseModel):
     cases: CasesConfig = Field(default_factory=CasesConfig)
     patterns: PatternsConfig = Field(default_factory=PatternsConfig)
     baseline: BaselineConfig = Field(default_factory=BaselineConfig)
+    llm: LlmConfig = Field(default_factory=LlmConfig)
+    llm_primary: LlmPrimaryConfig = Field(default_factory=LlmPrimaryConfig)
 
     def rules_version(self) -> str:
         """A hash of the effective configuration, recorded on every verdict.

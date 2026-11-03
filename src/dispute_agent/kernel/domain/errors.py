@@ -183,9 +183,18 @@ class ExternalNotFound(PortError):
 
 
 class InvalidModelOutput(PortError):
-    """Model output failed schema or proposal validation, after the one permitted retry."""
+    """Model output failed schema or proposal validation, after the one permitted retry.
+
+    `usage` carries what the failed attempts cost, when the gateway knows it: a model that
+    answered badly was still paid for, and the spending cap must see that.
+    """
 
     code: ClassVar[str] = "invalid_model_output"
+
+    def __init__(self, detail: str, usage: object | None = None) -> None:
+        self.detail = detail
+        self.usage = usage
+        super().__init__(detail)
 
 
 class BudgetExceeded(PortError):

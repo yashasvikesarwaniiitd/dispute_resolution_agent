@@ -58,3 +58,12 @@ patterns:
   min_related_cases: 3
   window_days: 14
   match_min_verdict: 1                            # REQUIRE_APPROVAL; a pattern may only raise (I7)
+
+llm:
+  max_calls_per_case: 6                           # every model call counts, retries included
+  max_output_tokens: 1200
+
+llm_primary:
+  spend_cap_usd: "150.00"                         # below the $200 Azure credit, on purpose (D18)
+  credit_expires_on: null                         # from AZURE_CREDIT_EXPIRES_ON; required for Foundry
+  allow_paid_usage: false                         # from LLM_ALLOW_PAID_USAGE; never on by default

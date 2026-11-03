@@ -93,7 +93,9 @@ def complete_with_one_retry(
             output=output, model_id=reply.model_id, route=route, usage=_total(spent)
         )
     assert last_error is not None
-    raise InvalidModelOutput(f"invalid twice; last: {last_error.args[0]}") from last_error
+    raise InvalidModelOutput(
+        f"invalid twice; last: {last_error.args[0]}", usage=_total(spent)
+    ) from last_error
 
 
 def _total(replies: list[RawReply]) -> ModelUsage:
