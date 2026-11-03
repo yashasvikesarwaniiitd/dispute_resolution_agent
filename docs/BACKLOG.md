@@ -110,3 +110,22 @@ Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here
   `make demo` runs — P3-10 wires it, and must pick `phase_3_rules` so R09 is in the set.
   A rule catalogue nothing instantiates is the same failure class as a counter nothing
   populates, which is what this card found.
+
+## Phase 3 scope boundary (read before Phase 4)
+
+- **`make demo` cannot complete its documented run, and P3-10 is therefore partial.** The
+  phase exit asks for "a real approved email and a real Jira issue, both verified by
+  read-back". Every piece exists and is tested: the adapters, the executor's verification,
+  the approvals queue, the templates. What is missing is the orchestrator's `investigate`
+  step, which still escalates because it has no reasoner — so nothing produces the message
+  intent that the rest of the chain would carry.
+
+  The `rules_only` reasoner built in P2-08 could fill that gap today, and wiring it is a
+  small change. It is **not** done here because that wiring is card P4-09's, and quietly
+  expanding a phase to make its own demo pass is how a phase boundary stops meaning
+  anything. The demo refuses to run without credentials and says what it would need, rather
+  than running against fakes and appearing to prove something.
+
+  **Decision for the owner:** either wire `investigate` to the rules-only reasoner now (a
+  one-card addition to Phase 3), or accept the demo as deferred to Phase 4 and treat this
+  phase-exit line as met by `make test-integration` instead.

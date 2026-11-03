@@ -112,7 +112,9 @@ def email_login() -> int:
 
 
 def demo() -> int:
-    return pending("demo", "Phase 3 (card P3-10), extended in Phase 5 (card P5-09)")
+    """One synthetic dispute against the real test accounts. Refuses without credentials
+    rather than quietly demonstrating the fakes."""
+    return uv("python", "scripts/demo.py")
 
 
 def evaluate() -> int:
