@@ -9,7 +9,7 @@
 
 modules:
   evidence:
-    enabled: true
+    enabled: false                               # on from Phase 2, when synthetic_shipments exists
     adapter: synthetic_shipments
     settings:
       seed: 42                                    # makes synthetic data reproducible (I11)
@@ -23,7 +23,7 @@ modules:
       in_adapter_retries: 2
 
   reasoning:
-    enabled: true
+    enabled: false                                # on from Phase 2, when the pack baseline exists
     adapter: rules_only                           # llm from Phase 4; then depends on model_gateway
 
   input_screen:
@@ -65,7 +65,7 @@ modules:
       failure_mode: null
 
   approvals:
-    enabled: true
+    enabled: false                                # on from Phase 3, when store_backed exists
     adapter: store_backed                         # message review from Phase 3; credits from Phase 5
 
   cross_case:
