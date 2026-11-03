@@ -227,8 +227,18 @@ def conflicting_history() -> Fixture:
 
 
 def scanner_fault() -> Fixture:
-    """SCN-03-2 reads +40 mm on L; the later structured finding remeasures 22 x 15 x 10."""
-    shipment = _kurta("SHP-000005", measured=Dimensions.of("26", "15", "10"))
+    """SCN-03-2 reads +40 mm on L; the later structured finding remeasures 22 x 15 x 10.
+
+    The bias is on what the *scanner* read, not on what the seller declared: the kurta's
+    honest hub reading is 30 x 22 x 15, so a +40 mm bias on L makes it 34 x 22 x 15. Billed
+    on that: 2,244 g volumetric beats the 1,100 g dead weight, 5 slabs, INR 190.00. The hub's
+    later remeasurement gives 660 g volumetric, so the 1,100 g dead weight governs, 3 slabs,
+    INR 114.00 - and the INR 76.00 between them is what `remeasurement_lower` credits.
+
+    Applying the bias to the declared dimensions instead would put both readings inside the
+    same 500 g slab, the charge would not move, and the fixture would prove nothing.
+    """
+    shipment = _kurta("SHP-000005", measured=Dimensions.of("34", "22", "15"))
     return Fixture(
         name="scanner_fault",
         shipment=shipment,
