@@ -11,6 +11,7 @@ it would read as a guarantee it cannot give.
 """
 
 from dispute_agent.kernel.ports.approval_service import ApprovalService
+from dispute_agent.kernel.ports.approval_store import ApprovalStore
 from dispute_agent.kernel.ports.assessment_store import AssessmentStore
 from dispute_agent.kernel.ports.case_outcome_observer import CaseOutcomeObserver
 from dispute_agent.kernel.ports.case_repository import CaseRepository
@@ -35,6 +36,7 @@ from dispute_agent.kernel.ports.tracer import Tracer
 
 __all__ = [
     "ApprovalService",
+    "ApprovalStore",
     "AssessmentStore",
     "CaseOutcomeObserver",
     "CaseRepository",

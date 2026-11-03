@@ -92,7 +92,13 @@ def run_api() -> int:
 
 
 def run_approvals() -> int:
-    return pending("run-approvals", "Phase 3 (card P3-06)")
+    """The review queue. A separate process from the API: it is a different audience and a
+    different secret, and running it only when someone is reviewing is the point."""
+    return uv(
+        "streamlit",
+        "run",
+        "src/dispute_agent/modules/approvals/streamlit_ui/app.py",
+    )
 
 
 def email_login() -> int:
