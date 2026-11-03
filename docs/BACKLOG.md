@@ -101,3 +101,12 @@ Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here
   the pack took the first DEBIT in the round and a shipment with two charge lines
   recalculated one dispute against the other's charge. Settle the port's signature (add
   `facts` or `claim_ref`) with an ADR when Phase 3 revisits `DomainPack`.
+
+## Found during Phase 3
+
+- **Nothing in `src/` constructs a `PolicyEngine`.** `phase_1_rules` and now `phase_3_rules`
+  are exported and exercised only by tests; the composition root does not wire policy yet.
+  That is fine while no step plans an action for real, and it stops being fine the moment
+  `make demo` runs — P3-10 wires it, and must pick `phase_3_rules` so R09 is in the set.
+  A rule catalogue nothing instantiates is the same failure class as a counter nothing
+  populates, which is what this card found.

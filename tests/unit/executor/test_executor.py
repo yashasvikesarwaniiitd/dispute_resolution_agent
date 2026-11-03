@@ -172,6 +172,16 @@ class FakeActionStore:
     def has_verified_credit(self, case_id: object) -> bool:
         return self.verified_credit
 
+    #: Messages already sent on this case, and how many of them were today. Two numbers
+    #: rather than one, because R04 and R05 ask different questions.
+    messages_total: int = 0
+    messages_today: int = 0
+    counted_since: datetime | None = None
+
+    def outbound_message_count(self, case_id: object, since: datetime | None = None) -> int:
+        self.counted_since = since
+        return self.messages_today if since is not None else self.messages_total
+
 
 class AlwaysOff:
     def is_engaged(self) -> bool:
@@ -251,6 +261,23 @@ def ctx() -> PolicyContext:
 def executor(store: FakeActionStore, kill: object = None) -> ActionExecutor:
     engine = PolicyEngine(phase_1_rules(), FakeClock(NOW), FakeIdGenerator())
     return ActionExecutor(engine, store, kill or AlwaysOff())  # type: ignore[arg-type]
+
+
+def plan_a_message(
+    *, messages_total: int = 0, messages_today: int = 0
+) -> tuple[FakeActionStore, PolicyContext]:
+    """Plan one message against a store with the given contact history.
+
+    Shared with `tests/unit/policy/test_contact_limits.py`, which uses it to check that the
+    executor gathers the counts R04 and R05 read. Returns the store (so a test can see what
+    was asked of it) and the context the caller passed in.
+    """
+    store = FakeActionStore(approval=an_approval())
+    store.messages_total = messages_total
+    store.messages_today = messages_today
+    context = ctx()
+    executor(store).plan(CASE, message_intent(), context, NOW, ActionId("act_contact"))
+    return store, context
 
 
 class TestIdempotencyKeys:

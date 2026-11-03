@@ -88,4 +88,5 @@ __all__ = [
     "ModuleAvailable",
     "RecipientAllowlisted",
     "phase_1_rules",
+    "phase_3_rules",
 ]

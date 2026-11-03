@@ -28,6 +28,7 @@ what is actually there. Only the second settles it (I2, ADR 0010).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC
 from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 
@@ -117,6 +118,17 @@ class ActionStore(Protocol):
         """ADR 0012: a case that already credited is finished with crediting."""
         ...
 
+    def outbound_message_count(self, case_id: object, since: datetime | None = None) -> int:
+        """SEND_MESSAGE actions in SENT, VERIFIED or UNKNOWN for this case.
+
+        UNKNOWN counts. We may have contacted the seller, and a contact limit that only
+        counted the sends we are sure about would let an unresolved one buy another message.
+
+        Counted per action row, so a retry of an action that already exists is not counted
+        twice - the row is the message, not the attempt.
+        """
+        ...
+
 
 class KillSwitch(Protocol):
     def is_engaged(self) -> bool: ...
@@ -187,6 +199,14 @@ class ActionExecutor:
                     "kill_switch": self._kill_switch.is_engaged(),
                     "live_credits_same_shipment_reason": self._live_credits(intent),
                     "case_has_verified_credit": self._actions.has_verified_credit(case.id),
+                    # R04 and R05 read these. Before they were gathered here they defaulted
+                    # to zero, so both contact limits were dead: an agent that can write
+                    # without bound can harass someone by accident, and from the inside it
+                    # looks exactly like normal operation.
+                    "messages_sent_total": self._actions.outbound_message_count(case.id),
+                    "messages_sent_today": self._actions.outbound_message_count(
+                        case.id, since=_start_of_day(now, ctx.policy.contact.day_boundary_tz)
+                    ),
                 }
             )
         )
@@ -402,6 +422,19 @@ class _Missing:
 
 
 _MISSING = _Missing()
+
+
+def _start_of_day(now: datetime, tz_name: str) -> datetime:
+    """Midnight in the configured zone, as an aware UTC instant.
+
+    The day boundary is a product decision, not the server's: "one message a day" means a
+    day where the seller is, and a machine running in UTC would otherwise split their
+    evening in half.
+    """
+    from zoneinfo import ZoneInfo
+
+    local = now.astimezone(ZoneInfo(tz_name))
+    return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
 
 def _first_reason(verdict: PolicyVerdict) -> str:
