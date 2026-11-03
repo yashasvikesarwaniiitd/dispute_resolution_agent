@@ -22,6 +22,7 @@ import yaml
 from fastapi import FastAPI
 
 from dispute_agent.api import build_router
+from dispute_agent.api.runtime import Runtime
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.ids import UlidIdGenerator
 from dispute_agent.infra.logging import configure_logging
@@ -96,6 +97,9 @@ class Application:
     settings: Settings
     clock: Clock
     ids: IdGenerator
+    #: None when no database path was given, which is how a configuration-only check
+    #: (and the /healthz tests) build an app without touching storage.
+    runtime: Runtime | None = None
 
 
 def load_modules_file(config_dir: Path) -> ModulesFile:
@@ -209,6 +213,7 @@ def build_application(
     config_dir: Path | None = None,
     app_env: str | None = None,
     settings: Settings | None = None,
+    database: Path | None = None,
 ) -> Application:
     """Read configuration, validate it, wire it. Raises ConfigError and starts nothing.
 
@@ -223,25 +228,89 @@ def build_application(
     configure_logging(app_env=env, secrets=loaded.secret_values())
 
     registry = validate_modules(load_modules_file(directory), app_env=env)
+    clock = SystemClock()
+    ids = UlidIdGenerator()
+    runtime = _build_runtime(database, loaded, clock, ids) if database else None
     return Application(
         registry=registry,
         adapters=build_adapters(registry),
         app_env=env,
         settings=loaded,
-        clock=SystemClock(),
-        ids=UlidIdGenerator(),
+        clock=clock,
+        ids=ids,
+        runtime=runtime,
     )
 
 
-def create_app(config_dir: Path | None = None, app_env: str | None = None) -> FastAPI:
+def create_app(
+    config_dir: Path | None = None,
+    app_env: str | None = None,
+    database: Path | None = None,
+) -> FastAPI:
     """The app factory. `make run-api` calls this; a test calls it with its own config_dir.
 
     Taking the directory as an argument rather than reading an environment variable is what
     lets a test run two differently-configured apps in one process without touching os.environ
     and without the order of tests mattering.
     """
-    application = build_application(config_dir=config_dir, app_env=app_env)
+    application = build_application(
+        config_dir=config_dir, app_env=app_env, database=database or _default_database()
+    )
     app = FastAPI(title="Weight dispute resolution agent", version="0.1.0")
     app.state.application = application
-    app.include_router(build_router(application.registry))
+    app.include_router(build_router(application.registry, application.runtime))
     return app
+
+
+def _default_database() -> Path | None:
+    """`data/cases.sqlite3` if the migration has been run, else nothing.
+
+    An app with no database still starts and still answers `/healthz`, which is what makes
+    "is my configuration right?" checkable before any storage exists.
+    """
+    path = Path("data") / "cases.sqlite3"
+    return path if path.is_file() else None
+
+
+def _build_runtime(database: Path, settings: Settings, clock: Clock, ids: IdGenerator) -> Runtime:
+    """Wire storage, intake and the step loop. The only place any of this is assembled."""
+    from datetime import timedelta
+
+    from dispute_agent.infra.sqlite.engine import create_sqlite_engine, verify_pragmas
+    from dispute_agent.infra.sqlite.unit_of_work import unit_of_work_factory
+    from dispute_agent.infra.transitions import default_table
+    from dispute_agent.kernel.orchestrator.intake import Intake
+    from dispute_agent.kernel.orchestrator.orchestrator import (
+        Orchestrator,
+        phase_1_steps,
+    )
+    from dispute_agent.kernel.policy.config import PolicyConfig
+    from dispute_agent.kernel.statemachine.machine import StateMachine
+    from dispute_agent.modules.cross_case.null import (
+        NullOutcomeObserver,
+        NullPatternContextProvider,
+    )
+
+    engine = create_sqlite_engine(database)
+    verify_pragmas(engine)
+    policy = PolicyConfig()
+
+    allowed = (
+        tuple(settings.test_seller_email.split(","))
+        if settings.test_seller_email
+        else tuple(policy.messages.allowed_recipients)
+    )
+    intake = Intake(
+        allowed_recipients=allowed,
+        reopen_window=timedelta(days=policy.timers.reopen_window_days),
+    )
+    orchestrator = Orchestrator(
+        StateMachine(default_table()),
+        phase_1_steps(),
+        clock,
+        ids,
+        patterns=NullPatternContextProvider(),
+        outcomes=NullOutcomeObserver(),
+        max_steps=policy.cases.max_steps_per_advance,
+    )
+    return Runtime(unit_of_work_factory(engine), intake, orchestrator, clock, ids)
