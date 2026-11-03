@@ -333,7 +333,14 @@ class ActionExecutor:
         except AmbiguousOutcome as exc:
             # May or may not have happened. Retrying could do it twice; calling it failed
             # could lose a credit that was posted. Neither is acceptable (I4).
-            return self._to_unknown(action_id, now, f"ambiguous_write:{exc}")
+            #
+            # Look it up before labelling it. The common ambiguous write is a send whose
+            # answer was lost after the far end accepted it (scenario S12a), and the key on
+            # it is exactly what lets us find out: found -> it happened, record SENT, one
+            # email. Anything less certain stays UNKNOWN for a person. Never FAILED - a
+            # FAILED row frees the contact-limit slot and, for credits, the duplicate slot,
+            # for something that may well have happened.
+            return self._settle_ambiguous(action_id, port, key, now, exc)
         except PermanentPortError as exc:
             self._actions.set_status(
                 action_id,
@@ -346,6 +353,9 @@ class ActionExecutor:
         except TransientPortError as exc:
             # Nothing was written: TransientPortError means the call certainly did not take
             # effect, which is precisely why it is a different type from AmbiguousOutcome.
+            # That is a contract every adapter must keep - a timeout *after* a write was
+            # dispatched is AmbiguousOutcome, never this. The Phase 3 review found both real
+            # adapters breaking it, which would have recorded a sent email as FAILED.
             self._actions.set_status(
                 action_id,
                 ActionStatus.FAILED,
@@ -398,6 +408,25 @@ class ActionExecutor:
         return ExecutionResult(Outcome.VERIFIED, action_id, "verified")
 
     # -- helpers ---------------------------------------------------------------------------
+
+    def _settle_ambiguous(
+        self,
+        action_id: ActionId,
+        port: WritePort,
+        key: IdempotencyKey,
+        now: datetime,
+        cause: AmbiguousOutcome,
+    ) -> ExecutionResult:
+        """After an ambiguous write: a lookup can prove it happened; nothing can prove it
+        did not. So the only two outcomes are SENT (found) and UNKNOWN (everything else)."""
+        if port.lookup_supported:
+            try:
+                found = port.find_sent(key)
+            except (AmbiguousOutcome, TransientPortError):
+                found = None
+            if found is not None:
+                return self._to_sent(action_id, now, found, "found_after_ambiguous_write")
+        return self._to_unknown(action_id, now, f"ambiguous_write:{cause}")
 
     def _to_sent(
         self, action_id: ActionId, now: datetime, receipt: object, reason: str

@@ -31,12 +31,16 @@ from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, Domai
 from dispute_agent.kernel.domain.models import Actor
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from dispute_agent.kernel.domain.actions import Approval
     from dispute_agent.kernel.domain.evidence import Fact
     from dispute_agent.kernel.domain.ids import ApprovalId
-    from dispute_agent.kernel.ports import ApprovalStore, Clock
+    from dispute_agent.kernel.domain.reasoning import NumberUse
+    from dispute_agent.kernel.ports import ApprovalStore, AssessmentStore, Clock, IntentStore
+
+#: Shown in place of a source that cannot be found. Loud on purpose.
+UNKNOWN_SOURCE = "NO SOURCE FOUND - do not approve"
 
 #: Every human actor id starts with this. R10 checks the same prefix before allowing a send,
 #: so a decision recorded any other way cannot authorise one.
@@ -114,18 +118,48 @@ class ReviewConsole:
         """Everything awaiting a decision, oldest first."""
         return self.store.pending()
 
-    def item(
-        self, approval: Approval, subject: str, body: str, facts: Sequence[Fact]
+    def view(
+        self, approval: Approval, *, intents: IntentStore, assessments: AssessmentStore
     ) -> PendingItem:
-        """One queue row, with each number paired with the fact it came from.
+        """What the reviewer sees for one approval: the stored text and its numbers' sources.
 
-        The text is passed in by the caller, which reads it from the stored intent. The
-        console never renders a message itself - a page that re-rendered the draft could
-        show something subtly different from the text whose hash is about to be approved.
+        Read from the stored intent - the exact text whose hash the approval is bound to -
+        and never re-rendered. The first version of the page showed only the hash: a person
+        approving a sha256 digest they could not read, with the code that built this view
+        written and never called (Phase 3 review, finding 3).
         """
-        from dispute_agent.kernel.policy.numbers import render_fact
+        intent = intents.get(approval.request.intent_id)
+        assessment = assessments.latest(approval.request.case_id)
+        facts = {fact.fact_id: fact for fact in (assessment.facts if assessment else ())}
+        payload = intent.payload
+        return self.item(
+            approval,
+            subject=str(getattr(payload, "subject", "")),
+            body=str(getattr(payload, "body", "")),
+            cited=tuple(getattr(payload, "numbers_used", ())),
+            facts=facts,
+        )
 
-        numbers = tuple((render_fact(fact.value), fact.label) for fact in facts)
+    def item(
+        self,
+        approval: Approval,
+        *,
+        subject: str,
+        body: str,
+        cited: Sequence[NumberUse],
+        facts: Mapping[str, Fact],
+    ) -> PendingItem:
+        """One queue row: each number **in this message**, paired with where it came from.
+
+        Only the numbers the message actually uses, not every fact on the case - the point
+        is "this figure in this email is the charge from the ledger". A citation whose fact
+        cannot be found is shown, loudly, rather than dropped: R09 should have refused it at
+        planning, and if it somehow did not, the reviewer is the last person who can.
+        """
+        numbers = tuple(
+            (use.text, facts[use.fact_id].label if use.fact_id in facts else UNKNOWN_SOURCE)
+            for use in cited
+        )
         return PendingItem(approval=approval, subject=subject, body=body, numbers=numbers)
 
     # -- deciding ------------------------------------------------------------------------
@@ -157,4 +191,4 @@ class ReviewConsole:
         )
 
 
-__all__ = ["HUMAN_PREFIX", "PendingItem", "ReviewConsole", "sign_in"]
+__all__ = ["HUMAN_PREFIX", "UNKNOWN_SOURCE", "PendingItem", "ReviewConsole", "sign_in"]

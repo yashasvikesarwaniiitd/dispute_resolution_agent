@@ -207,11 +207,14 @@ class TestSending:
         channel.send(a_message(), OTHER_KEY)
         assert arrange(harness.sent_count, channel) == 2
 
-    def test_a_timeout_raises_transient_not_permanent(self, harness: Any) -> None:
-        """The distinction the executor retries on. A transient failure may be retried
-        because the idempotency key protects it; a permanent one never is."""
+    def test_a_lost_answer_to_a_send_is_ambiguous_not_transient(self, harness: Any) -> None:
+        """The distinction the executor acts on. TransientPortError promises "certainly
+        did not happen" and is safe to retry. A send whose answer was lost may well have
+        happened, so it must be AmbiguousOutcome - the Phase 3 review found both real
+        adapters, and this fake, calling it transient, which recorded a sent email as
+        FAILED and let a retry send a second copy."""
         channel = arrange(harness.channel, send="timeout")
-        with pytest.raises(TransientPortError):
+        with pytest.raises(AmbiguousOutcome):
             channel.send(a_message(), KEY)
 
     def test_a_refusal_raises_permanent_and_is_not_a_timeout(self, harness: Any) -> None:
@@ -242,7 +245,7 @@ class TestLookup:
         """Scenario S12a, and the reason `find_sent` exists at all: the message went, the
         answer was lost, and the executor must discover that rather than send again."""
         channel = arrange(harness.channel, send="timeout")
-        with pytest.raises(TransientPortError):
+        with pytest.raises(AmbiguousOutcome):
             channel.send(a_message(), KEY)
         assert channel.find_sent(KEY) is not None
         assert arrange(harness.sent_count, channel) == 1

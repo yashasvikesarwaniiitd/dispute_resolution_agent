@@ -487,10 +487,14 @@ class TestFailures:
 
     def test_a_transient_error_fails_safely_because_nothing_was_written(self) -> None:
         """TransientPortError means the call certainly did not take effect, which is exactly
-        why it is a different type from AmbiguousOutcome."""
+        why it is a different type from AmbiguousOutcome.
+
+        The example is a connection that never opened. It used to be "timeout", which is
+        the wrong lesson: a timeout after a write was dispatched may well have taken effect,
+        and is AmbiguousOutcome (Phase 3 review, finding 1)."""
         store = FakeActionStore(approval=an_approval())
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
-        port = FakePort(lookup_supported=False, send_error=TransientPortError("timeout"))
+        port = FakePort(lookup_supported=False, send_error=TransientPortError("could not connect"))
         result = executor(store).execute(action.id, port, "payload", NOW)
         assert result.outcome is Outcome.FAILED
         assert result.reason == "transient_exhausted"

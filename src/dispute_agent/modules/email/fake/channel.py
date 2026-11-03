@@ -142,9 +142,14 @@ class FakeMessageChannel:
         self._all.append(StoredMessage(receipt, msg, key, "sentitems", moment))
 
         if fault == "timeout":
-            # S12a: it really was sent, and only the answer was lost. The executor must find
-            # it by lookup rather than sending a second copy.
-            raise TransientPortError("timed out waiting for the send to be acknowledged")
+            # S12a: it really was sent, and only the answer was lost. That is an ambiguous
+            # write, not a transient one - TransientPortError promises "certainly did not
+            # happen", and this fake used to break that promise in exactly the way the real
+            # adapters did. The executor must find it by lookup rather than send again.
+            raise AmbiguousOutcome(
+                "timed out waiting for the send to be acknowledged",
+                external_ref=receipt.external_message_id,
+            )
 
         return receipt
 

@@ -207,36 +207,72 @@ class TestAGoodSend:
 
 
 class TestS12aTheSendTimedOutButItWent:
-    """One email, not two."""
+    """One email, not two - driven through the executor this time.
 
-    def test_a_retry_finds_it_rather_than_sending_again(self) -> None:
+    The first version of this class called `port.send` directly, caught the timeout itself,
+    and only then asked the executor - so the executor's own handling of a timed-out send
+    was never exercised. That is the path the Phase 3 review found broken: a lost answer
+    was labelled "certainly did not happen", the action recorded FAILED, and a retry would
+    have sent the seller a second copy.
+    """
+
+    def test_a_lost_answer_is_settled_by_lookup_and_recorded_sent(self) -> None:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port(send="timeout")
 
-        # The first attempt: the message is sent and the answer is lost.
-        with pytest.raises(TransientPortError):
-            port.send(MESSAGE, KEY)
-        assert channel.sent_count() == 1
-
-        # The retry looks before writing, which is the whole point of the key.
         result = executor(store).execute(action_id, port, MESSAGE, NOW)
+
         assert result.outcome is Outcome.SENT
-        assert result.reason == "found_by_lookup"
+        assert result.reason == "found_after_ambiguous_write"
+        assert store.get(action_id).status is ActionStatus.SENT
         assert channel.sent_count() == 1
 
-    def test_the_seller_receives_one_copy_even_after_several_retries(self) -> None:
+    def test_it_is_never_recorded_failed(self) -> None:
+        """FAILED frees the contact-limit slot and, for credits, the duplicate-credit slot -
+        for something that may well have happened."""
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        port, _ = message_port(send="timeout")
+
+        executor(store).execute(action_id, port, MESSAGE, NOW)
+        assert store.get(action_id).status is not ActionStatus.FAILED
+
+    def test_when_the_lookup_cannot_settle_it_a_person_does(self) -> None:
+        """Answer lost, and the lookup itself fails: nobody can tell, so UNKNOWN (I4)."""
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        port, channel = message_port(send="timeout", find_sent="transient")
+
+        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        assert result.outcome is Outcome.UNKNOWN
+        assert store.get(action_id).status is ActionStatus.UNKNOWN
+        assert channel.sent_count() == 1
+
+    def test_the_seller_receives_one_copy_however_often_it_is_re_run(self) -> None:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port(send="timeout")
-        with pytest.raises(TransientPortError):
-            port.send(MESSAGE, KEY)
 
         for _ in range(3):
             store.claimed.clear()
             store.set_status(action_id, ActionStatus.PLANNED, NOW)
             executor(store).execute(action_id, port, MESSAGE, NOW)
         assert channel.sent_count() == 1
+
+    def test_a_send_that_never_left_is_the_only_timeout_that_fails(self) -> None:
+        """The control. TransientPortError - nothing was sent - is still FAILED and safe
+        to retry; that is the one case where "failed" is the truth."""
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+
+        class NeverConnects(MessageWritePort):
+            def send(self, payload: Any, key: IdempotencyKey) -> Any:
+                raise TransientPortError("could not connect")
+
+        port = NeverConnects(channel=FakeMessageChannel(now=NOW))
+        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        assert result.outcome is Outcome.FAILED
 
 
 class TestS12bStuckInDrafts:

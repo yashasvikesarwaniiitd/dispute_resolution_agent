@@ -384,21 +384,40 @@ class TestErrorMapping:
             jira.system().upsert_issue(SPEC, KEY)
         assert "JIRA_EMAIL" in str(failed.value)
 
-    def test_a_timeout_is_transient(self) -> None:
-        def timeout(request: httpx.Request) -> httpx.Response:
-            raise httpx.ReadTimeout("too slow")
+    @staticmethod
+    def _system_that_raises(error: Exception) -> JiraCloudTicketing:
+        def fail(request: httpx.Request) -> httpx.Response:
+            raise error
 
         client = httpx.Client(
-            base_url="https://example.atlassian.net",
-            transport=httpx.MockTransport(timeout),
+            base_url="https://example.atlassian.net", transport=httpx.MockTransport(fail)
         )
-        system = JiraCloudTicketing(
+        return JiraCloudTicketing(
             base_url="https://example.atlassian.net",
             email=EMAIL,
             api_token=JIRA_TOKEN,
             project_key=PROJECT,
             client=client,
         )
+
+    def test_a_lost_answer_to_a_create_is_ambiguous(self) -> None:
+        """Phase 3 review, finding 1. The create went out; whether Jira made the issue is
+        unknowable from here. "Transient" would have told the executor it certainly did
+        not happen, and a retry would make a second issue."""
+        system = self._system_that_raises(httpx.ReadTimeout("no answer"))
+        with pytest.raises(AmbiguousOutcome):
+            system.upsert_issue(SPEC, KEY)
+
+    def test_a_create_that_never_connected_is_transient(self) -> None:
+        """Nothing left this machine, so nothing happened - safe to retry."""
+        system = self._system_that_raises(httpx.ConnectTimeout("no route"))
+        with pytest.raises(TransientPortError):
+            system.upsert_issue(SPEC, KEY)
+
+    def test_a_timed_out_search_is_transient_even_though_it_is_a_post(self) -> None:
+        """The search is a POST that changes nothing. Treating it as an ambiguous write
+        would send every slow look-before-write to a person."""
+        system = self._system_that_raises(httpx.ReadTimeout("slow index"))
         with pytest.raises(TransientPortError):
             system.find_issue(KEY)
 
@@ -432,5 +451,13 @@ class TestTheTokenIsAPassword:
         assert JIRA_TOKEN not in str(failure.value)
         assert "Basic" not in str(failure.value)
 
-    def test_the_repr_does_not_carry_the_client(self) -> None:
-        assert "Authorization" not in repr(Jira().system())
+    def test_the_token_is_not_in_the_adapter_s_printout(self) -> None:
+        """Checks for the token itself. The first version checked for the word
+        "Authorization" - and passed while the token sat in the repr in plain text, because
+        the client was hidden but the token field was not (Phase 3 review, finding 2)."""
+        printed = repr(Jira().system())
+        assert JIRA_TOKEN not in printed
+        assert "Authorization" not in printed
+
+    def test_the_token_is_not_in_str_either(self) -> None:
+        assert JIRA_TOKEN not in str(Jira().system())

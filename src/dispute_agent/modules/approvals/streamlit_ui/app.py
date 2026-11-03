@@ -55,7 +55,7 @@ def main() -> None:
     )
 
     for approval in pending:
-        _render(approval, settings, reviewer)
+        _render(approval, reviewer)
 
 
 def _sign_in(settings: Settings) -> Any:
@@ -73,18 +73,41 @@ def _sign_in(settings: Settings) -> Any:
         return None
 
 
-def _render(approval: Any, settings: Settings, reviewer: Any) -> None:
+def _render(approval: Any, reviewer: Any) -> None:
+    """One approval: the email, its numbers and their sources, then the decision.
+
+    The text is shown with `st.text`, which displays it literally - no markdown, no HTML.
+    In Phase 4 a model drafts this text from a seller's words, and a page that interpreted
+    it could be made to show something other than what will be sent.
+    """
     request = approval.request
-    with st.expander(f"{request.message_kind} — case {request.case_id}", expanded=True):
-        st.write(f"Requested {request.requested_at:%d %B %Y %H:%M} UTC")
-        st.write(f"Expires {request.expires_at:%d %B %Y %H:%M} UTC")
-        st.code(str(request.payload_hash), language=None)
-        st.caption("The hash of the exact text. This is what your approval is bound to.")
+    engine = create_sqlite_engine(DB_PATH)
+    with SqliteUnitOfWork(engine, clock=SystemClock()) as work:
+        console = ReviewConsole(store=work.approvals, clock=SystemClock(), reviewer=reviewer)
+        item = console.view(approval, intents=work.intents, assessments=work.assessments)
 
-        note = st.text_area("Note or reason", key=f"note-{approval.id}")
+    with st.expander(f"{item.kind} - case {item.case_id}", expanded=True):
+        st.markdown("**Subject**")
+        st.text(item.subject)
+        st.markdown("**Message, exactly as it will be sent**")
+        st.text(item.body)
+
+        st.markdown("**Every number in this message, and where it came from**")
+        if item.numbers:
+            for figure, source in item.numbers:
+                st.text(f"{figure}  -  {source}")
+        else:
+            st.text("This message contains no figures.")
+
+        st.caption(
+            f"Requested {request.requested_at:%d %B %Y %H:%M} UTC, expires "
+            f"{request.expires_at:%d %B %Y %H:%M} UTC. Your approval is bound to the "
+            f"exact text above (fingerprint {str(request.payload_hash)[:19]}...); the "
+            "system refuses to send anything else."
+        )
+
+        note = st.text_area("Note, or the reason for rejecting", key=f"note-{approval.id}")
         approve, reject = st.columns(2)
-
-        engine = create_sqlite_engine(DB_PATH)
         if approve.button("Approve", key=f"yes-{approval.id}"):
             _decide(engine, reviewer, approval.id, note, approving=True)
         if reject.button("Reject", key=f"no-{approval.id}"):

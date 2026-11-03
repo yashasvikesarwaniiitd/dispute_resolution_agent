@@ -307,12 +307,24 @@ class OutlookGraphChannel:
         """
         try:
             response = self._client().request(method, path, **kwargs)
-        except httpx.TimeoutException as timeout:
-            raise TransientPortError(f"{method} {path} timed out") from timeout
-        except httpx.TransportError as transport:
-            raise TransientPortError(f"{method} {path} failed: {type(transport).__name__}") from (
-                transport
-            )
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as unsent:
+            # The request never left this machine, so nothing happened at the far end.
+            # This, and only this, is what TransientPortError promises the executor.
+            raise TransientPortError(
+                f"{method} {path} could not be sent: {type(unsent).__name__}"
+            ) from unsent
+        except httpx.TransportError as lost:
+            if method == "GET":
+                # A read changes nothing, so a lost answer is safe to retry.
+                raise TransientPortError(f"{method} {path} failed: {type(lost).__name__}") from lost
+            # The write was dispatched and the answer was lost. It may well have happened -
+            # Graph may have sent the email, Jira may have created the issue. Calling that
+            # transient told the executor "certainly did not happen", which recorded a sent
+            # email as FAILED and let a retry send a second copy (Phase 3 review, finding 1).
+            raise AmbiguousOutcome(
+                f"{method} {path}: the request was sent and no answer came back "
+                f"({type(lost).__name__}); it may have taken effect"
+            ) from lost
 
         if response.status_code in (401, 403):
             # Never retried. A credential that stopped working does not start again, and

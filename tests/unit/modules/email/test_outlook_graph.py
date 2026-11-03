@@ -352,14 +352,29 @@ class TestErrorMapping:
             graph.channel().send(MESSAGE, KEY)
         assert throttled.value.retry_after_s == 7.0
 
-    def test_a_network_timeout_is_transient(self) -> None:
-        def timeout(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectTimeout("too slow")
+    @staticmethod
+    def _channel_that_raises(error: Exception) -> OutlookGraphChannel:
+        def fail(request: httpx.Request) -> httpx.Response:
+            raise error
 
-        client = httpx.Client(base_url=GRAPH, transport=httpx.MockTransport(timeout))
-        channel = OutlookGraphChannel(auth=FakeAuth(), client=client)
+        client = httpx.Client(base_url=GRAPH, transport=httpx.MockTransport(fail))
+        return OutlookGraphChannel(auth=FakeAuth(), client=client)
+
+    def test_a_send_that_never_connected_is_transient(self) -> None:
+        """Nothing left this machine, so nothing was sent - safe to retry."""
         with pytest.raises(TransientPortError):
-            channel.send(MESSAGE, KEY)
+            self._channel_that_raises(httpx.ConnectTimeout("no route")).send(MESSAGE, KEY)
+
+    def test_a_lost_answer_to_a_send_is_ambiguous(self) -> None:
+        """Phase 3 review, finding 1. Graph may well have sent it. Calling this transient
+        recorded a sent email as FAILED and let a retry send the seller a second copy."""
+        with pytest.raises(AmbiguousOutcome):
+            self._channel_that_raises(httpx.ReadTimeout("no answer")).send(MESSAGE, KEY)
+
+    def test_a_lost_answer_to_a_read_is_transient(self) -> None:
+        """A read changes nothing, so retrying it is safe."""
+        with pytest.raises(TransientPortError):
+            self._channel_that_raises(httpx.ReadTimeout("slow")).fetch_replies(NOW)
 
     def test_a_dead_token_surfaces_as_an_auth_error_before_any_request(self) -> None:
         graph = Graph()

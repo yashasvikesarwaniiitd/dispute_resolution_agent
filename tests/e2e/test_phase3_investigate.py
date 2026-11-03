@@ -17,7 +17,7 @@ Nothing here sends anything. The furthest the line goes is your approval queue.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -293,3 +293,42 @@ class TestCasesTheRulesCannotDecide:
             )
         )
         assert verdict.verdict is VerdictKind.DENY
+
+
+class TestTheReviewerSeesTheEmail:
+    """Phase 3 review, finding 3. The page used to show only the hash: a person approving a
+    sha256 digest they could not read, with the code that built this view never called."""
+
+    def view_of_the_pending_approval(self, engine: Any) -> tuple[Any, Any]:
+        from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
+
+        _, approvals, intent, _ = run(engine, "scanner_fault")
+        with SqliteUnitOfWork(engine, clock=FakeClock(NOW)) as work:
+            console = ReviewConsole(
+                store=work.approvals,
+                clock=FakeClock(NOW),
+                reviewer=sign_in("t" * 20, "t" * 20, "owner"),
+            )
+            return console.view(
+                approvals[0], intents=work.intents, assessments=work.assessments
+            ), intent
+
+    def test_it_shows_the_stored_subject_and_body_exactly(self, engine) -> None:
+        """The text whose hash the approval binds to - not a re-rendering of it."""
+        item, intent = self.view_of_the_pending_approval(engine)
+        assert item.subject == intent.payload.subject
+        assert item.body == intent.payload.body
+        assert "Photo of the packed box beside a tape measure" in item.body
+
+    def test_every_figure_in_the_email_is_shown_with_its_source(self, engine) -> None:
+        """ "Approve this email" is hard to answer well. "Approve this email, in which
+        INR 190.00 is the amount charged" is not."""
+        item, _ = self.view_of_the_pending_approval(engine)
+        shown = dict(item.numbers)
+        assert shown["₹190.00"] == "amount charged"
+        assert shown["2,244 g"] == "chargeable weight in grams"
+
+    def test_only_the_figures_this_email_uses_are_listed(self, engine) -> None:
+        """Every fact on the case would bury the two that matter."""
+        item, intent = self.view_of_the_pending_approval(engine)
+        assert len(item.numbers) == len(intent.payload.numbers_used)

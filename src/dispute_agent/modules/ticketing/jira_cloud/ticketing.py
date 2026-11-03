@@ -159,7 +159,11 @@ class JiraCloudTicketing:
 
     base_url: str
     email: str
-    api_token: str
+    #: A password in all but name: Jira Basic auth is email plus token, and the pair acts as
+    #: the whole account. Kept out of repr, which a traceback with locals, `--showlocals`
+    #: or an f-string of the adapter would otherwise print in full (Phase 3 review,
+    #: finding 2 - it was printed in full).
+    api_token: str = field(repr=False)
     project_key: str
     issue_type: str = "Task"
     timeout_s: float = 30.0
@@ -216,6 +220,9 @@ class JiraCloudTicketing:
         payload = self._post(
             f"{API}/search/jql",
             json={"jql": jql, "maxResults": 2, "fields": ["id"]},
+            # A POST that changes nothing. Without this, a slow search before a write would
+            # read as an ambiguous write and send every such case to a person.
+            read_only=True,
         )
         issues = payload.get("issues", [])
         if not issues:
@@ -280,22 +287,36 @@ class JiraCloudTicketing:
     def _get(self, path: str, **kwargs: Any) -> dict[str, Any]:
         return self._request("GET", path, **kwargs)
 
-    def _post(self, path: str, *, json: Any) -> dict[str, Any]:
-        return self._request("POST", path, json=json)
+    def _post(self, path: str, *, json: Any, read_only: bool = False) -> dict[str, Any]:
+        return self._request("POST", path, json=json, read_only=read_only)
 
     def _put(self, path: str, *, json: Any) -> dict[str, Any]:
         return self._request("PUT", path, json=json)
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+    def _request(
+        self, method: str, path: str, *, read_only: bool = False, **kwargs: Any
+    ) -> dict[str, Any]:
         """Where an HTTP answer becomes a decision the executor acts on."""
         try:
             response = self._client().request(method, path, headers=self._headers(), **kwargs)
-        except httpx.TimeoutException as timeout:
-            raise TransientPortError(f"{method} {path} timed out") from timeout
-        except httpx.TransportError as transport:
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as unsent:
+            # The request never left this machine, so nothing happened at the far end.
+            # This, and only this, is what TransientPortError promises the executor.
             raise TransientPortError(
-                f"{method} {path} failed: {type(transport).__name__}"
-            ) from transport
+                f"{method} {path} could not be sent: {type(unsent).__name__}"
+            ) from unsent
+        except httpx.TransportError as lost:
+            if method == "GET" or read_only:
+                # A read changes nothing, so a lost answer is safe to retry.
+                raise TransientPortError(f"{method} {path} failed: {type(lost).__name__}") from lost
+            # The write was dispatched and the answer was lost. It may well have happened -
+            # Graph may have sent the email, Jira may have created the issue. Calling that
+            # transient told the executor "certainly did not happen", which recorded a sent
+            # email as FAILED and let a retry send a second copy (Phase 3 review, finding 1).
+            raise AmbiguousOutcome(
+                f"{method} {path}: the request was sent and no answer came back "
+                f"({type(lost).__name__}); it may have taken effect"
+            ) from lost
 
         if response.status_code in (401, 403):
             raise AuthPortError(
