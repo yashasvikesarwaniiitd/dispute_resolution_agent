@@ -18,3 +18,26 @@ Easier: the owner reviews behaviour in one file; a spec-conformance test keeps c
 
 ## Sources
 Project documents only (CLAUDE.md, docs/FLOW.md, docs/HANDOFF.md). No external documentation was needed.
+
+## Implementation notes (Phase 1, 2026-11-03)
+
+The decision held, and two of my own validation rules were wrong before the table was.
+
+**A trigger may have several destinations.** My first loader refused two rows sharing a
+from-state and trigger, and it fired immediately on T11/T12. That is not a bug in the table:
+`VERIFYING` on `action_verified` goes six different ways, chosen by guards. The lookup
+returns candidates in declaration order and the machine takes the first whose guards hold.
+What is genuinely forbidden is two rows with *identical* guards, and an unguarded row placed
+before a guarded one — which would make the guarded row dead code and fail silently.
+
+**Exhaustive beats a fallback.** My second rule demanded a `*` entry in every acceptance row.
+Four states instead list all sixteen inbound event types explicitly, which is equally total
+and clearer about what each one does. The rule is coverage, not the form it takes.
+
+**Guards are supplied, never assumed.** `apply` takes already-evaluated booleans and raises
+if one it needs was not supplied. The step that calls it is what knows whether an approval
+matches a pending intent, and a guard defaulting to `True` would be `intent_is_not_credit`
+quietly passing — I3 defeated by an omission.
+
+`from_group` is expanded at load time, so T90 is one declaration and nine rows and the
+legal-edge set is explicit. ADR 0026 records why the `GATHERING_EVIDENCE` row stays.

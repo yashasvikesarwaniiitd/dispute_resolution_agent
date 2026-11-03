@@ -18,3 +18,22 @@ Easier: crash recovery is uniform across systems. Harder: each adapter must impl
 
 ## Sources
 Project documents only (docs/ARCHITECTURE.md section 9). Per-system lookup feasibility is verified against official documentation in Stage A3.
+
+## Implementation notes (Phase 1, 2026-11-03)
+
+The decision held exactly as written. The key is derived once in `kernel/executor/keys.py`,
+stored on the action row, and read back on every retry — never recomputed, so a change to the
+formula cannot turn a retry into a second write. `wd1:` versions the derivation.
+
+The `action_seq` argument earned its place in a test rather than in theory: without it, the
+same evidence request sent again after a reopen produces the same key as the first, and the
+second send is silently swallowed as a duplicate.
+
+Lookup-before-write is implemented in `execute` and is the crash-after-write path. The test
+that proves it resets a sent action to PLANNED and runs `execute` again: the port is called
+once in total, and the second run reports `found_by_lookup`.
+
+One thing the ADR implies and the code now states: `TransientPortError` and `AmbiguousOutcome`
+must stay separate types. The first means the call certainly did not take effect and can be
+failed safely; the second means it may have, and becomes UNKNOWN. Collapsing them would make
+every timeout either a lost credit or a double-posted one.

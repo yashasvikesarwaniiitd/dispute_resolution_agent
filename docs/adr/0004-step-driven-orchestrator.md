@@ -18,3 +18,21 @@ Easier: restart recovery is "advance every case in an auto state". Every step ha
 
 ## Sources
 Project documents only (CLAUDE.md, docs/ARCHITECTURE.md, docs/FLOW.md). No external documentation was needed.
+
+## Implementation notes (Phase 1, 2026-11-03)
+
+The decision held. Two things it did not say, which implementing it settled:
+
+**The loop decides; the caller commits.** `Orchestrator.advance` returns the case and every
+event it produced rather than writing them, and the unit of work is opened outside. That was
+not in the ADR and it is what makes the whole loop testable without a database — the step
+limit, the `ModuleUnavailable` conversion and the resting behaviour are all covered by tests
+that touch no storage at all.
+
+**One conversion point, enforced structurally.** The ADR says a step must never write outside
+its transaction. The same reasoning applies to `ModuleUnavailable`: nine steps each turning
+it into a review reason would eventually be eight doing it and one forgetting. There is one
+`except ModuleUnavailable` in the orchestrator and a test counts them.
+
+Phase 1's steps all escalate, because there is no pack or reasoner to decide anything yet.
+That is a property of the phase, not of this decision.
