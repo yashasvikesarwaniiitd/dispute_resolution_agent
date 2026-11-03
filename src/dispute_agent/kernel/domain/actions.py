@@ -295,6 +295,12 @@ class Timer(BaseModel):
     anchor_at: datetime
     armed_in_state: CaseState
     armed_at_version: Annotated[int, Field(ge=1)]
+    #: EVIDENCE_RETRY only (D41). The Timer model in kernel-interfaces.md section 4.9 does
+    #: not list this field, but schema.sql requires it with a CHECK making it present exactly
+    #: for that kind, and D41's "three retries per gather round" cannot be counted without
+    #: it — per case, a second round of gathering would start already at the limit. The
+    #: schema and the decision agree; the interface listing is the one that is short.
+    gather_round: Annotated[int, Field(ge=1)] | None = None
     correlation_id: CorrelationId
     created_at: datetime
     fired_at: datetime | None = None
@@ -310,6 +316,10 @@ class Timer(BaseModel):
 
     @model_validator(mode="after")
     def _not_both_fired_and_cancelled(self) -> Self:
+        if (self.gather_round is not None) != (self.kind is TimerKind.EVIDENCE_RETRY):
+            raise DomainValidationError(
+                "gather_round belongs to EVIDENCE_RETRY alone (D41, schema.sql)"
+            )
         if self.fired_at is not None and self.cancelled_at is not None:
             raise DomainValidationError("a timer cannot both fire and be cancelled")
         if self.consumed_at is not None and self.fired_at is None:
