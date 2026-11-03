@@ -9,8 +9,8 @@
 | A3 Integrations and Foundry | Approved | Owner, 2026-11-02 (D37) | 4 spec files, ADRs 0019-0023, FOUNDRY_SETUP.md corrected; docs read 2026-11-02 |
 | A4 Agent and evals | Approved | Owner, 2026-11-03 (D44) | 6 spec files, 4 prompts revised, ADRs 0024-0025; checkpoint D38-D41; independent review run 2026-11-03, 9 blocking + 22 major findings fixed (D42, D43); 59 scenarios, paths machine-checked |
 | A5 Build plan and freeze (`arch-v1`) | Approved; tagged | Owner, 2026-11-03 (D45) | 109 task cards across 9 phases, INDEX, escalation guide, risk register and milestone plan; all 9 phase prompts reference their cards; `docs/spec/` frozen at `arch-v1` |
-| 0 Foundations and sockets | Next | | Build from `docs/spec/task-cards/phase-0.md` (12 cards) |
-| 1 Kernel | Not started | | |
+| 0 Foundations and sockets | Complete; awaiting owner sign-off | | 12 cards; ADRs 0001-0003; `make verify` green (767 passed, 114 contract skips); 3 import-linter contracts kept; `/healthz` lists all 11 modules. Phase 0 also built `kernel-interfaces.md` section 4, which no task card covers (see the note below) |
+| 1 Kernel | Next | | Build from `docs/spec/task-cards/phase-1.md` (14 cards). Read the Phase 0 note first: the section 4 domain models already exist |
 | 2 Weight-dispute pack | Not started | | |
 | 3 Real channels | Not started | | |
 | 4 Agent reasoning | Not started | | |
@@ -21,10 +21,13 @@
 
 ## ADRs
 
-Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
+Add one line per ADR: number, title, status.
 
 | ADR | Title | Status |
 |-----|-------|--------|
+| 0001 | Ports and adapters, with a pure kernel | accepted |
+| 0002 | Module registry, and what happens when a module is not there | accepted |
+| 0003 | Toolchain: uv, ruff, mypy --strict, import-linter, and one `make` | accepted |
 | 0004 | Step-driven orchestrator, one committed transition per step | accepted |
 | 0005 | State machine as data, with an event acceptance matrix | accepted |
 | 0006 | Transactional inbox for inputs, outbox for outcomes | accepted |
@@ -48,6 +51,23 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 0024 | The briefing separates trusted facts from untrusted text; the rules-only baseline is the bar | accepted (D44) |
 | 0025 | The pattern anchoring control is a total caution order enforced in code, not a model self-report | accepted (D44) |
 
+## Note from Phase 0: the section 4 domain models have no task card
+
+`kernel-interfaces.md` section 4 — `Case`, `Event`, the evidence, assessment, briefing,
+proposal, intent, verdict, approval, action and timer models, and the write-port models,
+around forty in all — is named by no card in any of the nine phase files. Card P0-05 cannot
+type a single port without them, so Phase 0 built them (commit `63143b5`), split by topic
+across `models.py`, `evidence.py`, `reasoning.py`, `actions.py`, `external.py` and
+`events.py` with the specification's class names.
+
+What this changes for Phase 1: P1-01 and P1-02 build tables and repositories *for* these
+models and should expect them to exist. The one deliberate gap is the event payload unions.
+`events-catalog.md` defines them as tables per event type; `InboundPayload` and `EventPayload`
+are declared as frozen union roots, and the concrete subclasses attach to them without
+changing `events.py`. Cards P1-05 and P1-11 are where they are actually read.
+
+The owner may want a card written for this before Phase 1 planning assumes it was free.
+
 ## Session log
 
 | Date | Stage or phase | Model plan | `/usage` note | What was done | Next |
@@ -59,3 +79,4 @@ Add one line per ADR: number, title, status. 0001-0003 are reserved for Phase 0.
 | 2026-11-02 | A4 | Opus | not recorded | 39 scenarios with checked state paths (59 after the review); owner decided 4 debatable outcomes (D38-D41, two spec changes); agent design; adversarial prompt review (29 failure modes); draft release gates; synthetic data spec; ADR 0024 | Owner approves A4, then A5 |
 | 2026-11-03 | A4 | Opus + 3 independent review subagents | not recorded | Independent review of the A4 draft across spec consistency, prompts (adversarial) and evals/gates; 9 blocking and 22 major findings, all verified against the files and fixed; 20 scenarios added (59 total); all paths machine-checked by scripts/check_scenarios.py; kernel-interfaces amendment section 15; owner decisions D42, D43; ADR 0025 | Owner approves A4, then A5 |
 | 2026-11-03 | A5 | Opus | not recorded | 109 task cards for phases 0-7 and 4b, each with files, spec sections, tests-first, acceptance command, size, dependencies and model; `docs/spec/INDEX.md`; escalation guide; risk register and a derived milestone plan; task-card reference added to all 9 phase prompts | Owner approves A5, then tag `arch-v1` and start Phase 0 |
+| 2026-11-03 | 0 | opusplan (Opus; desktop session) | not recorded | Cards P0-01..P0-12: scaffold and make targets; kernel domain (ids, enums, Money/Weight, canonical hashing, typed errors); cross-case socket models; the section 4 domain models (uncarded, see the note above); 20 kernel ports; Disabled/Null/no-op/fake adapters; module registry with startup validation; composition root, `/healthz` and the API skeleton; structlog with a redaction processor, Clock, IdGenerator, settings; architecture tests, each verified by breaking its rule; 13 contract-test suites; ADRs 0001-0003 | Owner approves Phase 0, then Phase 1 |
