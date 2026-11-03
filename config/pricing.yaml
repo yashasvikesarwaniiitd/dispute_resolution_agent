@@ -1,0 +1,21 @@
+# Model prices, per million tokens, in USD (docs/spec/config.md section 5).
+#
+# You fill this in, from the Azure portal, when you deploy the model (docs/SETUP_FOUNDRY.md,
+# step "Prices"). Microsoft's public pricing page shows "$-" for gpt-5-mini, so the number
+# cannot be looked up by code and is not guessed here.
+#
+# The app refuses to call a route whose model has no row: a spending cap with no prices
+# would count every call as free. Reasoning tokens are billed as output.
+#
+# The key under foundry_agent_service is your FOUNDRY_MODEL_DEPLOYMENT name.
+
+currency: USD
+effective_date: null
+routes:
+  foundry_agent_service: {}
+  # Example shape (values are placeholders, not prices):
+  # foundry_agent_service:
+  #   gpt-5-mini:
+  #     input_per_mtok: "0.00"
+  #     output_per_mtok: "0.00"
+  #     source: "Azure portal > deployment > pricing, read on YYYY-MM-DD"

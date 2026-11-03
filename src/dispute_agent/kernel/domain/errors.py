@@ -20,9 +20,17 @@ if TYPE_CHECKING:
 
 
 class KernelError(Exception):
-    """Base. Every error carries a stable `code` string for logs and events."""
+    """Base. Every error carries a stable `code` string for logs and events.
+
+    `usage` and `maybe_billed` matter only on the model path. A model call that fails may
+    still have been paid for (a timeout does not stop the generation it timed out on), so a
+    failure carries what it is known or assumed to have cost, and the spending guard records
+    that rather than zero (Phase 4P safety review, M1).
+    """
 
     code: ClassVar[str] = "kernel_error"
+    usage: object | None = None
+    maybe_billed: bool = False
 
 
 class DomainValidationError(KernelError):
@@ -183,9 +191,18 @@ class ExternalNotFound(PortError):
 
 
 class InvalidModelOutput(PortError):
-    """Model output failed schema or proposal validation, after the one permitted retry."""
+    """Model output failed schema or proposal validation, after the one permitted retry.
+
+    `usage` carries what the failed attempts cost, when the gateway knows it: a model that
+    answered badly was still paid for, and the spending cap must see that.
+    """
 
     code: ClassVar[str] = "invalid_model_output"
+
+    def __init__(self, detail: str, usage: object | None = None) -> None:
+        self.detail = detail
+        self.usage = usage
+        super().__init__(detail)
 
 
 class BudgetExceeded(PortError):

@@ -47,6 +47,10 @@ from dispute_agent.modules.ticketing.disabled import DisabledTicketingSystem
 from dispute_agent.modules.tracing.noop import NoopTracer
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from dispute_agent.kernel.domain.reasoning import ModelRequest
+    from dispute_agent.kernel.policy.config import PolicyConfig
     from dispute_agent.kernel.ports import (
         ApprovalService,
         CaseOutcomeObserver,
@@ -65,7 +69,10 @@ if TYPE_CHECKING:
         Tracer,
     )
 
-DEFAULT_CONFIG_DIR = Path("config")
+#: The project folder, so config, prompts and the call log are found from any working
+#: directory (Phase 4P safety review, LOW).
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
 
 
 @dataclass(frozen=True)
@@ -317,3 +324,124 @@ def _build_runtime(
         max_steps=policy.cases.max_steps_per_advance,
     )
     return Runtime(unit_of_work_factory(engine), intake, orchestrator, clock, ids)
+
+
+# -- the model path (Phase 4P, ADR 0029) ------------------------------------------------------
+
+#: Anchored to the project folder, not the working directory: run from anywhere else, a
+#: relative `data/` would be a fresh, empty call log, and the spending cap would read $0.
+PROMPTS_DIR = PROJECT_ROOT / "prompts"
+FOUNDRY_LOCK = PROJECT_ROOT / "config" / "foundry_agents.lock.json"
+PRICING = PROJECT_ROOT / "config" / "pricing.yaml"
+MODEL_CALL_LOG = PROJECT_ROOT / "data" / "model_calls.sqlite3"
+
+
+def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
+    """policy.yaml with the environment's spending settings applied (config.md section 7)."""
+    from dispute_agent.infra.policy import load_policy, with_llm_overrides
+
+    return with_llm_overrides(
+        load_policy(config_dir),
+        credit_expires_on=settings.azure_credit_expires_on,
+        allow_paid_usage=settings.llm_allow_paid_usage,
+        spend_cap_usd=settings.llm_primary_spend_cap_usd,
+    )
+
+
+def build_model_gateway(
+    adapter: str,
+    *,
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    fake_answer: Callable[[ModelRequest], str | dict[str, object]] | None = None,
+    log_path: Path = MODEL_CALL_LOG,
+) -> ModelGateway:
+    """The one guarded path to a model (I14, ADR 0017): the chosen route, inside the guard.
+
+    No reasoner ever receives an unguarded gateway: this function has no other return.
+    """
+    from dispute_agent.infra.sqlite.model_call_log import open_model_call_log
+    from dispute_agent.kernel.gateway.budgeted import BudgetedModelGateway
+
+    if adapter == "fake":
+        from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
+
+        primary: ModelGateway = FakeModelGateway(responder=fake_answer)
+        route = "fake"
+    elif adapter == "foundry_agent_service":
+        primary = build_foundry_gateway(settings, policy)
+        route = "foundry_agent_service"
+    else:
+        raise _not_built("model_gateway", adapter)
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    return BudgetedModelGateway(
+        primary=primary,
+        route=route,
+        ledger=open_model_call_log(log_path),
+        limits=policy.llm,
+        money=policy.llm_primary,
+        clock=clock,
+        ids=ids,
+    )
+
+
+def build_foundry_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:
+    """Fails fast, naming what is missing, rather than at the first case (CLAUDE.md 6)."""
+    from dispute_agent.modules.model_gateway.foundry_agent_service.client import (
+        AzureAgentServiceClient,
+    )
+    from dispute_agent.modules.model_gateway.foundry_agent_service.gateway import (
+        ROUTE,
+        FoundryAgentServiceGateway,
+    )
+    from dispute_agent.modules.model_gateway.foundry_agent_service.lock import read_lock
+    from dispute_agent.modules.model_gateway.foundry_agent_service.pricing import load_price
+
+    if not settings.foundry_project_endpoint or not settings.foundry_model_deployment:
+        raise ConfigError(
+            "FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL_DEPLOYMENT must be set in .env "
+            "(docs/SETUP_FOUNDRY.md)"
+        )
+    if policy.llm_primary.credit_expires_on is None and not policy.llm_primary.allow_paid_usage:
+        raise ConfigError(
+            "AZURE_CREDIT_EXPIRES_ON must be set for the Foundry route, so calls stop when "
+            "the free credit ends (D18)"
+        )
+    return FoundryAgentServiceGateway(
+        client=AzureAgentServiceClient(
+            settings.foundry_project_endpoint, timeout_s=policy.llm.call_timeout_s
+        ),
+        lock=read_lock(FOUNDRY_LOCK),
+        price=load_price(PRICING, ROUTE, settings.foundry_model_deployment),
+    )
+
+
+def build_llm_reasoner(
+    gateway: ModelGateway,
+    *,
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+) -> Reasoner:
+    from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, LlmReasoner
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    status = str(registry.meta(PROMPT, "v1").get("status", "inactive")).split()[0]
+    if status != "active" and not settings.prompts_allow_inactive:
+        # Fail at start-up, not on the first case (review, M4).
+        raise ConfigError(
+            f"prompt {PROMPT}/v1 is {status}: set PROMPTS_ALLOW_INACTIVE=true only to "
+            "knowingly test an un-evaluated prompt (docs/SETUP_FOUNDRY.md)"
+        )
+    return LlmReasoner(
+        prompts=registry,
+        gateway=gateway,
+        ids=ids,
+        clock=clock,
+        max_output_tokens=policy.llm.max_output_tokens,
+    )

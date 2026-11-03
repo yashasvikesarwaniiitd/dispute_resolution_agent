@@ -27,6 +27,7 @@ from dispute_agent.kernel.ports.ledger import Ledger
 from dispute_agent.kernel.ports.message_channel import MessageChannel
 from dispute_agent.kernel.ports.message_drafter import MessageDrafter
 from dispute_agent.kernel.ports.model_gateway import ModelGateway
+from dispute_agent.kernel.ports.model_usage import ModelUsageLedger
 from dispute_agent.kernel.ports.module_status import ModuleStatus
 from dispute_agent.kernel.ports.pattern_context_provider import PatternContextProvider
 from dispute_agent.kernel.ports.prompt_registry import PromptRegistry
@@ -53,6 +54,7 @@ __all__ = [
     "MessageChannel",
     "MessageDrafter",
     "ModelGateway",
+    "ModelUsageLedger",
     "ModuleStatus",
     "PatternContextProvider",
     "PromptRegistry",

@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval agents-sync foundry-check try-agent
 
 setup:
 	$(PY) setup
@@ -44,3 +44,13 @@ demo:
 
 eval:
 	$(PY) eval
+
+agents-sync:
+	$(PY) agents-sync
+
+foundry-check:
+	$(PY) foundry-check
+
+# make try-agent ARGS="injection_in_statement --offline"
+try-agent:
+	$(PY) try-agent $(ARGS)

@@ -12,9 +12,11 @@ lists names only.
 
 from __future__ import annotations
 
+from datetime import date  # noqa: TC003 - pydantic-settings resolves it at runtime
+from decimal import Decimal  # noqa: TC003 - as above
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AppEnv = Literal["local", "test", "ci"]
@@ -60,6 +62,21 @@ class Settings(BaseSettings):
     jira_email: str | None = None
     jira_project_key: str | None = None
     test_seller_email: str | None = None
+
+    # --- model spending and the prototype prompt (D18, ADR 0029) --------------------------
+    #: The last day of the Azure free credit. After it, model calls stop unless
+    #: `llm_allow_paid_usage` is on.
+    azure_credit_expires_on: date | None = None
+    llm_allow_paid_usage: bool = False
+    llm_primary_spend_cap_usd: Decimal | None = None
+    #: "I am knowingly testing a prompt that has not passed its eval suite." Off by default.
+    prompts_allow_inactive: bool = False
+
+    @field_validator("azure_credit_expires_on", "llm_primary_spend_cap_usd", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """`.env.example` lists names with empty values; an empty value means not set."""
+        return None if isinstance(value, str) and not value.strip() else value
 
     telemetry_capture_content: bool = Field(
         default=False,

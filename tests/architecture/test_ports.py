@@ -46,8 +46,12 @@ def test_the_card_list_is_complete() -> None:
     `kernel-interfaces.md` section 6.2 and neither was on any card - the same gap as the
     section 4 models, recorded in BACKLOG.md. They are here rather than quietly imported
     where needed, so the next person counting ports gets the real number.
+
+    `ModelUsageLedger` was added in Phase 4P: ADR 0017 names it as the spending guard's
+    source of truth, and no card listed it.
     """
     expected = {
+        "ModelUsageLedger",
         "ApprovalService",
         "ApprovalStore",
         "AssessmentStore",
