@@ -29,6 +29,29 @@ class CaseState(StrEnum):
     HANDED_TO_HUMAN = "HANDED_TO_HUMAN"
 
 
+# Transcribed from the `category` and `resolved` keys in transitions.yaml, which stays the
+# authority; test_enums.py reads the file and fails if these two drift from it. They live
+# here rather than behind the Phase 1 loader because a domain model needs them at import
+# time, and the kernel reads no files.
+TERMINAL_STATES: frozenset[CaseState] = frozenset(
+    {
+        CaseState.RESOLVED_CREDITED,
+        CaseState.RESOLVED_UPHELD,
+        CaseState.WITHDRAWN,
+        CaseState.CLOSED_NO_RESPONSE,
+        CaseState.REJECTED_INELIGIBLE,
+        CaseState.HANDED_TO_HUMAN,
+    }
+)
+
+# "Resolved" means the dispute was answered on its merits. A withdrawal, a silence, an
+# ineligible claim and a hand-off all close the case without ever settling the question, and
+# the difference is what the Phase 6 resolution-rate metric counts.
+RESOLVED_STATES: frozenset[CaseState] = frozenset(
+    {CaseState.RESOLVED_CREDITED, CaseState.RESOLVED_UPHELD}
+)
+
+
 class StateCategory(StrEnum):
     AUTO = "AUTO"
     AUTO_MAY_REST = "AUTO_MAY_REST"

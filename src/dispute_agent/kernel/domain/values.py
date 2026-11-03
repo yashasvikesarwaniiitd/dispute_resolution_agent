@@ -9,7 +9,7 @@ error, so the only place a rounding rule can live is the domain pack, explicitly
 from __future__ import annotations
 
 from decimal import Decimal, DecimalException, InvalidOperation
-from typing import Literal, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -17,7 +17,23 @@ from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import PayloadHash
 
+if TYPE_CHECKING:
+    from datetime import datetime
+
 _FROZEN = ConfigDict(frozen=True, extra="forbid", strict=True)
+
+
+def require_aware(value: datetime, what: str) -> datetime:
+    """Refuse a naive datetime.
+
+    Every time in this system is an instant, not a wall-clock reading. A naive datetime has
+    no instant until someone guesses a zone, and the guess is usually the server's, which is
+    how a timer fires an hour early in one deployment and not another. `hashing.py` refuses
+    them for the same reason, so the two agree.
+    """
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        raise DomainValidationError(f"{what} is naive; all times are timezone-aware")
+    return value
 
 
 def _to_decimal(value: str | int | Decimal, places: int, what: str) -> Decimal:

@@ -13,8 +13,9 @@ from pathlib import Path
 
 import yaml
 
-from dispute_agent.kernel.domain.enums import CaseState as State
 from dispute_agent.kernel.domain.enums import (
+    RESOLVED_STATES,
+    TERMINAL_STATES,
     CautionRank,
     ProposalAction,
     ReviewCode,
@@ -22,6 +23,7 @@ from dispute_agent.kernel.domain.enums import (
     Trigger,
     VerdictKind,
 )
+from dispute_agent.kernel.domain.enums import CaseState as State
 
 ROOT = Path(__file__).resolve().parents[3]
 TRANSITIONS = yaml.safe_load((ROOT / "docs/spec/transitions.yaml").read_text(encoding="utf-8"))
@@ -43,6 +45,19 @@ def test_timer_kind_matches_transitions_yaml() -> None:
 def test_sixteen_states() -> None:
     """Ten working states and six outcomes (phase-0 prompt task 3)."""
     assert len(State) == 16
+
+
+def test_terminal_states_match_transitions_yaml() -> None:
+    """Card P0-04 transcribed these; transitions.yaml stays the authority."""
+    expected = {
+        name for name, body in TRANSITIONS["states"].items() if body["category"] == "terminal"
+    }
+    assert {s.value for s in TERMINAL_STATES} == expected
+
+
+def test_resolved_states_match_transitions_yaml() -> None:
+    expected = {name for name, body in TRANSITIONS["states"].items() if body.get("resolved")}
+    assert {s.value for s in RESOLVED_STATES} == expected
 
 
 def test_verdict_kind_is_ordered_by_caution() -> None:

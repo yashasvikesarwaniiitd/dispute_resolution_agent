@@ -26,6 +26,20 @@ class KernelError(Exception):
 
 
 class DomainValidationError(KernelError):
+    """A domain rule was broken.
+
+    Note what this deliberately does not inherit from. pydantic wraps a `ValueError` raised
+    inside a validator into its own `ValidationError`; because this is not one, it travels
+    out of a model validator unchanged, which is what kernel-interfaces.md section 4.3 means
+    by "model validators raise DomainValidationError".
+
+    So constructing a domain model can fail two ways, and the difference is the useful part:
+    `ValidationError` means the input was the wrong *shape* — a missing field, a string where
+    a Decimal belongs, a value outside a Literal. `DomainValidationError` means the shape was
+    right and the *rule* was broken — a naive datetime, a resolved outcome in a state that
+    settles nothing. The first is a caller bug; the second is this system saying no.
+    """
+
     code: ClassVar[str] = "domain_validation"
 
 
