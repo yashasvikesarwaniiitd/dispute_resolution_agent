@@ -34,8 +34,8 @@ from dispute_agent.modules.ticketing.fake.ticketing import (
     SEARCH_CONSISTENCY_DELAY,
     FakeTicketingSystem,
 )
-from tests.contract.conftest import build_or_skip, params, pending, ready
-from tests.contract.harness import arrange
+from tests.contract.conftest import build_or_skip, params, ready
+from tests.contract.harness import UnsupportedError, arrange
 
 NOW = datetime(2026, 3, 1, 9, 0, tzinfo=UTC)
 LATER = NOW + SEARCH_CONSISTENCY_DELAY + timedelta(seconds=1)
@@ -86,9 +86,48 @@ class FakeTicketHarness:
         return cast("int", system.issue_count())
 
 
+class JiraHarness:
+    """The real adapter against the owner's test project.
+
+    Runs only under `make test-integration`, and only when the credentials exist. It cannot
+    arrange a fault or move a clock, so those cases skip with a reason - which is honest.
+    A harness that faked them would be asserting things about a fake while claiming to test
+    Jira.
+    """
+
+    name = "jira_cloud"
+
+    def system(self, **conditions: str) -> Any:
+        if conditions:
+            raise UnsupportedError(f"a real Jira cannot be told to {sorted(conditions.values())}")
+        from dispute_agent.infra.settings import Settings
+        from dispute_agent.modules.ticketing.jira_cloud.ticketing import JiraCloudTicketing
+
+        settings = Settings()
+        token = settings.jira_api_token
+        if not (settings.jira_base_url and settings.jira_email and token):
+            raise UnsupportedError(
+                "JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN are not set; see "
+                "docs/SETUP_CHANNELS.md"
+            )
+        return JiraCloudTicketing(
+            base_url=settings.jira_base_url,
+            email=settings.jira_email,
+            api_token=token.get_secret_value(),
+            project_key=settings.jira_project_key or "WD",
+            timeout_s=settings.http_timeout_s,
+        )
+
+    def at(self, system: Any, moment: datetime) -> None:
+        raise UnsupportedError("a real Jira has its own clock and its own index lag")
+
+    def issue_count(self, system: Any) -> int:
+        raise UnsupportedError("counting issues would depend on the project history")
+
+
 ADAPTERS = [
     ready("fake", FakeTicketHarness),
-    pending("jira_cloud", phase="Phase 3 (card P3-03)", integration=True),
+    ready("jira_cloud", JiraHarness, integration=True),
 ]
 
 
