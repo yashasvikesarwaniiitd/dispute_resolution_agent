@@ -50,6 +50,12 @@ def source(name: str = "kurta_box_larger", **faults: str) -> SyntheticShipmentSo
     return SyntheticShipmentSource(fixture=fixture(name), faults=dict(faults))
 
 
+def after_the_finding(name: str) -> SyntheticShipmentSource:
+    """The same source once the hub has answered. A finding is a reply to a remeasurement
+    we asked for, so it is absent until it arrives - see `finding_available`."""
+    return SyntheticShipmentSource(fixture=fixture(name), finding_available=True)
+
+
 class TestTheThreeAnswers:
     @pytest.mark.parametrize("key", REQUIREMENT_KEYS)
     def test_every_documented_key_answers_without_raising(self, key: str) -> None:
@@ -148,19 +154,26 @@ class TestWhatTheRetryLoopReads:
 class TestFreeTextTravelsLabelled:
     def test_an_ops_note_comes_back_as_untrusted_text(self) -> None:
         """I5: a note typed by a person at a hub is outside text wherever it is stored."""
-        result = source("injection_in_ops_note").fetch(CASE, FACTS, need("ops.finding"))
+        result = after_the_finding("injection_in_ops_note").fetch(CASE, FACTS, need("ops.finding"))
         assert result.status is EvidenceStatus.FOUND
         assert len(result.untrusted) == 1
         assert result.untrusted[0].origin == "jira_comment"
 
     def test_the_note_is_not_inlined_into_the_value(self) -> None:
         """The value holds the measurements; the sentence travels beside them, labelled."""
-        result = source("injection_in_ops_note").fetch(CASE, FACTS, need("ops.finding"))
+        result = after_the_finding("injection_in_ops_note").fetch(CASE, FACTS, need("ops.finding"))
         assert result.value is not None
         assert "note" not in result.value
 
     def test_a_structured_finding_with_no_note_carries_no_untrusted_text(self) -> None:
-        assert source("scanner_fault").fetch(CASE, FACTS, need("ops.finding")).untrusted == ()
+        source = after_the_finding("scanner_fault")
+        assert source.fetch(CASE, FACTS, need("ops.finding")).untrusted == ()
+
+    def test_a_finding_that_has_not_come_back_yet_is_missing(self) -> None:
+        """S06: round 1 of `scanner_fault` has no finding, because nobody has remeasured
+        anything yet. Serving it early would prove a credit before the remeasurement."""
+        result = source("scanner_fault").fetch(CASE, FACTS, need("ops.finding"))
+        assert result.status is EvidenceStatus.MISSING
 
 
 class TestNumbersSurviveTheTrip:

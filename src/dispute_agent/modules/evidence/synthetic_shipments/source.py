@@ -65,6 +65,12 @@ class SyntheticShipmentSource:
     name: str = MODULE
     fixture: Fixture | None = None
     faults: dict[str, str] = field(default_factory=dict)
+    #: Whether the hub's finding has come back yet. False by default, because a finding is
+    #: an answer to a remeasurement *we* asked for: it does not exist in the first gather
+    #: round of a case that has not asked for one. Serving it from round 1 would quietly
+    #: make `scanner_fault` prove `remeasurement_lower` before anybody remeasured anything,
+    #: and S06's whole point is that round 1 has no finding, no image and no reply.
+    finding_available: bool = False
     _calls: dict[str, int] = field(default_factory=dict)
 
     def fetch(
@@ -160,7 +166,7 @@ class SyntheticShipmentSource:
                 return {"entries": list(built.history)} if built.history else None
             case "ops.finding":
                 finding = built.finding
-                if finding is None:
+                if finding is None or not self.finding_available:
                     return None
                 value: dict[str, object] = {"kind": finding.kind}
                 if finding.measured is not None:

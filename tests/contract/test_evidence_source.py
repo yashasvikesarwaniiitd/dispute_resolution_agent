@@ -46,7 +46,9 @@ ABSENT = EvidenceRequirement(key="shipment.nothing_serves_this", source="evidenc
 ADAPTERS = [
     ready(
         "synthetic_shipments",
-        lambda: SyntheticShipmentSource(fixture=fixture("injection_in_ops_note")),
+        lambda: SyntheticShipmentSource(
+            fixture=fixture("injection_in_ops_note"), finding_available=True
+        ),
     ),
 ]
 
@@ -64,7 +66,11 @@ def with_fault(source: EvidenceSource, key: str, fault: str) -> EvidenceSource:
     real one will stub its transport.
     """
     if isinstance(source, SyntheticShipmentSource):
-        return SyntheticShipmentSource(fixture=source.fixture, faults={key: fault})
+        return SyntheticShipmentSource(
+            fixture=source.fixture,
+            faults={key: fault},
+            finding_available=source.finding_available,
+        )
     pytest.skip(f"{type(source).__name__} has no way to inject a {fault}")
 
 
