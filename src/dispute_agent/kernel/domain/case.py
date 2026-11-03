@@ -14,19 +14,16 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from decimal import Decimal
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dispute_agent.kernel.domain.errors import DomainValidationError
+from dispute_agent.kernel.domain.json_values import JsonScalar
 from dispute_agent.kernel.domain.values import Money, UntrustedText, require_aware
 
 _FROZEN = ConfigDict(frozen=True, extra="forbid", strict=True)
 
-# kernel-interfaces.md section 4.2: no floats, so a pack fact can never carry a value whose
-# equality depends on binary rounding (I9). Decimal is how a pack states a number.
-type JsonScalar = str | int | bool | Decimal | None
 
 REF_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
 Ref = Annotated[str, Field(pattern=REF_PATTERN)]

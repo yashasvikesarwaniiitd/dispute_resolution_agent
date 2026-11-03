@@ -15,6 +15,7 @@ import yaml
 
 from dispute_agent.kernel.domain.enums import (
     RESOLVED_STATES,
+    STATE_CATEGORY,
     TERMINAL_STATES,
     CautionRank,
     ProposalAction,
@@ -53,6 +54,12 @@ def test_terminal_states_match_transitions_yaml() -> None:
         name for name, body in TRANSITIONS["states"].items() if body["category"] == "terminal"
     }
     assert {s.value for s in TERMINAL_STATES} == expected
+
+
+def test_state_category_matches_transitions_yaml() -> None:
+    """Card P0-05 transcribed this for Case.category; the file stays the authority."""
+    expected = {name: body["category"].upper() for name, body in TRANSITIONS["states"].items()}
+    assert {state.value: category.value for state, category in STATE_CATEGORY.items()} == expected
 
 
 def test_resolved_states_match_transitions_yaml() -> None:

@@ -60,6 +60,28 @@ class StateCategory(StrEnum):
     TERMINAL = "TERMINAL"
 
 
+#: Every state's category, transcribed from transitions.yaml and drift-tested against it.
+#: `Case.category` reads this; the Phase 1 transition loader reads the file itself.
+STATE_CATEGORY: dict[CaseState, StateCategory] = {
+    CaseState.RECEIVED: StateCategory.AUTO,
+    CaseState.GATHERING_EVIDENCE: StateCategory.AUTO_MAY_REST,
+    CaseState.CALCULATING: StateCategory.AUTO,
+    CaseState.INVESTIGATING: StateCategory.AUTO,
+    CaseState.EXECUTING: StateCategory.AUTO,
+    CaseState.VERIFYING: StateCategory.AUTO_MAY_REST,
+    CaseState.AWAITING_SELLER: StateCategory.WAITING,
+    CaseState.AWAITING_OPS: StateCategory.WAITING,
+    CaseState.AWAITING_APPROVAL: StateCategory.WAITING,
+    CaseState.NEEDS_HUMAN_REVIEW: StateCategory.HUMAN,
+    CaseState.RESOLVED_CREDITED: StateCategory.TERMINAL,
+    CaseState.RESOLVED_UPHELD: StateCategory.TERMINAL,
+    CaseState.WITHDRAWN: StateCategory.TERMINAL,
+    CaseState.CLOSED_NO_RESPONSE: StateCategory.TERMINAL,
+    CaseState.REJECTED_INELIGIBLE: StateCategory.TERMINAL,
+    CaseState.HANDED_TO_HUMAN: StateCategory.TERMINAL,
+}
+
+
 class ReopenRule(StrEnum):
     """Terminal states only."""
 
