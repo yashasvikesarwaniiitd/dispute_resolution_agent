@@ -1,0 +1,60 @@
+# Limits, timers, review kinds and credit reasons.
+# Schema: docs/spec/config.md section 3 and kernel-interfaces.md section 7.
+#
+# Every change here changes `rules_version`, which is recorded on every policy verdict — so
+# "why did this case need approval?" stays answerable after the file is edited.
+#
+# Two values look configurable and are not:
+#   credits.require_approval is Literal[True]. It is written down so the rule is visible, and
+#   it is a type error to set anything else. I3 is not a setting.
+#   messages.review_required_kinds and auto_send_kinds must be disjoint and must together
+#   cover every message kind. A kind in neither would send without review (I13).
+
+timers:
+  reminder_after_hours: 48
+  decision_after_hours: 72
+  reopen_window_days: 7
+  ops_timeout_hours: 120
+  evidence_retry_minutes: 15                      # D41
+  evidence_max_retries: 3                         # per gather round, not per case
+
+contact:
+  max_messages_per_case: 3
+  max_messages_per_day: 1
+  day_boundary_tz: Asia/Kolkata
+  max_clarifications_per_case: 1                  # D19: one follow-up, then a person
+
+messages:
+  # Pilot: every kind is read by a human before it goes (D6).
+  review_required_kinds:
+    - evidence_request
+    - reminder
+    - clarification_request
+    - handed_to_human_notice
+    - upheld_explanation
+    - credit_confirmation
+  auto_send_kinds: []
+  # Resolved from TEST_SELLER_EMAIL by the settings loader (I11). Never a real seller.
+  allowed_recipients: []
+
+credits:
+  require_approval: true                          # not a setting (I3)
+  reason_codes:
+    - calculation_error
+    - remeasurement_lower
+    - duplicate_charge
+
+approvals:
+  expire_after_hours: 72
+  max_rejections_per_case: 2
+  approver_ids:
+    - "human:owner"
+
+cases:
+  max_agent_reopens: 2
+  max_steps_per_advance: 12
+
+patterns:
+  min_related_cases: 3
+  window_days: 14
+  match_min_verdict: 1                            # REQUIRE_APPROVAL; a pattern may only raise (I7)
