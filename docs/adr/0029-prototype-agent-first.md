@@ -94,3 +94,31 @@ The `docs/spec/` files are not edited; this ADR records the deviations, as `CLAU
 - The credit window starts later, when there is something ready to connect.
 - The Phase 6 Foundry evals may fall after the credit window; at that point the owner decides
   whether to allow paid usage (`LLM_ALLOW_PAID_USAGE`), which is off by default.
+
+## Addendum, 2026-11-04: what the installed SDK showed
+
+Reading `azure-ai-projects` 2.10.0's own code, after installing it, corrected deviations 1 and 2
+above. The original `foundry.md` design stands:
+
+1. **Invocation.** `get_openai_client(agent_name=...)` requires `allow_preview=True` in 2.10.0
+   (`_patch.py`, `get_openai_client` docstring), so it is a preview path and is not used. The
+   agent is called through the GA project client, `project.get_openai_client()`, with
+   `extra_body={"agent_reference": {"name", "version", "type": "agent_reference"}}`. The SDK's
+   own `AgentReference` model carries `version`, and its telemetry reads the same `extra_body` key.
+2. **Version pinning is available, and used.** Every call names the version from the lock file.
+   The drift check reads that exact version with `agents.get_version(name, version)` and compares
+   its fingerprint, cached for 60 seconds (`foundry.md` section 4).
+3. **Agent name.** Foundry agent names allow letters, digits and inner hyphens only
+   (`create_version` docstring), so `foundry.md`'s `wd-case_investigator` would be refused. The
+   agent is `wd-case-investigator`.
+
+Deviations 3 (no structured output, so output is always validated in code) and 4 (missing usage
+is charged at the worst case) are unchanged.
+
+## Addendum: the prototype's front door
+
+The long-running runtime gains the investigate station with the sending stations in Phase 5.
+For the prototype, `make try-agent` runs one synthetic case through the full line with the agent
+deciding, in a throwaway database, with no channel wired, so nothing can be sent
+(`src/dispute_agent/api/agent_trial.py`). `make try-agent ARGS="--offline"` runs the same path
+with the scripted fake.

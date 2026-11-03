@@ -179,3 +179,26 @@ now saved after every transition (`advance(..., commit=...)`), as orchestrator.m
   moment the reply poller feeds replies into cases, when a later round would draft an
   `evidence_request` instead of a `clarification_request` and the one-clarification cap
   (D19) would not be checked at planning. Wire it together with the poller.
+
+## Phase 4P (prototype agent) - deferred, by ADR 0029
+
+- **Proposals are not stored, and the investigate step still writes no audit events.** The
+  model's proposal carries its prompt name, version, hash and model id, but nothing persists
+  it, and REASONER_FALLBACK is not written when the rules stand in. The model-call log
+  (`data/model_calls.sqlite3`) records every call's cost and outcome, so spend is auditable;
+  *why a case moved* is not yet. The second Phase 3 review asked for this before the model
+  reasoner landed; ADR 0029 moved it to Phase 5 with the sending stations, because the
+  prototype cannot send anything. It must land before any proposal can lead to a send.
+- **Briefing total-length shrink order** (agent-design.md section 1) is not implemented. With
+  every per-field cap applied the briefing cannot exceed the total; needed if the caps change.
+- **Model-written requested items reach the email body.** `request_seller_evidence` items are
+  model text (at most three, 200 characters each), rendered into the template. Every message
+  kind needs approval today, so a person reads them before sending; R09 checks any numbers.
+  Phase 4+ should screen them like seller text before auto-send is ever enabled for any kind.
+- **Phase 4+ (ADR 0029):** Haiku failover route (F01), `foundry_guardrails` screen from the
+  content-filter annotations, tracing, the eval suite and model choice, credit-window report,
+  the model reply interpreter and drafter, two-pass anchoring, the provider schema and a
+  `text.format` attempt at sync, live integration run of the Foundry contract suite.
+- **The cap is checked before the call, the cost known after**: the last call can exceed the
+  cap by one call's price. A pre-call estimate (prompt tokens + `max_output_tokens` at output
+  price, foundry.md section 10) would close it.

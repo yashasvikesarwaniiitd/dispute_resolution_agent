@@ -19,6 +19,8 @@ from dispute_agent.kernel.domain.errors import ConfigError
 from dispute_agent.kernel.policy.config import PolicyConfig
 
 if TYPE_CHECKING:
+    from datetime import date
+    from decimal import Decimal
     from pathlib import Path
 
 
@@ -39,3 +41,26 @@ def load_policy(config_dir: Path, *, allowed_recipients: tuple[str, ...] = ()) -
     messages["allowed_recipients"] = sorted(entry for entry in merged if entry.strip())
     raw["messages"] = messages
     return PolicyConfig.model_validate(raw)
+
+
+def with_llm_overrides(
+    policy: PolicyConfig,
+    *,
+    credit_expires_on: date | None,
+    allow_paid_usage: bool,
+    spend_cap_usd: Decimal | None,
+) -> PolicyConfig:
+    """Apply the environment's spending settings (config.md section 7).
+
+    Applied before anything reads `rules_version`, so every verdict records the effective
+    values. The cap may only come from the environment *lower* or higher - it is the
+    owner's money - but paid usage is never on unless the environment says so explicitly.
+    """
+    primary = policy.llm_primary.model_copy(
+        update={
+            "credit_expires_on": credit_expires_on or policy.llm_primary.credit_expires_on,
+            "allow_paid_usage": allow_paid_usage,
+            "spend_cap_usd": spend_cap_usd or policy.llm_primary.spend_cap_usd,
+        }
+    )
+    return policy.model_copy(update={"llm_primary": primary})

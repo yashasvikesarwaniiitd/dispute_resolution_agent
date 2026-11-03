@@ -243,3 +243,67 @@ class TestSellerTextStaysData:
         run(engine, "scanner_fault", reasoner=factory)
         user = gateway.requests[0].prompt.messages[-1].content
         assert facts_for("scanner_fault").seller_contact not in user
+
+
+class TestTheTrialCommand:
+    """`make try-agent` runs this; it must keep working as the line changes."""
+
+    def trial(self, name: str, script: list[object]) -> object:
+        from dispute_agent.api.agent_trial import run_trial
+        from dispute_agent.infra.clock import FakeClock
+        from dispute_agent.infra.ids import FakeIdGenerator
+        from dispute_agent.kernel.policy.config import PolicyConfig
+        from tests.e2e.test_phase3_investigate import NOW
+
+        clock, ids = FakeClock(NOW), FakeIdGenerator()
+        reasoner = LlmReasoner(
+            prompts=FilePromptRegistry(PROMPTS, allow_inactive=True),
+            gateway=FakeModelGateway(script=list(script)),  # type: ignore[arg-type]
+            ids=ids,
+            clock=clock,
+        )
+        return run_trial(name, reasoner, policy=PolicyConfig(), clock=clock, ids=ids)
+
+    def test_a_clear_case_ends_in_the_approval_queue_with_its_email(self) -> None:
+        report: Any = self.trial("scanner_fault", [valid_answer()])
+        assert report.case.state is CaseState.AWAITING_APPROVAL
+        assert report.proposal.reasoner == "llm"
+        assert "A photo of the packed parcel on a scale" in report.email_body
+        assert report.fell_back is False
+
+    def test_an_unreachable_model_reports_the_fallback(self) -> None:
+        report: Any = self.trial("scanner_fault", ["unavailable"])
+        assert report.fell_back is True
+        assert report.proposal.fallback_used is True
+
+    def test_the_fixture_s_own_statement_reaches_the_model(self) -> None:
+        """The injection case is only a test of the fence if its text is actually sent."""
+        from dispute_agent.modules.evidence.synthetic_shipments.fixtures import fixture
+
+        gateway = FakeModelGateway(script=[valid_answer()])
+        from dispute_agent.api.agent_trial import run_trial
+        from dispute_agent.infra.clock import FakeClock
+        from dispute_agent.infra.ids import FakeIdGenerator
+        from dispute_agent.kernel.policy.config import PolicyConfig
+        from tests.e2e.test_phase3_investigate import NOW
+
+        clock, ids = FakeClock(NOW), FakeIdGenerator()
+        run_trial(
+            "injection_in_statement",
+            LlmReasoner(
+                prompts=FilePromptRegistry(PROMPTS, allow_inactive=True),
+                gateway=gateway,
+                ids=ids,
+                clock=clock,
+            ),
+            policy=PolicyConfig(),
+            clock=clock,
+            ids=ids,
+        )
+        statement = fixture("injection_in_statement").statement or ""
+        sent = gateway.requests[0].prompt.messages[-1].content
+        assert statement.split()[0] in sent
+
+    def test_a_case_that_stops_early_never_asks_the_model(self) -> None:
+        report: Any = self.trial("not_delivered", [valid_answer()])
+        assert report.proposal is None

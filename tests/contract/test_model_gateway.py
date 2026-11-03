@@ -33,6 +33,7 @@ from dispute_agent.kernel.domain.errors import (
 from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
 from tests.contract.conftest import build_or_skip, params, pending, ready
 from tests.contract.harness import UnsupportedError, arrange
+from tests.foundry_stub import deployed_for
 from tests.model_fixtures import SECRET_MARKER, request, valid_answer
 
 
@@ -70,8 +71,33 @@ class FakeHarness:
         raise UnsupportedError("the fake has no model choice")
 
 
+class FoundryStubHarness:
+    """The real Foundry gateway over a stand-in for Azure (tests/foundry_stub.py).
+
+    Everything above the SDK runs for real: drift check, retries, answer checking, costing.
+    The live version of this adapter runs under the integration marker in Phase 4+.
+    """
+
+    name = "foundry_agent_service"
+
+    def gateway(self, answers: list[Any]) -> Any:
+        built, stub = deployed_for(request().prompt, answers)
+        built.stub = stub  # type: ignore[attr-defined]
+        return built
+
+    def provider_calls(self, gateway: Any) -> int:
+        return len(gateway.stub.calls)
+
+    def sent_options(self, gateway: Any) -> list[dict[str, Any]]:
+        return list(gateway.stub.calls)
+
+    def gateway_for_model(self, model: str) -> Any:
+        raise UnsupportedError("the Foundry route's model is the deployment, not a choice")
+
+
 ADAPTERS = [
     ready("fake", FakeHarness),
+    ready("foundry_agent_service (stub Azure)", FoundryStubHarness),
     pending("anthropic_direct", phase="Phase 4+ (card P4-07)", integration=True),
 ]
 

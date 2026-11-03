@@ -51,6 +51,7 @@ DEFAULTED = {
     "LLM_PRIMARY_SPEND_CAP_USD",
     "LLM_SECONDARY_SPEND_CAP_USD",
     "HTTP_TIMEOUT_S",
+    "PROMPTS_ALLOW_INACTIVE",
 }
 
 #: Shapes that mean "somebody filled this in". Checked across the whole file, comments

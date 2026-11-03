@@ -117,6 +117,25 @@ def demo() -> int:
     return uv("python", "scripts/demo.py")
 
 
+def agents_sync() -> int:
+    """Create or update the Foundry agent from the prompt (owner only; docs/SETUP_FOUNDRY.md)."""
+    return uv("python", "scripts/agents_sync.py")
+
+
+def foundry_check() -> int:
+    """Is everything in place to call the agent? No model call, no cost."""
+    return uv("python", "scripts/foundry_check.py")
+
+
+def try_agent(*args: str) -> int:
+    """One synthetic dispute through the line with the agent deciding. Sends nothing.
+
+    Takes its own arguments (a case name, `--offline`), so it is dispatched before the
+    one-target-per-word loop below.
+    """
+    return uv("python", "scripts/try_agent.py", *args)
+
+
 def evaluate() -> int:
     return pending("eval", "Phase 4 (card P4-11), enforced in Phase 6 (card P6-03)")
 
@@ -124,6 +143,9 @@ def evaluate() -> int:
 TARGETS = {
     "setup": setup,
     "verify": verify,
+    "agents-sync": agents_sync,
+    "foundry-check": foundry_check,
+    "try-agent": try_agent,
     "test": test,
     "test-integration": test_integration,
     "lint": lint,
@@ -142,6 +164,8 @@ def main(argv: Sequence[str]) -> int:
     if not argv:
         print("targets: " + "  ".join(sorted(TARGETS)))
         return 0
+    if argv[0] == "try-agent":
+        return try_agent(*argv[1:])
     code = 0
     for name in argv:
         target = TARGETS.get(name)

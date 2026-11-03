@@ -62,6 +62,7 @@ patterns:
 llm:
   max_calls_per_case: 6                           # every model call counts, retries included
   max_output_tokens: 1200
+  call_timeout_s: 120                             # reasoning models can take tens of seconds
 
 llm_primary:
   spend_cap_usd: "150.00"                         # below the $200 Azure credit, on purpose (D18)

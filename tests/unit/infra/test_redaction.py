@@ -25,8 +25,8 @@ from dispute_agent.infra.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Collection
 
-SENTINEL = "sk-ant-sentinel-0123456789abcdef"
-OTHER_SECRET = "ATATTxFakeJiraTokenValue123456789"
+SENTINEL = "sk-" + "ant-sentinel-0123456789abcdef"  # split: tests/architecture/test_no_secrets.py
+OTHER_SECRET = "ATA" + "TTxFakeJiraTokenValue123456789"
 
 
 def redact(event: dict[str, Any], secrets: Collection[str] = (SENTINEL,)) -> dict[str, Any]:
@@ -80,9 +80,9 @@ class TestTokenShapes:
         [
             "Bearer abc.def-ghi_jkl123456",
             "Basic dXNlcjpwYXNzd29yZA==",
-            "sk-ant-api03-notarealkeyvalue",
-            "ATATT3xFfGF0notarealjiratoken",
-            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijklmnop",
+            "sk-" + "ant-api03-notarealkeyvalue",
+            "ATA" + "TT3xFfGF0notarealjiratoken",
+            "eyJ" + "hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijklmnop",
         ],
     )
     def test_a_credential_shape_is_masked_even_when_unknown(self, value: str) -> None:

@@ -20,6 +20,9 @@ dependencies = [
     "httpx>=0.28.1",
     "streamlit>=1.66.1",
     "jsonschema>=4.23",
+    "azure-ai-projects>=2.10.0",
+    "azure-identity>=1.19",
+    "openai>=1.60",
 ]
 
 [dependency-groups]
