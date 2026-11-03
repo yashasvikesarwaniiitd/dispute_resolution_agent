@@ -65,3 +65,12 @@ From the Phase 1 safety review (2026-11-03), carried rather than fixed:
   and Acceptance are entirely about `reconcile.py`, and the Ledger contract suite defers the
   simulated adapter to Phase 5 (card P5-02). Built `reconcile.py` only. If the intent was to
   build the adapter in Phase 2, that is a card conflict to settle before Phase 5.
+- **`WeightDisputePack` does not yet satisfy `DomainPack`.** `render_template` is Phase 3,
+  and the port declares `baseline_proposal(briefing)` while the pack needs an id and a
+  timestamp it cannot mint itself. Both the orchestrator steps and the `rules_only` adapter
+  therefore depend on narrow protocols (`CasePack`, `BaselinePack`) covering only what each
+  uses — better design regardless, and it keeps the gap visible rather than casting over it.
+  Settle the port's signature when Phase 3 adds `render_template`.
+- **`config/modules.yaml` still has `rules_only` disabled**, with the comment "on from Phase
+  2, when the pack baseline exists". It exists now. Turning it on is a composition-root
+  change and belongs with P2-09's wiring being finished, not with the adapter being written.
