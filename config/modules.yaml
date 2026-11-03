@@ -1,0 +1,77 @@
+# Which modules are on, and which adapter each one uses.
+# Schema and the authoritative table: docs/spec/config.md section 2.
+# Validated at startup by kernel/registry/validation.py, which refuses to run an unsafe
+# combination (CLAUDE.md section 4). A disabled module is wired to its Disabled adapter,
+# except cross_case (Null) and tracing (no-op) — orchestrator.md section 5.
+#
+# Phase 0 state: the modules whose adapters do not exist yet are off, and the ones that are
+# on run the adapters that do. Phases 3, 4, 4b, 5 and 7 flip these as they build.
+
+modules:
+  evidence:
+    enabled: true
+    adapter: synthetic_shipments
+    settings:
+      seed: 42                                    # makes synthetic data reproducible (I11)
+
+  model_gateway:
+    enabled: false                                # on from Phase 4
+    adapter: fake
+    secondary_adapter: null                       # anthropic_direct from Phase 4b (F01)
+    settings:
+      drift_cache_s: 60
+      in_adapter_retries: 2
+
+  reasoning:
+    enabled: true
+    adapter: rules_only                           # llm from Phase 4; then depends on model_gateway
+
+  input_screen:
+    enabled: true
+    adapter: rules_based                          # foundry_guardrails from Phase 4b
+
+  tracing:
+    enabled: true
+    adapter: noop                                 # otel_foundry is preview; never required by make verify
+
+  email:
+    enabled: false                                # on from Phase 3, when outlook_graph exists
+    adapter: fake
+    settings:
+      poll_interval_s: 60
+      max_concurrency: 2                          # Graph allows 4 concurrent requests per mailbox
+      extended_property_guid: null                # generated once and committed in Phase 3
+      trusted_authserv_id: null                   # set from a test message (integrations.md 1.5)
+
+  ticketing:
+    enabled: false                                # on from Phase 3, when jira_cloud exists
+    adapter: fake
+    settings:
+      poll_interval_s: 120
+      issue_type: Task
+      done_statuses: [Done]
+      duplicate_resolutions: [Duplicate]
+      # Field ids come from GET /rest/api/3/field in Phase 3 (integrations.md 2.4).
+      field_finding_kind: null
+      field_length_cm: null
+      field_width_cm: null
+      field_height_cm: null
+      field_dead_weight_kg: null
+
+  ledger:
+    enabled: false                                # on from Phase 5; depends on approvals (I3)
+    adapter: simulated
+    settings:
+      failure_mode: null
+
+  approvals:
+    enabled: true
+    adapter: store_backed                         # message review from Phase 3; credits from Phase 5
+
+  cross_case:
+    enabled: false                                # the empty box; on in Phase 7
+    adapter: "null"                               # quoted: an unquoted null is YAML's None
+
+  evals:
+    enabled: true
+    adapter: default
