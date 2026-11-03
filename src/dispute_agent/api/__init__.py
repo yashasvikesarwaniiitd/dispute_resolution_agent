@@ -13,6 +13,7 @@ from fastapi import APIRouter
 from dispute_agent.api.cases import build_cases_router
 from dispute_agent.api.events import build_events_router
 from dispute_agent.api.health import build_health_router
+from dispute_agent.api.timeline import build_timeline_router
 
 if TYPE_CHECKING:
     from dispute_agent.api.runtime import Runtime
@@ -28,4 +29,5 @@ def build_router(registry: Registry, runtime: Runtime | None = None) -> APIRoute
     if runtime is not None:
         router.include_router(build_events_router(runtime))
         router.include_router(build_cases_router(runtime))
+        router.include_router(build_timeline_router(runtime))
     return router

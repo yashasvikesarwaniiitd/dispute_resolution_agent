@@ -1,0 +1,16 @@
+Subject: {{ case_ref }} — a reminder about your weight dispute
+
+Hello,
+
+We wrote to you about the charge on shipment {{ shipment_ref }} and have not
+heard back.
+
+We still need:
+{% for item in requested_items %}
+- {{ item }}
+{%- endfor %}
+
+{{ next_step }}
+
+Thank you,
+Seller Support

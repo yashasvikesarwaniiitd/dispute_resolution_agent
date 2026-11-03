@@ -28,7 +28,7 @@ from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceRequirement, Fact
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import AssessmentId
-from dispute_agent.kernel.domain.values import Money
+from dispute_agent.kernel.domain.values import Money, Weight
 from dispute_agent.packs.weight_dispute import eligibility as eligibility_rules
 from dispute_agent.packs.weight_dispute.baseline import baseline_proposal, decide
 from dispute_agent.packs.weight_dispute.calculator import Dimensions, calculate
@@ -372,7 +372,10 @@ def _charge_facts(charge: object, bundle: EvidenceBundle) -> list[Fact]:
         Fact(
             fact_id="f_chargeable_grams",
             label="chargeable weight in grams",
-            value=charge.chargeable_grams,  # type: ignore[attr-defined]
+            # A Weight, not a bare int, so it renders as "1,980 g". As an int the
+            # email read "a size-based weight of 1,980" - grams or kilos, nobody
+            # could tell.
+            value=Weight.from_grams(charge.chargeable_grams),  # type: ignore[attr-defined]
             source_items=refs,
         ),
         Fact(

@@ -28,6 +28,7 @@ what is actually there. Only the second settles it (I2, ADR 0010).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC
 from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 
@@ -40,14 +41,19 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.errors import (
     AmbiguousOutcome,
+    DomainValidationError,
+    ExternalNotFound,
     KillSwitchEngaged,
+    ModuleUnavailable,
     PermanentPortError,
     PolicyRefused,
+    PortError,
     TransientPortError,
 )
 from dispute_agent.kernel.executor.keys import idempotency_key
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
 
     from dispute_agent.kernel.domain.actions import Action, ActionIntent, Approval, PolicyVerdict
@@ -95,6 +101,13 @@ class WritePort(Protocol):
     def send(self, payload: object, key: IdempotencyKey) -> object: ...
     def find_sent(self, key: IdempotencyKey) -> object | None: ...
     def read_back(self, receipt: object) -> object: ...
+    def expected_snapshot(self, payload: object, key: IdempotencyKey) -> Mapping[str, object]:
+        """What a correct read-back of this approved payload must show.
+
+        The port supplies it because only the port knows the shape of a message or an
+        issue. `verify` always compares at least these; a caller can add, never remove.
+        """
+        ...
 
 
 class ActionStore(Protocol):
@@ -102,7 +115,14 @@ class ActionStore(Protocol):
 
     def insert(self, action: Action) -> Action: ...
     def get(self, action_id: ActionId) -> Action: ...
-    def claim(self, action_id: ActionId, worker: str, now: datetime, lease_s: int) -> bool: ...
+    def claim(self, action_id: ActionId, worker: str, now: datetime, lease_s: int) -> bool:
+        """Take the action for this worker. A successful claim increments `attempts`.
+
+        The increment is not bookkeeping: executor.md 5.1 decides whether a write may be
+        attempted at all by reading `attempts` from *before* the claim.
+        """
+        ...
+
     def set_status(
         self, action_id: ActionId, status: ActionStatus, now: datetime, **fields: object
     ) -> Action: ...
@@ -115,6 +135,17 @@ class ActionStore(Protocol):
 
     def has_verified_credit(self, case_id: object) -> bool:
         """ADR 0012: a case that already credited is finished with crediting."""
+        ...
+
+    def outbound_message_count(self, case_id: object, since: datetime | None = None) -> int:
+        """SEND_MESSAGE actions in SENT, VERIFIED or UNKNOWN for this case.
+
+        UNKNOWN counts. We may have contacted the seller, and a contact limit that only
+        counted the sends we are sure about would let an unresolved one buy another message.
+
+        Counted per action row, so a retry of an action that already exists is not counted
+        twice - the row is the message, not the attempt.
+        """
         ...
 
 
@@ -187,6 +218,14 @@ class ActionExecutor:
                     "kill_switch": self._kill_switch.is_engaged(),
                     "live_credits_same_shipment_reason": self._live_credits(intent),
                     "case_has_verified_credit": self._actions.has_verified_credit(case.id),
+                    # R04 and R05 read these. Before they were gathered here they defaulted
+                    # to zero, so both contact limits were dead: an agent that can write
+                    # without bound can harass someone by accident, and from the inside it
+                    # looks exactly like normal operation.
+                    "messages_sent_total": self._actions.outbound_message_count(case.id),
+                    "messages_sent_today": self._actions.outbound_message_count(
+                        case.id, since=_start_of_day(now, ctx.policy.contact.day_boundary_tz)
+                    ),
                 }
             )
         )
@@ -276,7 +315,13 @@ class ActionExecutor:
     def execute(
         self, action_id: ActionId, port: WritePort, payload: object, now: datetime
     ) -> ExecutionResult:
-        """Claim, look before writing, write, record. Never retried blindly."""
+        """Claim, look before writing, write, record. Never retried blindly.
+
+        `payload` is the intent's own payload - the approved plan - not something built
+        from it. It is checked against the hash the action was planned with, which is the
+        hash the approval bound to, before anything else happens. The port turns it into a
+        message or an issue; the executor never sends anything it has not matched.
+        """
         action = self._actions.get(action_id)
         if action.status is not ActionStatus.PLANNED:
             return ExecutionResult(Outcome.BLOCKED, action_id, "already_started")
@@ -289,9 +334,24 @@ class ActionExecutor:
             )
             return ExecutionResult(Outcome.FAILED, action_id, "kill_switch_active")
 
+        # Read before the claim: the claim counts this attempt (executor.md 5.1).
+        attempts_before = action.attempts
         if not self._actions.claim(action_id, self._worker, now, self._lease_s):
             # Someone else holds it. Rest: no commit, no escalation, the sweep comes back.
             return ExecutionResult(Outcome.BLOCKED, action_id, "claimed_elsewhere")
+
+        # I13 at the last moment it can be checked, and after the claim, so a caller with
+        # the wrong payload cannot fail a row another worker holds (second review, finding
+        # 5). Nothing is sent on a mismatch, so FAILED is the truth; a person then sees it.
+        if _hash_of(payload) != action.payload_hash:
+            self._actions.set_status(
+                action_id,
+                ActionStatus.FAILED,
+                now,
+                last_error_code="payload_mismatch",
+                last_error_detail="the payload does not match the planned and approved hash",
+            )
+            return ExecutionResult(Outcome.FAILED, action_id, "payload_mismatch")
 
         key = action.idempotency_key
 
@@ -307,12 +367,26 @@ class ActionExecutor:
             if found is not None:
                 return self._to_sent(action_id, now, found, "found_by_lookup")
 
+        # executor.md 5.1: an earlier attempt may have written, the far end cannot recognise
+        # a repeat, and nothing above found it. Writing again could send a second copy, so a
+        # person decides. This is the backstop under every path that leaves a possibly-sent
+        # action PLANNED - a lookup that errored out, a crash between write and record.
+        if attempts_before > 0 and not port.idempotent_writes:
+            return self._to_unknown(action_id, now, "recovery_unconfirmed")
+
         try:
             receipt = port.send(payload, key)
         except AmbiguousOutcome as exc:
             # May or may not have happened. Retrying could do it twice; calling it failed
             # could lose a credit that was posted. Neither is acceptable (I4).
-            return self._to_unknown(action_id, now, f"ambiguous_write:{exc}")
+            #
+            # Look it up before labelling it. The common ambiguous write is a send whose
+            # answer was lost after the far end accepted it (scenario S12a), and the key on
+            # it is exactly what lets us find out: found -> it happened, record SENT, one
+            # email. Anything less certain stays UNKNOWN for a person. Never FAILED - a
+            # FAILED row frees the contact-limit slot and, for credits, the duplicate slot,
+            # for something that may well have happened.
+            return self._settle_ambiguous(action_id, port, key, now, exc)
         except PermanentPortError as exc:
             self._actions.set_status(
                 action_id,
@@ -325,6 +399,9 @@ class ActionExecutor:
         except TransientPortError as exc:
             # Nothing was written: TransientPortError means the call certainly did not take
             # effect, which is precisely why it is a different type from AmbiguousOutcome.
+            # That is a contract every adapter must keep - a timeout *after* a write was
+            # dispatched is AmbiguousOutcome, never this. The Phase 3 review found both real
+            # adapters breaking it, which would have recorded a sent email as FAILED.
             self._actions.set_status(
                 action_id,
                 ActionStatus.FAILED,
@@ -343,17 +420,47 @@ class ActionExecutor:
         action_id: ActionId,
         port: WritePort,
         receipt: object,
-        checks: dict[str, object],
+        approved: object,
         now: datetime,
+        *,
+        extra_checks: Mapping[str, object] | None = None,
     ) -> ExecutionResult:
-        """Read the far end and compare. A receipt is a claim; a snapshot is evidence."""
+        """Read the far end and compare it with the approved plan.
+
+        A receipt is a claim; a snapshot is evidence. What to compare is no longer the
+        caller's choice: the port derives the required fields - recipient, subject, body,
+        key - from `approved`, which must itself hash to what was planned. A caller used to
+        pass the checks, so `{"in_sent_items": True}` verified without looking at the text or
+        the recipient (second Phase 3 review, finding 4). `extra_checks` can add, never
+        replace.
+        """
         action = self._actions.get(action_id)
         if action.status is not ActionStatus.SENT:
             return ExecutionResult(Outcome.BLOCKED, action_id, f"not_sent:{action.status.value}")
 
+        if _hash_of(approved) != action.payload_hash:
+            raise DomainValidationError(
+                "verify was handed a payload that is not the approved one; comparing the far "
+                "end against it would prove nothing about what was approved"
+            )
+        required = dict(port.expected_snapshot(approved, action.idempotency_key))
+        if not required:
+            raise DomainValidationError(
+                "the port named nothing to compare; verifying against nothing would mark an "
+                "action VERIFIED without reading what is out there"
+            )
+        # Required fields win any clash, so an extra check can never loosen one.
+        checks = {**(extra_checks or {}), **required}
+
         try:
             snapshot = port.read_back(receipt)
-        except TransientPortError:
+        except (TransientPortError, ExternalNotFound):
+            # ExternalNotFound is the *expected* answer for a while after sending: Exchange
+            # moves a message to Sent Items asynchronously, and Jira's get-by-key is not
+            # promised to be instant. Both mean "not yet", so the case rests and becomes
+            # UNKNOWN at the deadline (ADR 0010) rather than failing a send that worked.
+            # Until this was handled it escaped `verify` entirely and the step would have
+            # died with an unhandled error on every perfectly normal send.
             return ExecutionResult(Outcome.BLOCKED, action_id, "not_visible_yet")
 
         mismatches = [
@@ -371,6 +478,28 @@ class ActionExecutor:
         return ExecutionResult(Outcome.VERIFIED, action_id, "verified")
 
     # -- helpers ---------------------------------------------------------------------------
+
+    def _settle_ambiguous(
+        self,
+        action_id: ActionId,
+        port: WritePort,
+        key: IdempotencyKey,
+        now: datetime,
+        cause: AmbiguousOutcome,
+    ) -> ExecutionResult:
+        """After an ambiguous write: a lookup can prove it happened; nothing can prove it
+        did not. So the only two outcomes are SENT (found) and UNKNOWN (everything else)."""
+        if port.lookup_supported:
+            try:
+                found = port.find_sent(key)
+            except (PortError, ModuleUnavailable):
+                # Any failure to look - including an expired token or a disabled module - is
+                # simply "could not prove it happened". Letting it escape left a possibly-sent
+                # action PLANNED and open to a second send (second review, finding 2).
+                found = None
+            if found is not None:
+                return self._to_sent(action_id, now, found, "found_after_ambiguous_write")
+        return self._to_unknown(action_id, now, f"ambiguous_write:{cause}")
 
     def _to_sent(
         self, action_id: ActionId, now: datetime, receipt: object, reason: str
@@ -402,6 +531,30 @@ class _Missing:
 
 
 _MISSING = _Missing()
+
+
+def _hash_of(payload: object) -> object:
+    """The same hash the intent was planned with: canonical JSON of the payload model."""
+    from dispute_agent.kernel.domain.hashing import payload_hash
+
+    dump = getattr(payload, "model_dump", None)
+    if dump is None:
+        # Not a domain payload at all, so it cannot match an approved one.
+        return None
+    return payload_hash(dump(mode="json"))
+
+
+def _start_of_day(now: datetime, tz_name: str) -> datetime:
+    """Midnight in the configured zone, as an aware UTC instant.
+
+    The day boundary is a product decision, not the server's: "one message a day" means a
+    day where the seller is, and a machine running in UTC would otherwise split their
+    evening in half.
+    """
+    from zoneinfo import ZoneInfo
+
+    local = now.astimezone(ZoneInfo(tz_name))
+    return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
 
 def _first_reason(verdict: PolicyVerdict) -> str:

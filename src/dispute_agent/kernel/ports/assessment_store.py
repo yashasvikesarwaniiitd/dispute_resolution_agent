@@ -10,9 +10,14 @@ from __future__ import annotations
 from typing import Protocol
 
 from dispute_agent.kernel.domain.evidence import ChargeAssessment
-from dispute_agent.kernel.domain.ids import CaseId
+from dispute_agent.kernel.domain.ids import AssessmentId, CaseId
 
 
 class AssessmentStore(Protocol):
     def add(self, assessment: ChargeAssessment) -> None: ...
     def latest(self, case_id: CaseId) -> ChargeAssessment | None: ...
+
+    def get(self, assessment_id: AssessmentId) -> ChargeAssessment | None:
+        """One assessment by id. The review page uses it so a number's source is taken from
+        the assessment the message was drafted from, not whichever round came last."""
+        ...

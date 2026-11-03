@@ -1,0 +1,20 @@
+Subject: {{ case_ref }} — about the weight charge on your shipment
+
+Hello,
+
+You disputed the charge on shipment {{ shipment_ref }}.
+
+We charge on the greater of a parcel's actual weight and its size-based
+weight. Our hub recorded a size-based weight of {{ fact('f_chargeable_grams') }}
+for this parcel, and the charge of {{ fact('f_charged') }} was calculated
+from it.
+
+Before we decide, please send:
+{% for item in requested_items %}
+- {{ item }}
+{%- endfor %}
+
+Reply to this email with the photos attached. {{ next_step }}
+
+Thank you,
+Seller Support

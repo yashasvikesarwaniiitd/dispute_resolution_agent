@@ -169,11 +169,16 @@ def run(engine, name: str, *, faults: dict[str, str] | None = None, status: str 
             FakeIdGenerator(),
             patterns=NullPatternContextProvider(),
             outcomes=NullOutcomeObserver(),
-        ).advance(opened.case, raised.id)
-
+        ).advance(
+            opened.case,
+            raised.id,
+            # Saved after every transition, as the real runtime does. Saving once at the end
+            # is refused by the database as an illegal jump once a case moves more than one
+            # state - which this test exists to exercise.
+            commit=lambda before, after: work.cases.save(after, before.version),
+        )
         for event in advanced.events:
             work.events.append(event)
-        work.cases.save(advanced.case, opened.case.version)
 
         assessment = work.assessments.latest(advanced.case.id)
         try:

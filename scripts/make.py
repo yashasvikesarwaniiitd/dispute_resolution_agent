@@ -92,11 +92,29 @@ def run_api() -> int:
 
 
 def run_approvals() -> int:
-    return pending("run-approvals", "Phase 3 (card P3-06)")
+    """The review queue. A separate process from the API: it is a different audience and a
+    different secret, and running it only when someone is reviewing is the point."""
+    return uv(
+        "streamlit",
+        "run",
+        "src/dispute_agent/modules/approvals/streamlit_ui/app.py",
+    )
+
+
+def email_login() -> int:
+    """The once-per-90-days interactive sign-in (ADR 0023, docs/SETUP_CHANNELS.md).
+
+    A separate target rather than something a send does on demand: the device code flow
+    needs a person at a browser, and an unattended run that paused waiting for one would
+    look like a hang.
+    """
+    return uv("python", "-m", "dispute_agent.modules.email.outlook_graph.login")
 
 
 def demo() -> int:
-    return pending("demo", "Phase 3 (card P3-10), extended in Phase 5 (card P5-09)")
+    """One synthetic dispute against the real test accounts. Refuses without credentials
+    rather than quietly demonstrating the fakes."""
+    return uv("python", "scripts/demo.py")
 
 
 def evaluate() -> int:
@@ -113,6 +131,7 @@ TARGETS = {
     "arch": arch,
     "scenarios": scenarios,
     "run-api": run_api,
+    "email-login": email_login,
     "run-approvals": run_approvals,
     "demo": demo,
     "eval": evaluate,

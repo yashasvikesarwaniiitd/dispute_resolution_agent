@@ -559,3 +559,43 @@ class TestRulesNotYetImplemented:
 
     @pytest.mark.skip(reason="R24/R25 approval staleness in full: Phase 5 (card P5-05)")
     def test_r24_and_r25(self) -> None: ...
+
+
+class TestR01ActionOnMenu:
+    """It could never fire: PolicyContext had no menu to read (second review, finding 3)."""
+
+    def proposal(self, action: object) -> object:
+        from dispute_agent.kernel.domain.ids import ProposalId
+        from dispute_agent.packs.weight_dispute.baseline import baseline_proposal
+        from tests.unit.packs.test_baseline import NOW as BNOW
+        from tests.unit.packs.test_baseline import REQUIRED, briefing
+
+        made = baseline_proposal(
+            briefing(), proposal_id=ProposalId("prp_r01"), now=BNOW, required_keys=REQUIRED
+        )
+        return made.model_copy(update={"action": action})
+
+    def test_an_off_menu_proposal_is_denied(self) -> None:
+        from dispute_agent.kernel.domain.enums import ProposalAction
+        from dispute_agent.kernel.policy.rules import ActionOnMenu
+
+        result = ActionOnMenu().evaluate(
+            ctx(
+                proposal=self.proposal(ProposalAction.PROPOSE_CREDIT),
+                allowed_actions=(ProposalAction.ESCALATE_TO_HUMAN,),
+            )
+        )
+        assert result.verdict is VerdictKind.DENY
+        assert result.reason == "action_not_allowed"
+
+    def test_an_on_menu_proposal_is_allowed(self) -> None:
+        from dispute_agent.kernel.domain.enums import ProposalAction
+        from dispute_agent.kernel.policy.rules import ActionOnMenu
+
+        result = ActionOnMenu().evaluate(
+            ctx(
+                proposal=self.proposal(ProposalAction.ESCALATE_TO_HUMAN),
+                allowed_actions=(ProposalAction.ESCALATE_TO_HUMAN,),
+            )
+        )
+        assert result.verdict is VerdictKind.ALLOW

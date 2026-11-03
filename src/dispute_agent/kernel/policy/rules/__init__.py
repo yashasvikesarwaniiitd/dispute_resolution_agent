@@ -20,6 +20,9 @@ from dispute_agent.kernel.policy.rules.r04_contact_limit_case import ContactLimi
 from dispute_agent.kernel.policy.rules.r05_contact_limit_daily import ContactLimitDaily
 from dispute_agent.kernel.policy.rules.r06_recipient_allowlisted import RecipientAllowlisted
 from dispute_agent.kernel.policy.rules.r08_message_review_required import MessageReviewRequired
+from dispute_agent.kernel.policy.rules.r09_message_numbers_verified import (
+    MessageNumbersVerified,
+)
 from dispute_agent.kernel.policy.rules.r10_message_approval_bound import MessageApprovalBound
 from dispute_agent.kernel.policy.rules.r13_credit_requires_approval import CreditRequiresApproval
 from dispute_agent.kernel.policy.rules.r17_credit_not_duplicate import CreditNotDuplicate
@@ -48,6 +51,29 @@ def phase_1_rules() -> tuple[object, ...]:
     )
 
 
+def phase_3_rules() -> tuple[object, ...]:
+    """Phase 1's rules plus R09, which needs a rendered message to check.
+
+    Written out rather than built by inserting into the Phase 1 list: the order is the
+    catalogue's, and a list that rearranges itself is one nobody can read against
+    policy-rules.md. Order does not change the verdict - the lattice takes the maximum -
+    but it does decide which reason a log shows first.
+    """
+    return (
+        ActionOnMenu(),
+        KillSwitchRule(),
+        ModuleAvailable(),
+        ContactLimitCase(),
+        ContactLimitDaily(),
+        RecipientAllowlisted(),
+        MessageReviewRequired(),
+        MessageNumbersVerified(),
+        MessageApprovalBound(),
+        CreditRequiresApproval(),
+        CreditNotDuplicate(),
+    )
+
+
 __all__ = [
     "MANDATORY_RULES",
     "ActionOnMenu",
@@ -57,8 +83,10 @@ __all__ = [
     "CreditRequiresApproval",
     "KillSwitchRule",
     "MessageApprovalBound",
+    "MessageNumbersVerified",
     "MessageReviewRequired",
     "ModuleAvailable",
     "RecipientAllowlisted",
     "phase_1_rules",
+    "phase_3_rules",
 ]

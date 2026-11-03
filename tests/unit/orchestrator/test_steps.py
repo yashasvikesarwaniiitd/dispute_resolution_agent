@@ -120,6 +120,9 @@ class FakeAssessments:
     def latest(self, case_id: CaseId) -> ChargeAssessment | None:
         return self.saved[-1] if self.saved else None
 
+    def get(self, assessment_id: object) -> ChargeAssessment | None:
+        return next((a for a in self.saved if a.id == assessment_id), None)
+
 
 @dataclass
 class FakeTimers:

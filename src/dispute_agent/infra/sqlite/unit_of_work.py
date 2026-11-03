@@ -18,12 +18,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
 
+from dispute_agent.infra.sqlite.approval_store import SqliteApprovalStore
 from dispute_agent.infra.sqlite.case_repository import SqliteCaseRepository
 from dispute_agent.infra.sqlite.event_log import SqliteEventLog
 from dispute_agent.infra.sqlite.evidence_store import (
     SqliteAssessmentStore,
     SqliteEvidenceStore,
 )
+from dispute_agent.infra.sqlite.intent_store import SqliteIntentStore
 from dispute_agent.infra.sqlite.timer_store import SqliteTimerStore
 from dispute_agent.kernel.domain.errors import ConcurrencyConflict
 
@@ -62,6 +64,8 @@ class SqliteUnitOfWork:
         self.evidence: SqliteEvidenceStore
         self.assessments: SqliteAssessmentStore
         self.timers: SqliteTimerStore
+        self.approvals: SqliteApprovalStore
+        self.intents: SqliteIntentStore
 
     def __enter__(self) -> Self:
         self._connection = self._engine.connect()
@@ -74,6 +78,8 @@ class SqliteUnitOfWork:
             self._connection, pack=self._pack, clock=self._clock
         )
         self.timers = SqliteTimerStore(self._connection)
+        self.approvals = SqliteApprovalStore(self._connection)
+        self.intents = SqliteIntentStore(self._connection)
         return self
 
     def __exit__(

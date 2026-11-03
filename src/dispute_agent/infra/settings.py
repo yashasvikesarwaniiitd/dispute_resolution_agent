@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     foundry_model_deployment: str | None = None
     graph_client_id: str | None = None
     graph_mailbox: str | None = None
+    #: The `consumers` authority, because the pilot account is a personal Outlook.com one
+    #: (ADR 0023). A tenant authority here is the usual cause of AADSTS50194.
+    graph_authority: str = "https://login.microsoftonline.com/consumers/"
+    #: The file is a secret even though the path is not: it holds a refresh token, encrypted
+    #: at rest (DPAPI on Windows). It lives under `data/`, which is git-ignored.
+    graph_token_cache_path: str = "data/msal_cache.bin"
+    #: Seconds. Every network call has one (CLAUDE.md section 7); a call with no timeout is
+    #: a worker that never comes back.
+    http_timeout_s: float = 30.0
     jira_base_url: str | None = None
     jira_email: str | None = None
     jira_project_key: str | None = None

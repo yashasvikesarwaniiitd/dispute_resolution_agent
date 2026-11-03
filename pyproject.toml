@@ -14,6 +14,11 @@ dependencies = [
     "structlog>=24.4",
     "pyyaml>=6.0",
     "jinja2>=3.1",
+    "tzdata>=2026.6",
+    "msal>=1.39.0",
+    "msal-extensions>=1.3.1",
+    "httpx>=0.28.1",
+    "streamlit>=1.66.1",
 ]
 
 [dependency-groups]
@@ -98,6 +103,12 @@ warn_unreachable = true
 # CLAUDE.md section 7: no Any without a comment. Surface them rather than hide them.
 disallow_any_explicit = false
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+# MSAL ships no type information. The adapter confines it to one module and one method, and
+# `GraphAuth.token()` is annotated, so nothing untyped escapes past that boundary.
+module = ["msal", "msal.*", "msal_extensions", "msal_extensions.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # Tests stay strict on types that matter but need not annotate every fixture.

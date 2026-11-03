@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict
 
 from dispute_agent.kernel.domain.actions import ActionIntent, Approval, RuleResult
-from dispute_agent.kernel.domain.enums import PolicyStage, VerdictKind
+from dispute_agent.kernel.domain.enums import PolicyStage, ProposalAction, VerdictKind
 from dispute_agent.kernel.domain.evidence import ChargeAssessment
 from dispute_agent.kernel.domain.models import Case
 from dispute_agent.kernel.domain.patterns import CautionSignal
@@ -63,6 +63,10 @@ class PolicyContext(BaseModel):
     case_has_verified_credit: bool = False
     screen_results: tuple[ScreenResult, ...] = ()
     reply_readings: tuple[ReplyReading, ...] = ()
+    #: The case's menu at this step. R01 compares the proposal against it. None means no
+    #: menu was supplied, and R01 says so rather than inventing one - but the investigate
+    #: step always supplies it (second Phase 3 review, finding 3).
+    allowed_actions: tuple[ProposalAction, ...] | None = None
     policy: PolicyConfig = PolicyConfig()
     now: datetime
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from dispute_agent.kernel.domain.enums import MessageKind, VerdictKind
 from dispute_agent.kernel.domain.errors import ConfigError
@@ -41,6 +41,28 @@ class ContactConfig(BaseModel):
     max_messages_per_day: int = 1
     day_boundary_tz: str = "Asia/Kolkata"
     max_clarifications_per_case: int = 1  # D19: one follow-up, then a person
+
+    @field_validator("day_boundary_tz")
+    @classmethod
+    def _zone_resolves(cls, value: str) -> str:
+        """Fail at start-up, not when a message is about to go out.
+
+        "One message a day" means a day where the seller is, so the zone is a product
+        decision. But an unresolvable zone - a typo, or a machine with no IANA database -
+        would otherwise surface as an exception inside policy evaluation, which reads as a
+        broken case rather than as broken configuration. Worse, a silent fall back to UTC
+        would move the boundary by five and a half hours and let a seller be written to
+        twice in their evening.
+        """
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as unknown:
+            raise ConfigError(
+                f"contact.day_boundary_tz {value!r} is not a zone this machine knows: {unknown}"
+            ) from unknown
+        return value
 
 
 class MessagesConfig(BaseModel):

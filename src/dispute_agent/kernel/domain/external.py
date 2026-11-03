@@ -90,6 +90,13 @@ class InboundMessage(BaseModel):
     attachments: tuple[AttachmentRef, ...] = ()
     is_delivery_failure: bool = False
     failed_message_id: str | None = None
+    #: What the receiving mail system said about the sender (kernel-interfaces.md section
+    #: 15, from integrations.md 1.5). `fail` raises the `sender_unauthenticated` caution
+    #: signal; it can only add caution, never relax anything (I15).
+    #:
+    #: Defaults to "none" rather than "pass" on purpose. A channel that cannot determine
+    #: this must not be read as having checked and approved.
+    auth_result: Literal["pass", "fail", "none"] = "none"
 
     @field_validator("received_at")
     @classmethod

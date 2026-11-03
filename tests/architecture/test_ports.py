@@ -49,6 +49,7 @@ def test_the_card_list_is_complete() -> None:
     """
     expected = {
         "ApprovalService",
+        "ApprovalStore",
         "AssessmentStore",
         "CaseOutcomeObserver",
         "CaseRepository",
@@ -56,6 +57,7 @@ def test_the_card_list_is_complete() -> None:
         "EventLog",
         "EvidenceSource",
         "EvidenceStore",
+        "IntentStore",
         "IdGenerator",
         "InputScreen",
         "KillSwitch",

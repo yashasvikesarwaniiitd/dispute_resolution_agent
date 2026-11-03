@@ -104,16 +104,18 @@ class Runtime:
             for opened in result.events:
                 work.events.append(opened.model_copy(update={"causation_id": raised.id}))
 
-            advanced = self._orchestrator.advance(result.case, raised.id)
+            # Saved after every transition, not once at the end. The database checks each
+            # saved change is one legal step, so a case that moves several states in one
+            # call - which every case does once the full line is wired - would otherwise be
+            # refused as an illegal jump. This also covers the Phase 1 review's point: a
+            # counter-only change is saved with its own transition, never discarded.
+            advanced = self._orchestrator.advance(
+                result.case,
+                raised.id,
+                commit=lambda before, after: work.cases.save(after, before.version),
+            )
             for produced in advanced.events:
                 work.events.append(produced)
-            # Compared whole, not by state. A transition whose only effects are a
-            # counter bump or clear_pending would otherwise commit its STATE_CHANGED
-            # event and discard the row change, leaving the diary and the case row
-            # disagreeing - the exact thing I8 exists to prevent. Not reachable in
-            # Phase 1, reachable in Phase 2. Found by the Phase 1 safety review.
-            if advanced.case != result.case:
-                work.cases.save(advanced.case, result.case.version)
 
             inbox.mark_processed(inbox_id, result.case.id, raised.id)
 

@@ -101,3 +101,81 @@ Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here
   the pack took the first DEBIT in the round and a shipment with two charge lines
   recalculated one dispute against the other's charge. Settle the port's signature (add
   `facts` or `claim_ref`) with an ADR when Phase 3 revisits `DomainPack`.
+
+## Found during Phase 3
+
+- **Nothing in `src/` constructs a `PolicyEngine`.** `phase_1_rules` and now `phase_3_rules`
+  are exported and exercised only by tests; the composition root does not wire policy yet.
+  That is fine while no step plans an action for real, and it stops being fine the moment
+  `make demo` runs — P3-10 wires it, and must pick `phase_3_rules` so R09 is in the set.
+  A rule catalogue nothing instantiates is the same failure class as a counter nothing
+  populates, which is what this card found.
+
+## Phase 3 scope boundary (read before Phase 4)
+
+- **`make demo` cannot complete its documented run, and P3-10 is therefore partial.** The
+  phase exit asks for "a real approved email and a real Jira issue, both verified by
+  read-back". Every piece exists and is tested: the adapters, the executor's verification,
+  the approvals queue, the templates. What is missing is the orchestrator's `investigate`
+  step, which still escalates because it has no reasoner — so nothing produces the message
+  intent that the rest of the chain would carry.
+
+  The `rules_only` reasoner built in P2-08 could fill that gap today, and wiring it is a
+  small change. It is **not** done here because that wiring is card P4-09's, and quietly
+  expanding a phase to make its own demo pass is how a phase boundary stops meaning
+  anything. The demo refuses to run without credentials and says what it would need, rather
+  than running against fakes and appearing to prove something.
+
+  **Decision for the owner:** either wire `investigate` to the rules-only reasoner now (a
+  one-card addition to Phase 3), or accept the demo as deferred to Phase 4 and treat this
+  phase-exit line as met by `make test-integration` instead.
+
+### Update (owner decision: wire investigate now)
+
+`investigate` is now wired to the rules-only reasoner (owner's call). A dispute runs from
+RECEIVED to AWAITING_APPROVAL with a drafted, number-checked, hash-bound email in the review
+queue. The demo still cannot **send**, because four more stations are empty:
+
+1. `apply_approval` — turns an APPROVED decision into a planned action (T10).
+2. `execute` — calls the executor to send (T17).
+3. `verify` — reads the message back from Sent Items (T18).
+4. A SQLite `ActionStore` — where the executor records every action. Without it there is
+   nothing to plan *into*, and the duplicate-send protections have no record to read.
+
+Plus the path that carries your decision from the review console into the case (ADR 0013
+says it arrives as an APPROVAL_DECIDED inbound event; the console currently writes the row
+directly and nothing advances the case afterwards).
+
+**Declared timer effects are never carried out.** `transitions.yaml` tells T07 to arm
+APPROVAL_EXPIRY, T-rows into AWAITING_SELLER to arm reminders, and so on. The state machine
+hands these to the caller as `Applied.effects`, and no caller performs them. The only timer
+that is ever set is the evidence retry the gather step arms itself. Consequence today:
+an approval nobody answers never expires, and no seller reminder ever fires. Safe in the
+direction that matters - nothing is sent without approval - but it needs one component that
+applies `schedule_timers` / `cancel_timers` in the same transaction as the transition.
+
+**Fixed while wiring:** the runtime saved a case once at the end of `advance`, which the
+database correctly refuses as an illegal jump the moment a case moves more than one state.
+It only worked before because every case stopped one step from where it started. Cases are
+now saved after every transition (`advance(..., commit=...)`), as orchestrator.md specifies.
+
+### From the Phase 3 safety review
+
+- **The SQLite ActionStore's first tests** (finding 6): `outbound_message_count` counts SEND_MESSAGE
+  rows in SENT, VERIFIED and UNKNOWN; a FAILED row is not counted; a re-executed row is
+  counted once; the `since` bound is respected. The stub-based tests that claimed this were
+  removed because they could not fail.
+
+### From the second Phase 3 safety review (recorded, not fixed)
+
+- **The investigate step writes no audit events of its own.** orchestrator.md section 3 lists
+  PROPOSAL_RECORDED, INTENT_CREATED, POLICY_EVALUATED and APPROVAL_REQUESTED for this step.
+  I8 holds - every state change has its STATE_CHANGED event - but the diary does not record
+  *why* the case moved or that an approval was requested. A step can only return a trigger
+  today (`StepOutcome`), so steps need a way to hand events to the loop. Do it before the
+  model reasoner lands in Phase 4, when "why did it decide that" becomes the question.
+- **The briefing's contact status is hard-coded** (`reply_in_round=False`,
+  `clarifications_sent=0`). True for every case that can reach the station today; wrong the
+  moment the reply poller feeds replies into cases, when a later round would draft an
+  `evidence_request` instead of a `clarification_request` and the one-clarification cap
+  (D19) would not be checked at planning. Wire it together with the poller.
