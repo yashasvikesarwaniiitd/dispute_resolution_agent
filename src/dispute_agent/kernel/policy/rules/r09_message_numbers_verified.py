@@ -77,4 +77,8 @@ class MessageNumbersVerified:
         own references and nothing that could carry a quantity.
         """
         facts = ctx.case.facts
-        return tuple(ref for ref in (facts.shipment_ref, facts.claim_ref, facts.seller_ref) if ref)
+        # The case reference too - policy-rules.md section 7 rule 2 names it. Leaving it out
+        # meant every message whose subject named its case was refused on the digits in the
+        # case id, before anyone could approve it.
+        refs = (str(ctx.case.id), facts.shipment_ref, facts.claim_ref, facts.seller_ref)
+        return tuple(ref for ref in refs if ref)

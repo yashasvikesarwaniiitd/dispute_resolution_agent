@@ -38,7 +38,7 @@ from dispute_agent.kernel.domain.errors import ModuleUnavailable
 from dispute_agent.kernel.domain.models import Cause, ReviewReason
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
     from datetime import datetime
 
     from dispute_agent.kernel.domain.case import CaseFacts
@@ -171,16 +171,34 @@ class Orchestrator:
             return
         self._outcomes.on_outcome(outcome)  # type: ignore[attr-defined]
 
-    def advance(self, case: Case, causation_id: EventId) -> AdvanceResult:
+    def advance(
+        self,
+        case: Case,
+        causation_id: EventId,
+        *,
+        commit: Callable[[Case, Case], Case] | None = None,
+    ) -> AdvanceResult:
         """Run steps until the case rests, finishes, or the limit is reached.
 
-        Returns the case and every event produced. The caller commits them: this function
-        decides, and keeping those apart is what lets the whole loop be tested without a
-        database.
+        Returns the case and every event produced. Without `commit` the caller records them:
+        this function decides, and keeping those apart is what lets the loop be tested
+        without a database.
+
+        **With `commit`, the case row is saved after every transition** - `commit(before,
+        after)` saves `after` and returns it with its new version. That is what
+        orchestrator.md means by "each step commits exactly one transition", and it is not
+        optional once a case can move more than one state in a call: the database's
+        `tr_cases_legal_transition` checks each saved change is one legal step, so saving
+        only the end of RECEIVED -> ... -> AWAITING_APPROVAL is correctly refused as an
+        illegal jump. Saving once at the end only ever worked because, until Phase 3, every
+        case stopped one step from where it started.
         """
         events: list[Event] = []
         current = case
         steps_run = 0
+
+        def landed(applied: Applied) -> Case:
+            return commit(current, applied.case) if commit is not None else applied.case
 
         while True:
             if current.state in _TERMINAL:
@@ -200,7 +218,7 @@ class Orchestrator:
                     causation_id,
                 )
                 events.append(applied.event)
-                return AdvanceResult(applied.case, tuple(events), steps_run, "step_limit")
+                return AdvanceResult(landed(applied), tuple(events), steps_run, "step_limit")
 
             step = self.step_for(current.state)
             if step is None:
@@ -213,7 +231,7 @@ class Orchestrator:
                     causation_id,
                 )
                 events.append(applied.event)
-                return AdvanceResult(applied.case, tuple(events), steps_run, "no_step")
+                return AdvanceResult(landed(applied), tuple(events), steps_run, "no_step")
 
             now = self._clock.now()
             try:
@@ -232,7 +250,7 @@ class Orchestrator:
                 )
                 events.append(applied.event)
                 return AdvanceResult(
-                    applied.case, tuple(events), steps_run + 1, "module_unavailable"
+                    landed(applied), tuple(events), steps_run + 1, "module_unavailable"
                 )
 
             steps_run += 1
@@ -251,7 +269,7 @@ class Orchestrator:
                 review_reason=outcome.review_reason,
             )
             events.append(applied.event)
-            current = applied.case
+            current = landed(applied)
 
     # -- helpers ---------------------------------------------------------------------------
 

@@ -158,11 +158,28 @@ def template_names() -> tuple[str, ...]:
     return tuple(sorted(set(TEMPLATE_FOR_KIND.values())))
 
 
+class TemplateDrafter:
+    """The rules-only drafter: the investigate step's `Drafter`, backed by these templates.
+
+    A refusal to render becomes `blocked_reason` on the result rather than an exception, so
+    the step reads "do not send" as a result - the same contract the model drafter will have.
+    """
+
+    def draft(self, ctx: DraftContext, *, shipment_ref: str) -> DraftedMessage:
+        try:
+            return render(ctx, shipment_ref=shipment_ref)
+        except DomainValidationError as refused:
+            return DraftedMessage(
+                subject="(blocked)", body="(blocked)", blocked_reason=str(refused)
+            )
+
+
 __all__ = [
     "NUMBER_WORDS",
     "TEMPLATES",
     "TEMPLATE_FOR_KIND",
     "FactCiter",
+    "TemplateDrafter",
     "render",
     "template_names",
 ]

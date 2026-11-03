@@ -129,3 +129,32 @@ Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here
   **Decision for the owner:** either wire `investigate` to the rules-only reasoner now (a
   one-card addition to Phase 3), or accept the demo as deferred to Phase 4 and treat this
   phase-exit line as met by `make test-integration` instead.
+
+### Update (owner decision: wire investigate now)
+
+`investigate` is now wired to the rules-only reasoner (owner's call). A dispute runs from
+RECEIVED to AWAITING_APPROVAL with a drafted, number-checked, hash-bound email in the review
+queue. The demo still cannot **send**, because four more stations are empty:
+
+1. `apply_approval` — turns an APPROVED decision into a planned action (T10).
+2. `execute` — calls the executor to send (T17).
+3. `verify` — reads the message back from Sent Items (T18).
+4. A SQLite `ActionStore` — where the executor records every action. Without it there is
+   nothing to plan *into*, and the duplicate-send protections have no record to read.
+
+Plus the path that carries your decision from the review console into the case (ADR 0013
+says it arrives as an APPROVAL_DECIDED inbound event; the console currently writes the row
+directly and nothing advances the case afterwards).
+
+**Declared timer effects are never carried out.** `transitions.yaml` tells T07 to arm
+APPROVAL_EXPIRY, T-rows into AWAITING_SELLER to arm reminders, and so on. The state machine
+hands these to the caller as `Applied.effects`, and no caller performs them. The only timer
+that is ever set is the evidence retry the gather step arms itself. Consequence today:
+an approval nobody answers never expires, and no seller reminder ever fires. Safe in the
+direction that matters - nothing is sent without approval - but it needs one component that
+applies `schedule_timers` / `cancel_timers` in the same transaction as the transition.
+
+**Fixed while wiring:** the runtime saved a case once at the end of `advance`, which the
+database correctly refuses as an illegal jump the moment a case moves more than one state.
+It only worked before because every case stopped one step from where it started. Cases are
+now saved after every transition (`advance(..., commit=...)`), as orchestrator.md specifies.
