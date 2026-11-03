@@ -37,7 +37,7 @@ from dispute_agent.kernel.domain.external import InboundMessage, OutboundMessage
 from dispute_agent.kernel.domain.ids import CaseId, IdempotencyKey
 from dispute_agent.kernel.domain.values import UntrustedText
 from dispute_agent.modules.email.fake.channel import FakeMessageChannel
-from tests.contract.conftest import build_or_skip, params, pending, ready
+from tests.contract.conftest import build_or_skip, params, ready
 from tests.contract.harness import UnsupportedError, arrange
 
 NOW = datetime(2026, 3, 1, 9, 0, tzinfo=UTC)
@@ -96,26 +96,53 @@ class FakeChannelHarness:
 
 
 class OutlookHarness:
-    """Placeholder until P3-02. Named here so the suite already knows it is owed one."""
+    """The real adapter against the owner's pilot mailbox.
+
+    Runs only under `make test-integration`, and only when the credentials exist. The three
+    conditions it cannot arrange are honest refusals rather than quiet passes: there is no
+    way to make a real mailbox time out on command, strand a draft, or move its clock, and
+    a harness that faked any of them would be asserting something about a fake while
+    claiming to test the real thing.
+    """
 
     name = "outlook_graph"
 
     def channel(self, **conditions: str) -> Any:
-        raise UnsupportedError("the Outlook adapter is written in card P3-02")
+        if conditions:
+            raise UnsupportedError(
+                f"a real mailbox cannot be told to {sorted(conditions.values())}"
+            )
+        from dispute_agent.infra.settings import Settings
+        from dispute_agent.modules.email.outlook_graph.auth import GraphAuth
+        from dispute_agent.modules.email.outlook_graph.channel import OutlookGraphChannel
+
+        settings = Settings()
+        if not settings.graph_client_id or not settings.test_seller_email:
+            raise UnsupportedError(
+                "GRAPH_CLIENT_ID and TEST_SELLER_EMAIL are not set; see docs/SETUP_CHANNELS.md"
+            )
+        auth = GraphAuth(
+            client_id=settings.graph_client_id,
+            authority=settings.graph_authority,
+            cache_path=settings.graph_token_cache_path,
+        )
+        if not auth.signed_in():
+            raise UnsupportedError("not signed in; run `make email-login`")
+        return OutlookGraphChannel(auth=auth, timeout_s=settings.http_timeout_s)
 
     def deliver(self, channel: Any, message: InboundMessage) -> None:
-        raise UnsupportedError("P3-02")
+        raise UnsupportedError("a reply has to be sent by a person, not injected")
 
     def at(self, channel: Any, moment: datetime) -> None:
-        raise UnsupportedError("P3-02")
+        raise UnsupportedError("a real mailbox has its own clock")
 
     def sent_count(self, channel: Any) -> int:
-        raise UnsupportedError("P3-02")
+        raise UnsupportedError("counting Sent Items would depend on the mailbox history")
 
 
 ADAPTERS = [
     ready("fake", FakeChannelHarness),
-    pending("outlook_graph", phase="Phase 3 (card P3-02)", integration=True),
+    ready("outlook_graph", OutlookHarness, integration=True),
 ]
 
 
@@ -133,6 +160,22 @@ class TestCapabilities:
     def test_it_declares_whether_writes_are_idempotent(self, channel: Any) -> None:
         assert isinstance(channel.idempotent_writes, bool)
         assert isinstance(channel.lookup_supported, bool)
+
+    def test_the_idempotency_claim_is_earned_not_asserted(self, harness: Any, channel: Any) -> None:
+        """The flag decides whether the executor may retry a send at all, so a wrong answer
+        here is a second email to a seller.
+
+        Either value is fine. Claiming True and producing two messages is not, and neither
+        is claiming False while silently deduplicating - that would make the executor's
+        lookup-before-write look unnecessary.
+        """
+        channel.send(a_message(), KEY)
+        channel.send(a_message(), KEY)
+        count = arrange(harness.sent_count, channel)
+        if channel.idempotent_writes:
+            assert count == 1, "claims idempotent writes but sent twice"
+        else:
+            assert count == 2, "says writes are not idempotent, so a repeat must show"
 
 
 class TestSending:

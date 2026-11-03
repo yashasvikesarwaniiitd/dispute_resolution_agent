@@ -93,14 +93,19 @@ class FakeMessageChannel:
     """
 
     mailbox: str = "agent@example.invalid"
-    idempotent_writes: bool = True
+    #: False, because Graph has none (integrations.md section 1.2). An earlier version
+    #: of this fake said True and deduplicated on the key, which is precisely the
+    #: "kinder than the real thing" failure this file's docstring warns about - and on
+    #: the one dimension that produces a second email. Email deduplication comes from
+    #: the executor reading its own action record first, never from the mailbox.
+    idempotent_writes: bool = False
     lookup_supported: bool = True
     faults: dict[str, str] = field(default_factory=dict)
     name: str = MODULE
     #: Set by a test to make visibility deterministic; otherwise the wall clock is used.
     now: datetime | None = None
 
-    _sent: dict[IdempotencyKey, StoredMessage] = field(default_factory=dict)
+    _all: list[StoredMessage] = field(default_factory=list)
     _inbox: list[InboundMessage] = field(default_factory=list)
     _send_calls: int = 0
 
@@ -117,16 +122,12 @@ class FakeMessageChannel:
         if fault == "permanent":
             raise PermanentPortError("the recipient was refused", status=400)
 
-        existing = self._sent.get(key)
-        if existing is not None and existing.folder == "sentitems":
-            # The key has been used and the message is in Sent Items. Returning a receipt
-            # marked `duplicate` is the whole of `idempotent_writes = True`: a retry must
-            # not produce a second email.
-            return existing.receipt.model_copy(update={"duplicate": True})
-
+        # No check for a reused key on purpose. Graph has no idempotency key, so a second
+        # send really does produce a second email, and a fake that quietly deduplicated
+        # would hide the whole reason the executor looks up before it writes.
         moment = self._moment()
         receipt = SendReceipt(
-            external_message_id=f"msg-{len(self._sent) + 1:04d}",
+            external_message_id=f"msg-{len(self._all) + 1:04d}",
             conversation_id=f"conv-{msg.case_id}",
             sent_at=moment,
         )
@@ -135,10 +136,10 @@ class FakeMessageChannel:
             # The draft exists and carries our key; `/send` never ran. Nothing here may be
             # reported as sent, and a later run must not send the draft (integrations.md
             # section 1.3) - a human resolves it.
-            self._sent[key] = StoredMessage(receipt, msg, key, "drafts", moment)
+            self._all.append(StoredMessage(receipt, msg, key, "drafts", moment))
             raise TransientPortError("the send did not complete")
 
-        self._sent[key] = StoredMessage(receipt, msg, key, "sentitems", moment)
+        self._all.append(StoredMessage(receipt, msg, key, "sentitems", moment))
 
         if fault == "timeout":
             # S12a: it really was sent, and only the answer was lost. The executor must find
@@ -155,25 +156,24 @@ class FakeMessageChannel:
         if self.faults.get("find_sent") == "transient":
             raise TransientPortError("the lookup could not be completed")
 
-        stored = self._sent.get(key)
-        if stored is None:
+        matching = [s for s in self._all if s.key == key]
+        if not matching:
             return None
-        if stored.folder == "sentitems":
-            return stored.receipt
+        sent = [s for s in matching if s.folder == "sentitems"]
+        if sent:
+            # The first one, so a key that somehow produced two is reported as the earliest
+            # send rather than the latest - the executor is asking "did this go out?".
+            return sent[0].receipt
         raise AmbiguousOutcome(
             "a draft carrying this key exists but nothing is in Sent Items",
-            external_ref=stored.receipt.external_message_id,
+            external_ref=matching[0].receipt.external_message_id,
         )
 
     def get_message(self, receipt: SendReceipt) -> MessageSnapshot:
         """Read-back (I2), and not before the message has actually landed."""
         self._check_module()
         stored = next(
-            (
-                s
-                for s in self._sent.values()
-                if s.receipt.external_message_id == receipt.external_message_id
-            ),
+            (s for s in self._all if s.receipt.external_message_id == receipt.external_message_id),
             None,
         )
         if stored is None:
@@ -219,7 +219,7 @@ class FakeMessageChannel:
 
     def drafts(self) -> tuple[StoredMessage, ...]:
         """Everything stuck in Drafts, for a test asserting nothing was left behind."""
-        return tuple(s for s in self._sent.values() if s.folder == "drafts")
+        return tuple(s for s in self._all if s.folder == "drafts")
 
     def sent_count(self) -> int:
         """How many messages actually exist in Sent Items.
@@ -227,7 +227,7 @@ class FakeMessageChannel:
         The number that matters: the duplicate-side-effect gate is this being 1 after a
         retry, not the send method returning something reassuring.
         """
-        return len([s for s in self._sent.values() if s.folder == "sentitems"])
+        return len([s for s in self._all if s.folder == "sentitems"])
 
     def send_attempts(self) -> int:
         return self._send_calls

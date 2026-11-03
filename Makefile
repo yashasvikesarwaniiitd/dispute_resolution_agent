@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals demo eval
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval
 
 setup:
 	$(PY) setup
@@ -35,6 +35,9 @@ run-api:
 
 run-approvals:
 	$(PY) run-approvals
+
+email-login:
+	$(PY) email-login
 
 demo:
 	$(PY) demo
