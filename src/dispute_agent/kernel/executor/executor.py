@@ -41,6 +41,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.errors import (
     AmbiguousOutcome,
+    ExternalNotFound,
     KillSwitchEngaged,
     PermanentPortError,
     PolicyRefused,
@@ -373,7 +374,13 @@ class ActionExecutor:
 
         try:
             snapshot = port.read_back(receipt)
-        except TransientPortError:
+        except (TransientPortError, ExternalNotFound):
+            # ExternalNotFound is the *expected* answer for a while after sending: Exchange
+            # moves a message to Sent Items asynchronously, and Jira's get-by-key is not
+            # promised to be instant. Both mean "not yet", so the case rests and becomes
+            # UNKNOWN at the deadline (ADR 0010) rather than failing a send that worked.
+            # Until this was handled it escaped `verify` entirely and the step would have
+            # died with an unhandled error on every perfectly normal send.
             return ExecutionResult(Outcome.BLOCKED, action_id, "not_visible_yet")
 
         mismatches = [
