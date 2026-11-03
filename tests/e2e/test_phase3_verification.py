@@ -46,7 +46,7 @@ from dispute_agent.kernel.domain.ids import (
     PayloadHash,
 )
 from dispute_agent.kernel.executor.executor import Outcome
-from dispute_agent.modules.email.fake.channel import FakeMessageChannel, normalise
+from dispute_agent.modules.email.fake.channel import FakeMessageChannel
 from dispute_agent.modules.email.write_port import MessageWritePort
 from dispute_agent.modules.ticketing.fake.ticketing import FakeTicketingSystem
 from dispute_agent.modules.ticketing.write_port import IssueWritePort
@@ -179,13 +179,7 @@ class TestAGoodSend:
 
         channel.now = LATER
         receipt = channel.find_sent(KEY)
-        verified = executor(store).verify(
-            action_id,
-            port,
-            receipt,
-            {"subject": MESSAGE.subject, "body": normalise(BODY), "in_sent_items": True},
-            LATER,
-        )
+        verified = executor(store).verify(action_id, port, receipt, _message_payload(), LATER)
         assert verified.outcome is Outcome.VERIFIED
         assert store.get(action_id).status is ActionStatus.VERIFIED
 
@@ -205,7 +199,7 @@ class TestAGoodSend:
         executor(store).execute(action_id, port, _message_payload(), NOW)
 
         receipt = channel.find_sent(KEY)
-        result = executor(store).verify(action_id, port, receipt, {"in_sent_items": True}, NOW)
+        result = executor(store).verify(action_id, port, receipt, _message_payload(), NOW)
         assert result.outcome is Outcome.BLOCKED
         assert result.reason == "not_visible_yet"
         assert store.get(action_id).status is ActionStatus.SENT
@@ -428,19 +422,31 @@ class TestS12cJiraRefuses:
 
 class TestVerificationComparesWhatWasMeant:
     def test_a_changed_body_is_never_verified(self) -> None:
-        """I2 and I13 together: what is out there is not what was approved."""
+        """I2 and I13 together: what is out there is not what was approved.
+
+        The far end is what changes here - the message in Sent Items is edited after the
+        send - while verify is handed the honest approved plan. That is the real shape of
+        the failure; the first version faked it by passing a wrong expectation instead.
+        """
+        from dispute_agent.modules.email.fake.channel import StoredMessage
+
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
         executor(store).execute(action_id, port, _message_payload(), NOW)
         channel.now = LATER
 
+        sent = channel._all[0]
+        channel._all[0] = StoredMessage(
+            sent.receipt,
+            sent.message.model_copy(update={"body": "something else entirely"}),
+            sent.key,
+            sent.folder,
+            sent.created_at,
+        )
+
         result = executor(store).verify(
-            action_id,
-            port,
-            channel.find_sent(KEY),
-            {"body": "something else entirely"},
-            LATER,
+            action_id, port, channel.find_sent(KEY), _message_payload(), LATER
         )
         assert result.outcome is Outcome.UNKNOWN
         assert "verification_mismatch" in (result.reason or "")
@@ -455,7 +461,7 @@ class TestVerificationComparesWhatWasMeant:
         channel.now = LATER
 
         result = executor(store).verify(
-            action_id, port, channel.find_sent(KEY), {"body": normalise(BODY)}, LATER
+            action_id, port, channel.find_sent(KEY), _message_payload(), LATER
         )
         assert result.outcome is Outcome.VERIFIED
 
@@ -466,21 +472,8 @@ class TestVerificationComparesWhatWasMeant:
         sent = executor(store).execute(action_id, port, _issue_payload(), NOW)
         assert sent.outcome is Outcome.SENT
 
-        from dispute_agent.modules.ticketing.jira_cloud.ticketing import (
-            normalise as jira_normalise,
-        )
-
         ref = system.find_issue(KEY) or system._issues[0].ref
-        result = executor(store).verify(
-            action_id,
-            port,
-            ref,
-            {
-                "summary": SPEC.summary,
-                "description_text": jira_normalise(SPEC.description),
-            },
-            NOW,
-        )
+        result = executor(store).verify(action_id, port, ref, _issue_payload(), NOW)
         assert result.outcome is Outcome.VERIFIED
 
 

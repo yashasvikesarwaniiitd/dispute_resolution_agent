@@ -25,11 +25,12 @@ class ActionOnMenu:
         proposal = ctx.proposal
         if proposal is None:
             return allow(self.rule_id, "no_proposal")
-        allowed = getattr(ctx, "allowed_actions", None)
+        allowed = ctx.allowed_actions
         if allowed is None:
-            # Phase 2 builds the briefing that carries the menu. Until then there is nothing
-            # to compare against, and inventing a menu here would make the rule lie.
-            return allow(self.rule_id, "menu_not_available_until_phase_2")
+            # No menu supplied. Inventing one here would make the rule lie; the investigate
+            # step always supplies it, so this branch means a caller that is not deciding a
+            # proposal, not a gap in the check.
+            return allow(self.rule_id, "no_menu_supplied")
         if proposal.action not in allowed:
             return deny(self.rule_id, "action_not_allowed")
         return allow(self.rule_id)

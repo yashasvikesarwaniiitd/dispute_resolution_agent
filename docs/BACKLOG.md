@@ -165,3 +165,17 @@ now saved after every transition (`advance(..., commit=...)`), as orchestrator.m
   rows in SENT, VERIFIED and UNKNOWN; a FAILED row is not counted; a re-executed row is
   counted once; the `since` bound is respected. The stub-based tests that claimed this were
   removed because they could not fail.
+
+### From the second Phase 3 safety review (recorded, not fixed)
+
+- **The investigate step writes no audit events of its own.** orchestrator.md section 3 lists
+  PROPOSAL_RECORDED, INTENT_CREATED, POLICY_EVALUATED and APPROVAL_REQUESTED for this step.
+  I8 holds - every state change has its STATE_CHANGED event - but the diary does not record
+  *why* the case moved or that an approval was requested. A step can only return a trigger
+  today (`StepOutcome`), so steps need a way to hand events to the loop. Do it before the
+  model reasoner lands in Phase 4, when "why did it decide that" becomes the question.
+- **The briefing's contact status is hard-coded** (`reply_in_round=False`,
+  `clarifications_sent=0`). True for every case that can reach the station today; wrong the
+  moment the reply poller feeds replies into cases, when a later round would draft an
+  `evidence_request` instead of a `clarification_request` and the one-clarification cap
+  (D19) would not be checked at planning. Wire it together with the poller.

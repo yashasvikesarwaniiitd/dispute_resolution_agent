@@ -82,14 +82,26 @@ class MessageWritePort:
         snapshot: MessageSnapshot = self.channel.get_message(receipt)
         return NormalisedMessage(
             external_message_id=snapshot.external_message_id,
-            to=snapshot.to,
+            # Lowercased, as the expectation is: mail systems may change an address's case.
+            to=tuple(address.strip().lower() for address in snapshot.to),
             subject=snapshot.subject,
-            # The one transformation. Everything else is a rename.
+            # The other transformation. Everything else is a rename.
             body=normalise(snapshot.body),
             idempotency_key=snapshot.idempotency_key,
             in_sent_items=snapshot.in_sent_items,
             conversation_id=snapshot.conversation_id,
         )
+
+    def expected_snapshot(self, payload: Any, key: IdempotencyKey) -> dict[str, object]:
+        """Everything a correct Sent Items copy of this approved message must show."""
+        approved: MessagePayload = payload
+        return {
+            "to": (approved.to.strip().lower(),),
+            "subject": approved.subject,
+            "body": normalise(approved.body),
+            "idempotency_key": key,
+            "in_sent_items": True,
+        }
 
 
 __all__ = ["MessageWritePort", "NormalisedMessage"]

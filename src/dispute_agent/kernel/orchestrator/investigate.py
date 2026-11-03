@@ -123,7 +123,17 @@ class InvestigateStep:
 
         briefing = self._briefing(case, assessment)
         proposal = self.reasoner.propose(briefing)
-        return self._act_on(case, proposal, assessment, now)
+
+        # The menu is code's decision, not the reasoner's (I1). Before this check the menu
+        # was built, put on the briefing and then ignored, so an off-menu proposal - the
+        # kernel rule that removes uphold_charge and propose_credit once money has moved
+        # rests on exactly this - would have been acted on (second review, finding 3).
+        if proposal.action not in briefing.allowed_actions:
+            return _escalate(
+                ReviewCode.INVALID_MODEL_OUTPUT,
+                f"proposed {proposal.action.value}, which is not on this case's menu",
+            )
+        return self._act_on(case, proposal, assessment, now, briefing.allowed_actions)
 
     # -- building the briefing ---------------------------------------------------------------
 
@@ -155,7 +165,12 @@ class InvestigateStep:
     # -- acting on the proposal ----------------------------------------------------------------
 
     def _act_on(
-        self, case: Case, proposal: Proposal, assessment: ChargeAssessment, now: datetime
+        self,
+        case: Case,
+        proposal: Proposal,
+        assessment: ChargeAssessment,
+        now: datetime,
+        menu: tuple[ProposalAction, ...],
     ) -> StepOutcome:
         action = proposal.action
 
@@ -211,6 +226,8 @@ class InvestigateStep:
                 modules=self.modules,
                 policy=self.config,
                 now=now,
+                # So R01 checks it too - belt and braces with the check in `run`.
+                allowed_actions=menu,
             )
         )
         return self._by_verdict(case, intent, verdict, now)

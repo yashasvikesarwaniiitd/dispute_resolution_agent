@@ -23,7 +23,7 @@ outside world, bypassing the executor and everything it guarantees (I2).
 from __future__ import annotations
 
 import hmac
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.enums import ActorKind, ApprovalDecision
@@ -78,6 +78,11 @@ class PendingItem:
     subject: str
     body: str
     numbers: tuple[tuple[str, str], ...] = ()
+    #: Who it goes to. You should see the address before approving (second review, 7).
+    to: str = ""
+    #: False when the stored text no longer hashes to what this approval is bound to - an
+    #: edit behind the system's back. The page then refuses to offer Approve.
+    matches_approval: bool = True
 
     @property
     def case_id(self) -> str:
@@ -128,16 +133,30 @@ class ReviewConsole:
         approving a sha256 digest they could not read, with the code that built this view
         written and never called (Phase 3 review, finding 3).
         """
+        from dispute_agent.kernel.domain.hashing import payload_hash
+
         intent = intents.get(approval.request.intent_id)
-        assessment = assessments.latest(approval.request.case_id)
+        # The assessment this message was drafted from, not the latest one: after a
+        # re-assessment the labels could otherwise come from a different round.
+        assessment = (
+            assessments.get(intent.assessment_id)
+            if intent.assessment_id is not None
+            else assessments.latest(approval.request.case_id)
+        )
         facts = {fact.fact_id: fact for fact in (assessment.facts if assessment else ())}
         payload = intent.payload
-        return self.item(
+        item = self.item(
             approval,
             subject=str(getattr(payload, "subject", "")),
             body=str(getattr(payload, "body", "")),
             cited=tuple(getattr(payload, "numbers_used", ())),
             facts=facts,
+        )
+        return replace(
+            item,
+            to=str(getattr(payload, "to", "")),
+            matches_approval=payload_hash(payload.model_dump(mode="json"))
+            == approval.request.payload_hash,
         )
 
     def item(

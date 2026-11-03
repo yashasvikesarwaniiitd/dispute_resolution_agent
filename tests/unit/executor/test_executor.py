@@ -123,6 +123,9 @@ class FakePort:
     lookup_error: Exception | None = None
     snapshot: Receipt | None = None
     read_error: Exception | None = None
+    #: Overrides what the port says a correct read-back must show, for the test that a
+    #: port naming nothing is refused.
+    expectation: dict[str, object] | None = None
 
     def send(self, payload: object, key: object) -> Receipt:
         self.sends.append((payload, key))
@@ -136,6 +139,16 @@ class FakePort:
         if self.lookup_error is not None:
             raise self.lookup_error
         return self.stored.get(str(key))
+
+    def expected_snapshot(self, payload: Any, key: object) -> dict[str, object]:
+        return (
+            dict(self.expectation)
+            if self.expectation is not None
+            else {
+                "body": payload.body,
+                "to": payload.to,
+            }
+        )
 
     def read_back(self, receipt: object) -> Receipt:
         if self.read_error is not None:
@@ -456,7 +469,7 @@ class TestUnknownIsNeverSuccess:
         port = FakePort()
         action_id = self.plan_and_send(store, port)
         port.snapshot = Receipt(body="something else entirely")
-        result = executor(store).verify(action_id, port, Receipt(), {"body": "approved text"}, NOW)
+        result = executor(store).verify(action_id, port, Receipt(), APPROVED, NOW)
         assert result.outcome is Outcome.UNKNOWN
         assert "verification_mismatch" in result.reason
 
@@ -464,9 +477,7 @@ class TestUnknownIsNeverSuccess:
         store = FakeActionStore(approval=an_approval())
         port = FakePort()
         action_id = self.plan_and_send(store, port)
-        result = executor(store).verify(
-            action_id, port, Receipt(), {"body": "approved text", "to": SELLER}, NOW
-        )
+        result = executor(store).verify(action_id, port, Receipt(), APPROVED, NOW)
         assert result.outcome is Outcome.VERIFIED
         assert store.rows[str(action_id)].status is ActionStatus.VERIFIED
 
@@ -483,7 +494,7 @@ class TestUnknownIsNeverSuccess:
         port = FakePort()
         action_id = self.plan_and_send(store, port)
         port.read_error = TransientPortError("not indexed yet")
-        result = executor(store).verify(action_id, port, Receipt(), {"body": "approved text"}, NOW)
+        result = executor(store).verify(action_id, port, Receipt(), APPROVED, NOW)
         assert result.outcome is Outcome.BLOCKED
 
 
@@ -541,14 +552,40 @@ class TestOnlyTheApprovedTextCanBeSent:
         assert result.reason == "payload_mismatch"
         assert port.sends == []
 
-    def test_verify_refuses_to_compare_nothing(self) -> None:
-        """An empty comparison used to report VERIFIED without reading anything."""
+    def test_verify_refuses_a_payload_that_is_not_the_approved_one(self) -> None:
+        """Comparing the far end against some other text would prove nothing about what
+        was approved (second Phase 3 review, finding 4)."""
         from dispute_agent.kernel.domain.errors import DomainValidationError
 
         store = FakeActionStore(approval=an_approval())
+        port = FakePort()
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
-        with pytest.raises(DomainValidationError, match="at least one field"):
-            executor(store).verify(action.id, FakePort(), Receipt(), {}, NOW)
+        executor(store).execute(action.id, port, APPROVED, NOW)
+        edited = APPROVED.model_copy(update={"body": "different"})
+        with pytest.raises(DomainValidationError, match="not the approved one"):
+            executor(store).verify(action.id, port, Receipt(), edited, NOW)
+
+    def test_verify_refuses_a_port_that_names_nothing_to_compare(self) -> None:
+        from dispute_agent.kernel.domain.errors import DomainValidationError
+
+        store = FakeActionStore(approval=an_approval())
+        port = FakePort(expectation={})
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        executor(store).execute(action.id, port, APPROVED, NOW)
+        with pytest.raises(DomainValidationError, match="named nothing"):
+            executor(store).verify(action.id, port, Receipt(), APPROVED, NOW)
+
+    def test_an_extra_check_cannot_loosen_a_required_one(self) -> None:
+        """A caller passing body=<anything> must not override the required body."""
+        store = FakeActionStore(approval=an_approval())
+        port = FakePort()
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        executor(store).execute(action.id, port, APPROVED, NOW)
+        port.snapshot = Receipt(body="tampered")
+        result = executor(store).verify(
+            action.id, port, Receipt(), APPROVED, NOW, extra_checks={"body": "tampered"}
+        )
+        assert result.outcome is Outcome.UNKNOWN
 
 
 class TestConstruction:

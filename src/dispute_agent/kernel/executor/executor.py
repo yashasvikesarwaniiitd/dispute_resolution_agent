@@ -53,6 +53,7 @@ from dispute_agent.kernel.domain.errors import (
 from dispute_agent.kernel.executor.keys import idempotency_key
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
 
     from dispute_agent.kernel.domain.actions import Action, ActionIntent, Approval, PolicyVerdict
@@ -100,6 +101,13 @@ class WritePort(Protocol):
     def send(self, payload: object, key: IdempotencyKey) -> object: ...
     def find_sent(self, key: IdempotencyKey) -> object | None: ...
     def read_back(self, receipt: object) -> object: ...
+    def expected_snapshot(self, payload: object, key: IdempotencyKey) -> Mapping[str, object]:
+        """What a correct read-back of this approved payload must show.
+
+        The port supplies it because only the port knows the shape of a message or an
+        issue. `verify` always compares at least these; a caller can add, never remove.
+        """
+        ...
 
 
 class ActionStore(Protocol):
@@ -412,23 +420,37 @@ class ActionExecutor:
         action_id: ActionId,
         port: WritePort,
         receipt: object,
-        checks: dict[str, object],
+        approved: object,
         now: datetime,
+        *,
+        extra_checks: Mapping[str, object] | None = None,
     ) -> ExecutionResult:
-        """Read the far end and compare. A receipt is a claim; a snapshot is evidence.
+        """Read the far end and compare it with the approved plan.
 
-        `checks` must name something to compare. An empty mapping used to verify with no
-        comparison at all - a delivery check that ticks the box without looking (Phase 3
-        review, finding 7). That is a caller's bug, so it raises rather than deciding.
+        A receipt is a claim; a snapshot is evidence. What to compare is no longer the
+        caller's choice: the port derives the required fields - recipient, subject, body,
+        key - from `approved`, which must itself hash to what was planned. A caller used to
+        pass the checks, so `{"in_sent_items": True}` verified without looking at the text or
+        the recipient (second Phase 3 review, finding 4). `extra_checks` can add, never
+        replace.
         """
-        if not checks:
-            raise DomainValidationError(
-                "verify needs at least one field to compare; verifying against nothing "
-                "would mark an action VERIFIED without reading what is out there"
-            )
         action = self._actions.get(action_id)
         if action.status is not ActionStatus.SENT:
             return ExecutionResult(Outcome.BLOCKED, action_id, f"not_sent:{action.status.value}")
+
+        if _hash_of(approved) != action.payload_hash:
+            raise DomainValidationError(
+                "verify was handed a payload that is not the approved one; comparing the far "
+                "end against it would prove nothing about what was approved"
+            )
+        required = dict(port.expected_snapshot(approved, action.idempotency_key))
+        if not required:
+            raise DomainValidationError(
+                "the port named nothing to compare; verifying against nothing would mark an "
+                "action VERIFIED without reading what is out there"
+            )
+        # Required fields win any clash, so an extra check can never loosen one.
+        checks = {**(extra_checks or {}), **required}
 
         try:
             snapshot = port.read_back(receipt)

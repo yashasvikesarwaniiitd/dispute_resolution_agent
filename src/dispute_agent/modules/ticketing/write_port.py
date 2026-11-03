@@ -90,5 +90,15 @@ class IssueWritePort:
             idempotency_key=snapshot.idempotency_key,
         )
 
+    def expected_snapshot(self, payload: Any, key: IdempotencyKey) -> dict[str, object]:
+        """Everything a correct read-back of this approved issue must show."""
+        approved: IssuePayload = payload
+        return {
+            "project_key": self.project_key,
+            "summary": approved.summary,
+            "description_text": normalise(approved.description),
+            "idempotency_key": key,
+        }
+
 
 __all__ = ["IssueWritePort", "NormalisedIssue"]

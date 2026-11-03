@@ -134,6 +134,22 @@ class SqliteAssessmentStore:
             return None
         return _to_assessment(json.loads(row["result_json"]))
 
+    def get(self, assessment_id: object) -> ChargeAssessment | None:
+        return _get_assessment(self._conn, assessment_id)
+
+
+def _get_assessment(conn: Any, assessment_id: object) -> ChargeAssessment | None:
+    row = (
+        conn.execute(
+            select(assessments_table.c.result_json).where(
+                assessments_table.c.id == str(assessment_id)
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    return _to_assessment(json.loads(row["result_json"])) if row is not None else None
+
 
 def _to_assessment(raw: dict[str, Any]) -> ChargeAssessment:
     """Rebuild the assessment from its stored JSON.

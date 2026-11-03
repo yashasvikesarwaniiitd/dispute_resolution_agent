@@ -87,6 +87,16 @@ def _render(approval: Any, reviewer: Any) -> None:
         item = console.view(approval, intents=work.intents, assessments=work.assessments)
 
     with st.expander(f"{item.kind} - case {item.case_id}", expanded=True):
+        if not item.matches_approval:
+            # The stored text no longer matches what this approval is bound to. The executor
+            # would refuse to send it anyway; you should not be asked to approve it at all.
+            st.error(
+                "The stored message has changed since this approval was requested. It does "
+                "not match its fingerprint and cannot be approved. Report this."
+            )
+            return
+        st.markdown("**To**")
+        st.text(item.to)
         st.markdown("**Subject**")
         st.text(item.subject)
         st.markdown("**Message, exactly as it will be sent**")

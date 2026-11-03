@@ -46,7 +46,6 @@ from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, p
 from dispute_agent.kernel.orchestrator.steps import AssessStep, EligibilityStep, GatherEvidenceStep
 from dispute_agent.kernel.policy.config import MessagesConfig, PolicyConfig
 from dispute_agent.kernel.policy.engine import PolicyEngine
-from dispute_agent.kernel.policy.numbers import extract_numbers, justify
 from dispute_agent.kernel.policy.rules import phase_3_rules
 from dispute_agent.kernel.statemachine.machine import StateMachine
 from dispute_agent.modules.cross_case.null import NullOutcomeObserver, NullPatternContextProvider
@@ -77,6 +76,17 @@ def engine(tmp_path: Path):
     return eng
 
 
+class RestrictedMenu:
+    """The pack, with its menu replaced - to test what happens when the rules choose
+    something the case may not do."""
+
+    def __init__(self, menu: tuple[Any, ...]) -> None:
+        self.menu = menu
+
+    def allowed_actions(self, state: object, assessment: object) -> tuple[Any, ...]:
+        return self.menu
+
+
 def facts_for(name: str) -> CaseFacts:
     built = fixture(name)
     return CaseFacts(
@@ -89,7 +99,7 @@ def facts_for(name: str) -> CaseFacts:
     )
 
 
-def run(engine, name: str):
+def run(engine, name: str, *, menu: tuple[Any, ...] | None = None, allow_seller: bool = True):
     """Intake a fixture's dispute and advance it as far as it will go, with the real
     investigate station in place. Returns the case and what the station wrote."""
     facts = facts_for(name)
@@ -105,9 +115,12 @@ def run(engine, name: str):
     )
     # The recipient allow-list names this seller, as the owner's .env would name the test
     # seller. R06 refuses any other address (I11).
-    config = PolicyConfig(
-        messages=MessagesConfig(allowed_recipients=frozenset({facts.seller_contact}))
+    allowed = (
+        frozenset({facts.seller_contact})
+        if allow_seller
+        else frozenset({"someone.else@example.invalid"})
     )
+    config = PolicyConfig(messages=MessagesConfig(allowed_recipients=allowed))
 
     with SqliteUnitOfWork(engine, clock=clock) as work:
         SqliteInboxStore(work.connection).accept(inbound, NOW)
@@ -154,7 +167,7 @@ def run(engine, name: str):
             ),
             "assess": AssessStep(PACK, work.evidence, work.assessments),
             "investigate": InvestigateStep(
-                pack=PACK,  # type: ignore[arg-type]
+                pack=RestrictedMenu(menu) if menu is not None else PACK,  # type: ignore[arg-type]
                 reasoner=RulesOnlyReasoner(pack=PACK, ids=ids, clock=clock),
                 drafter=TemplateDrafter(),
                 policy=PolicyEngine(phase_3_rules(), clock, ids),
@@ -219,15 +232,25 @@ class TestScannerFaultAsksTheSellerForAPhoto:
         assert "Photo of the packed box beside a tape measure" in intent.payload.body
 
     def test_every_number_in_the_email_is_a_stored_fact(self, engine) -> None:
-        """I9, through the same check the policy engine ran. The regression this protects:
-        the case id in the subject used to be flagged as an unexplained number."""
+        """I9, asked of the rule the station runs. An earlier version rebuilt R09's mask
+        list by hand and would have passed even if R09's own masking drifted (second
+        review, finding 8)."""
+        from dispute_agent.kernel.domain.enums import PolicyStage, VerdictKind
+        from dispute_agent.kernel.policy.rules import MessageNumbersVerified
+        from dispute_agent.kernel.policy.verdicts import PolicyContext
+
         case, _, intent, assessment = run(engine, "scanner_fault")
         assert intent is not None and assessment is not None
-        facts = {f.fact_id: f for f in assessment.facts}
-        masks = (str(case.id), case.facts.shipment_ref, case.facts.claim_ref, case.facts.seller_ref)
-        for text in (intent.payload.subject, intent.payload.body):
-            for token in extract_numbers(text, masks=masks):
-                assert justify(token, intent.payload.numbers_used, facts) is None, token.text
+        verdict = MessageNumbersVerified().evaluate(
+            PolicyContext(
+                case=case,
+                stage=PolicyStage.EXECUTION,
+                intent=intent,
+                assessment=assessment,
+                now=NOW,
+            )
+        )
+        assert verdict.verdict is VerdictKind.ALLOW, verdict.reason
 
     def test_the_weight_in_the_email_carries_its_unit(self, engine) -> None:
         """The other regression: it used to read "a size-based weight of 2,244" - grams or
@@ -235,11 +258,6 @@ class TestScannerFaultAsksTheSellerForAPhoto:
         _, _, intent, _ = run(engine, "scanner_fault")
         assert intent is not None
         assert "2,244 g" in intent.payload.body
-
-    def test_nothing_was_sent(self, engine) -> None:
-        """The furthest this station goes is the approval queue."""
-        _, approvals, _, _ = run(engine, "scanner_fault")
-        assert approvals[0].used_by_action_id is None
 
 
 class TestCasesTheRulesCannotDecide:
@@ -260,39 +278,6 @@ class TestCasesTheRulesCannotDecide:
         assert case.review_reason.code is ReviewCode.POLICY_ESCALATED
         assert "Phase 5" in (case.review_reason.detail or "")
         assert approvals == []
-
-    def test_a_seller_not_on_the_allow_list_is_refused_before_any_draft_is_filed(
-        self, engine
-    ) -> None:
-        """I11, at planning. The scanner_fault run above reaches the queue only because the
-        test config allow-lists this seller; this is the control - the same plan addressed to
-        anyone else is refused by the rule the step actually runs."""
-        from dispute_agent.kernel.policy.rules import RecipientAllowlisted
-        from dispute_agent.kernel.policy.verdicts import PolicyContext
-
-        case, _, intent, _ = run(engine, "scanner_fault")
-        assert intent is not None
-        stranger = intent.model_copy(
-            update={
-                "payload": intent.payload.model_copy(update={"to": "someone@elsewhere.invalid"})
-            }
-        )
-        from dispute_agent.kernel.domain.enums import PolicyStage, VerdictKind
-
-        verdict = RecipientAllowlisted().evaluate(
-            PolicyContext(
-                case=case,
-                stage=PolicyStage.PLANNING,
-                intent=stranger,
-                policy=PolicyConfig(
-                    messages=MessagesConfig(
-                        allowed_recipients=frozenset({case.facts.seller_contact})
-                    )
-                ),
-                now=NOW,
-            )
-        )
-        assert verdict.verdict is VerdictKind.DENY
 
 
 class TestTheReviewerSeesTheEmail:
@@ -332,3 +317,84 @@ class TestTheReviewerSeesTheEmail:
         """Every fact on the case would bury the two that matter."""
         item, intent = self.view_of_the_pending_approval(engine)
         assert len(item.numbers) == len(intent.payload.numbers_used)
+
+
+class TestTheMenuIsEnforced:
+    """Second Phase 3 review, finding 3. The menu was built, carried on the briefing and
+    then ignored."""
+
+    def test_an_off_menu_choice_goes_to_a_person_and_files_nothing(self, engine) -> None:
+        from dispute_agent.kernel.domain.enums import ProposalAction
+
+        # The rules choose "ask the seller for a photo"; this case may only escalate or wait.
+        case, approvals, intent, _ = run(
+            engine,
+            "scanner_fault",
+            menu=(ProposalAction.ESCALATE_TO_HUMAN, ProposalAction.WAIT),
+        )
+        assert case.state is CaseState.NEEDS_HUMAN_REVIEW
+        assert case.review_reason is not None
+        assert case.review_reason.code is ReviewCode.INVALID_MODEL_OUTPUT
+        assert approvals == []
+        assert intent is None
+
+    def test_the_same_choice_on_the_menu_goes_through(self, engine) -> None:
+        """The control."""
+        case, approvals, _, _ = run(engine, "scanner_fault")
+        assert case.state is CaseState.AWAITING_APPROVAL
+        assert len(approvals) == 1
+
+
+class TestAnAddressNotOnTheAllowListFilesNothing:
+    """Replaces a test that called the rule directly and claimed more than it showed
+    (second review, finding 8). This runs the whole station."""
+
+    def test_nothing_reaches_the_approval_queue(self, engine) -> None:
+        case, approvals, intent, _ = run(engine, "scanner_fault", allow_seller=False)
+        assert case.state is CaseState.NEEDS_HUMAN_REVIEW
+        assert case.review_reason is not None
+        assert case.review_reason.code is ReviewCode.POLICY_DENIED
+        assert "R06" in (case.review_reason.detail or "")
+        assert approvals == []
+        assert intent is None
+
+
+class TestTheReviewPageGuards:
+    """Second Phase 3 review, finding 7."""
+
+    def test_the_recipient_is_shown(self, engine: Any) -> None:
+        item, intent = TestTheReviewerSeesTheEmail().view_of_the_pending_approval(engine)
+        assert item.to == intent.payload.to
+        assert item.to == facts_for("scanner_fault").seller_contact
+
+    def test_an_untampered_message_matches_its_approval(self, engine: Any) -> None:
+        item, _ = TestTheReviewerSeesTheEmail().view_of_the_pending_approval(engine)
+        assert item.matches_approval is True
+
+    def test_a_message_edited_behind_the_system_is_flagged(self, engine: Any) -> None:
+        """Someone edits the stored text directly. The approval is bound to the old text;
+        the page must say so rather than show the new text as if it were approved."""
+        import json
+
+        from sqlalchemy import update
+
+        from dispute_agent.infra.sqlite.tables import action_intents
+        from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
+
+        _, approvals, intent, _ = run(engine, "scanner_fault")
+        assert intent is not None
+        tampered = intent.payload.model_copy(update={"body": "Please pay us more."})
+        with SqliteUnitOfWork(engine, clock=FakeClock(NOW)) as work:
+            work.connection.execute(
+                update(action_intents)
+                .where(action_intents.c.id == str(intent.id))
+                .values(payload_json=json.dumps(tampered.model_dump(mode="json")))
+            )
+        with SqliteUnitOfWork(engine, clock=FakeClock(NOW)) as work:
+            console = ReviewConsole(
+                store=work.approvals,
+                clock=FakeClock(NOW),
+                reviewer=sign_in("t" * 20, "t" * 20, "owner"),
+            )
+            item = console.view(approvals[0], intents=work.intents, assessments=work.assessments)
+        assert item.matches_approval is False
