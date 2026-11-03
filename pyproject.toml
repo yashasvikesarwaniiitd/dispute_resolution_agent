@@ -77,6 +77,11 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 [tool.ruff.lint.per-file-ignores]
 # Tests may shadow builtins in fixtures and use assert freely.
 "tests/**" = ["A002", "A003"]
+# TC rules want annotation-only imports moved into a TYPE_CHECKING block. A port's
+# annotations are resolved at runtime: tests/architecture/test_ports.py calls get_type_hints
+# on every port method, which is what catches a port naming a domain model nobody built.
+# Hiding the imports would make that check fail on every port instead of on a real mistake.
+"src/dispute_agent/kernel/ports/*.py" = ["TC001", "TC003"]
 # N818 wants an "Error" suffix on every exception. kernel-interfaces.md section 5 names
 # these exactly (IllegalTransition, ModuleUnavailable, AmbiguousOutcome, ...) and the whole
 # specification refers to them by those names. The frozen spec outranks the lint convention.
