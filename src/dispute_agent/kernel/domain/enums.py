@@ -341,3 +341,15 @@ class ReviewCode(StrEnum):
     STEP_LIMIT = "step_limit"
     REPLY_UNRESOLVED = "reply_unresolved"
     INTERNAL_ERROR = "internal_error"
+
+    # Added by the Stage A2 amendment (kernel-interfaces.md section 13, second block).
+    # policy-rules.md section 8 maps each rule reason to the code of the same name:
+    # R21 -> MANIPULATION_SUSPECTED, R22 -> LOW_CONFIDENCE, R14 -> MULTIPLE_DEFINITE_ERRORS,
+    # R16 -> LEDGER_STATE_UNKNOWN, the DMARC signal -> SENDER_UNAUTHENTICATED.
+    # CREDIT_WINDOW_ENDED pairs with the TransientPortError reason of the same name (F01).
+    MANIPULATION_SUSPECTED = "manipulation_suspected"
+    LOW_CONFIDENCE = "low_confidence"
+    MULTIPLE_DEFINITE_ERRORS = "multiple_definite_errors"
+    LEDGER_STATE_UNKNOWN = "ledger_state_unknown"
+    SENDER_UNAUTHENTICATED = "sender_unauthenticated"
+    CREDIT_WINDOW_ENDED = "credit_window_ended"

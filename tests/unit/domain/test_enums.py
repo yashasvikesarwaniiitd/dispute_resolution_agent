@@ -8,9 +8,9 @@ parted company, so these read the source of truth at test time.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 from dispute_agent.kernel.domain.enums import CaseState as State
@@ -80,20 +80,38 @@ def test_proposal_action_matches_prompt_schema() -> None:
     assert set(schema["properties"]["action"]["enum"]) == {a.value for a in ProposalAction}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Spec conflict found building card P0-03, awaiting an ADR and the owner. "
-        "policy-rules.md section 8 declares manipulation_suspected, low_confidence, "
-        "multiple_definite_errors, ledger_state_unknown (all 'new in A2') and "
-        "sender_unauthenticated ('new'), but the ReviewCode enum in kernel-interfaces.md "
-        "section 3 is the Stage A1 list and never received them; neither does the A2 "
-        "amendment block in section 13. Both documents are in docs/spec/, so the authority "
-        "order does not settle it, and docs/spec/ is frozen at arch-v1 "
-        "(escalation-guide.md section 3). strict=True, so this flips to a failure the "
-        "moment it is resolved rather than being silently carried."
-    ),
-)
+def _review_codes_declared_in_the_spec() -> set[str]:
+    """Every ReviewCode value kernel-interfaces.md declares, section 3 and its amendments.
+
+    The enum is declared once in section 3 and extended again in section 13, which is how
+    six members came to be missed when this file was first written. Reading both out of the
+    document is the only thing that keeps the two from parting company again.
+    """
+    text = (ROOT / "docs/spec/kernel-interfaces.md").read_text(encoding="utf-8")
+    member = re.compile(r'^\s*([A-Z][A-Z0-9_]*)\s*=\s*"([a-z0-9_]+)"')
+    values: set[str] = set()
+    collecting = False
+    for line in text.splitlines():
+        if "class ReviewCode(StrEnum):" in line or re.search(
+            r"# ReviewCode \(section \d+\): new members", line
+        ):
+            collecting = True
+            continue
+        if not collecting:
+            continue
+        found = [m.group(2) for part in line.split(";") if (m := member.match(part.strip()))]
+        if found:
+            values.update(found)
+        elif line.strip() and not line.lstrip().startswith("#"):
+            collecting = False  # the block moved on to something else
+    return values
+
+
+def test_review_code_matches_kernel_interfaces() -> None:
+    """Drift test: the enum is exactly what the spec declares, amendments included."""
+    assert {c.value for c in ReviewCode} >= _review_codes_declared_in_the_spec()
+
+
 def test_review_codes_used_by_scenarios_all_exist() -> None:
     """Every review code the scenario catalogue expects is a real ReviewCode."""
     catalogue = yaml.safe_load((ROOT / "docs/spec/eval-scenarios.yaml").read_text(encoding="utf-8"))
