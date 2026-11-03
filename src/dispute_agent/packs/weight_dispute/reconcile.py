@@ -85,10 +85,7 @@ class Reconciliation:
         candidates: list[Money] = []
         if CALCULATION_ERROR in self.definite_errors and self.recalculated is not None:
             candidates.append(self.recalculated)
-        if (
-            REMEASUREMENT_LOWER in self.definite_errors
-            and self.recalculated_remeasured is not None
-        ):
+        if REMEASUREMENT_LOWER in self.definite_errors and self.recalculated_remeasured is not None:
             candidates.append(self.recalculated_remeasured)
         return min(candidates, default=None)
 
@@ -180,9 +177,7 @@ def _duplicate_debit_total(ledger: Sequence[LedgerLine], claim_ref: str) -> Mone
     The *first* debit is the charge; anything identical after it is the duplicate, so the
     amount owed is the sum of the extras rather than the whole lot.
     """
-    debits = [
-        line for line in ledger if line.kind == "DEBIT" and line.claim_ref == claim_ref
-    ]
+    debits = [line for line in ledger if line.kind == "DEBIT" and line.claim_ref == claim_ref]
     if len(debits) <= 1:
         return Money.of("0.00")
     extra_paise = sum(line.amount_paise for line in debits[1:])
@@ -190,7 +185,7 @@ def _duplicate_debit_total(ledger: Sequence[LedgerLine], claim_ref: str) -> Mone
 
 
 def _unproven(reason: str) -> Exception:
-    from dispute_agent.kernel.domain.errors import DomainValidationError  # noqa: PLC0415
+    from dispute_agent.kernel.domain.errors import DomainValidationError
 
     return DomainValidationError(
         f"{reason!r} is not a proven definite error for this case; a credit needs code to "

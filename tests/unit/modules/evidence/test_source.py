@@ -179,7 +179,7 @@ class TestNumbersSurviveTheTrip:
         assert isinstance(dims.value["dead_grams"], int)
         entries = ledger.value["entries"]
         assert isinstance(entries, list)
-        assert all(isinstance(e["amount_paise"], int) for e in entries)  # type: ignore[index]
+        assert all(isinstance(e["amount_paise"], int) for e in entries)
 
 
 class TestDeterminism:

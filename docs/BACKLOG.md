@@ -45,3 +45,24 @@ From the Phase 1 safety review (2026-11-03), carried rather than fixed:
   consult one; `settings.kill_switch` is read by nothing. I10 holds because the executor
   checks its own switch in `plan` and `execute`, but nothing can currently engage it.
   Phase 3 needs the adapter and the control_flags row behind it.
+
+## Found during Phase 2 (P2-06)
+
+- **`EvidenceStore` and `TimerStore` were never built.** `kernel-interfaces.md` section 6.2
+  specifies both; no Phase 0 or 1 card creates them, which is the same gap as the section 4
+  models. P2-06 works around it by keeping the gather round pure — it decides and returns
+  the results, and the caller records them — which is the right shape anyway, but the ports
+  still have to exist before P2-09 can wire the step into the orchestrator.
+- **`TimerStore` has no way to count fired EVIDENCE_RETRY timers for a gather round.** D41
+  limits retries to three *per round* and finding B22 added `timers.gather_round` so the
+  count is possible, but the port exposes `active`, `due` and `get` only — nothing reads
+  fired rows by round. `gather()` therefore takes the count as an argument. Adding the
+  method is a change to a frozen spec, so it needs an ADR at P2-09.
+- **Reply interpretation is not in the gather round yet.** `orchestrator.md` has the step
+  interpret unread seller replies into AI_DERIVED items. That needs `MessageRecord` (not
+  built) and a `ReplyInterpreter` adapter (Phase 4). The source half is complete and tested;
+  the reply half is a seam, not an omission to forget.
+- **P2-07's card lists `modules/ledger/simulated/` among its files**, but its Build, Tests
+  and Acceptance are entirely about `reconcile.py`, and the Ledger contract suite defers the
+  simulated adapter to Phase 5 (card P5-02). Built `reconcile.py` only. If the intent was to
+  build the adapter in Phase 2, that is a card conflict to settle before Phase 5.

@@ -137,6 +137,4 @@ class TestDeterminism:
     def test_the_same_seed_gives_the_same_evidence(self, source: EvidenceSource) -> None:
         """I11 and CLAUDE.md section 10: synthetic data is reproducible, or a failing
         scenario cannot be re-run."""
-        assert source.fetch(CASE, FACTS, PRESENT).value == source.fetch(
-            CASE, FACTS, PRESENT
-        ).value
+        assert source.fetch(CASE, FACTS, PRESENT).value == source.fetch(CASE, FACTS, PRESENT).value

@@ -22,7 +22,6 @@ from dispute_agent.kernel.domain.enums import EvidenceStatus
 from dispute_agent.kernel.domain.errors import ModuleUnavailable
 from dispute_agent.kernel.domain.evidence import EvidenceResult
 from dispute_agent.kernel.domain.values import UntrustedText
-from dispute_agent.modules.evidence.synthetic_shipments.fixtures import Fixture
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -30,6 +29,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.case import CaseFacts
     from dispute_agent.kernel.domain.evidence import EvidenceRequirement
     from dispute_agent.kernel.domain.ids import CaseId
+    from dispute_agent.modules.evidence.synthetic_shipments.fixtures import Fixture
 
 MODULE = "evidence"
 ADAPTER = "synthetic_shipments"
@@ -120,7 +120,7 @@ class SyntheticShipmentSource:
         )
 
     def _missing(self, key: str, now: datetime) -> EvidenceResult:
-        """"There is nothing there" — which is not the same as "we could not find out"."""
+        """ "There is nothing there" — which is not the same as "we could not find out"."""
         return EvidenceResult(
             requirement_key=key, source=self.name, status=EvidenceStatus.MISSING, retrieved_at=now
         )
@@ -200,7 +200,8 @@ def _dims(dimensions: object) -> dict[str, object]:
 
 
 def _now() -> datetime:
-    from datetime import UTC, datetime as _datetime  # noqa: PLC0415
+    from datetime import UTC
+    from datetime import datetime as _datetime
 
     return _datetime.now(UTC)
 

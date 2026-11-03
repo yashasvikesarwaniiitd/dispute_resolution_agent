@@ -47,7 +47,7 @@ def lines(built: object) -> list[LedgerLine]:
     ]
 
 
-def reconcile_fixture(name: str, **overrides: object):  # noqa: ANN201
+def reconcile_fixture(name: str, **overrides: object):
     built = fixture(name)
     shipment = built.shipment
     kwargs: dict[str, object] = {
@@ -89,9 +89,7 @@ class TestCalculationError:
 
     def test_an_undercharge_proves_nothing(self) -> None:
         """Recalculating higher than the bill is not this system's business."""
-        result = reconcile_fixture(
-            "kurta_box_larger", charged=Money.of("100.00")
-        )
+        result = reconcile_fixture("kurta_box_larger", charged=Money.of("100.00"))
         assert CALCULATION_ERROR not in result.definite_errors
 
 
@@ -204,7 +202,7 @@ class TestFreeTextNeverProves:
 class TestTheReasonVocabularyIsClosed:
     def test_only_three_reasons_exist(self) -> None:
         """Adding one needs a pack rule that proves it and an ADR (money-rules section 2)."""
-        assert REASON_CODES == {CALCULATION_ERROR, REMEASUREMENT_LOWER, DUPLICATE_CHARGE}
+        assert {CALCULATION_ERROR, REMEASUREMENT_LOWER, DUPLICATE_CHARGE} == REASON_CODES
 
     def test_it_matches_the_shipped_policy(self) -> None:
         from dispute_agent.kernel.policy.config import PolicyConfig
