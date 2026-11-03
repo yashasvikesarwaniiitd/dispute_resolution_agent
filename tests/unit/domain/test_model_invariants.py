@@ -192,9 +192,23 @@ class TestActionNeedsApproval:
 
     def test_a_credit_with_one_is_fine(self) -> None:
         action = self.an_action(
-            action_type=ActionType.POST_CREDIT, approval_id=ApprovalId("apr_01HQ")
+            action_type=ActionType.POST_CREDIT,
+            approval_id=ApprovalId("apr_01HQ"),
+            credit_shipment_ref="SHP-0001",
+            credit_reason_code="calculation_error",
         )
         assert action.approval_id == ApprovalId("apr_01HQ")
+
+    def test_a_credit_without_its_index_keys_is_refused(self) -> None:
+        """ux_actions_one_credit indexes (credit_shipment_ref, credit_reason_code). Left
+        unset, the index would be indexing NULLs and refusing nothing (I3). Found by the
+        Phase 1 safety review."""
+        with pytest.raises(DomainValidationError, match="ux_actions_one_credit"):
+            self.an_action(action_type=ActionType.POST_CREDIT, approval_id=ApprovalId("apr_01HQ"))
+
+    def test_a_message_must_not_carry_them(self) -> None:
+        with pytest.raises(DomainValidationError, match="exactly for POST_CREDIT"):
+            self.an_action(credit_shipment_ref="SHP-0001", credit_reason_code="x")
 
 
 class TestEvidenceNeverInvents:

@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from dispute_agent.kernel.domain.case import normalise_recipients
 from dispute_agent.kernel.domain.enums import (
     ActorKind,
     CaseState,
@@ -72,7 +73,7 @@ def check_recipient(contact: str, allowed: Collection[str]) -> None:
     deployment that emails strangers is a worse failure than one that processes nothing, and
     "no list" is far more likely to be an oversight than an intention.
     """
-    if contact.lower() not in {entry.strip().lower() for entry in allowed if entry.strip()}:
+    if contact.strip().lower() not in normalise_recipients(allowed):
         raise RecipientNotAllowedError(
             f"{contact} is not on the test recipient allowlist; this project writes only to "
             "the owner's own test addresses (I11)"
@@ -174,4 +175,11 @@ def _input_cause(event_id: EventId) -> Cause:
     return Cause(kind=_CauseKind.INPUT_EVENT, ref=str(event_id))
 
 
-__all__ = ["SOFT_TERMINAL", "Intake", "IntakeResult", "RecipientNotAllowedError", "check_recipient"]
+__all__ = [
+    "SOFT_TERMINAL",
+    "Intake",
+    "IntakeResult",
+    "RecipientNotAllowedError",
+    "check_recipient",
+    "normalise_recipients",
+]

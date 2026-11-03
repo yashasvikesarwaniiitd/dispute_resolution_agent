@@ -29,3 +29,19 @@ Ideas parked outside the current phase. Do not build from here without the owner
 - kernel-interfaces.md section 4.9 omits `Timer.gather_round`, which schema.sql requires
   and D41 depends on. The model carries it with the reasoning recorded; the interface
   listing should gain it at the next spec revision.
+
+From the Phase 1 safety review (2026-11-03), carried rather than fixed:
+
+- The policy engine's mandatory-rule check tests identity, not behaviour: a stub with
+  `rule_id = "R13"` that returns ALLOW would satisfy it. The shipped rules are pinned by
+  their own tests, so this only bites a future `phase_N_rules()`. A contract test keyed
+  on rule id would close it ("whatever claims R02 must DENY when kill_switch is set").
+- There is no SQLite ActionStore yet, so the executor is only exercised against a fake
+  with no triggers. The claim that `tr_actions_approval_binding` and
+  `ux_actions_one_credit` would refuse a bad credit even without the Python checks is
+  true of the DDL and untested end to end. Phase 5 (cards P5-02, P5-03) should plan a
+  credit against the real schema.
+- There is no `KillSwitch` adapter in `src/` at all, and the orchestrator does not
+  consult one; `settings.kill_switch` is read by nothing. I10 holds because the executor
+  checks its own switch in `plan` and `execute`, but nothing can currently engage it.
+  Phase 3 needs the adapter and the control_flags row behind it.

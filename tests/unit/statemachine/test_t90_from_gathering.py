@@ -94,7 +94,13 @@ class TestTheCausesThatReachIt:
     """Four reasons, none of them an evidence failure (ADR 0026)."""
 
     def test_the_kill_switch_strands_a_gathering_case(self) -> None:
-        """I10. Without this edge, a switch thrown mid-gather leaves no legal move at all."""
+        """I10, as a design reason rather than a wired path.
+
+        The switch is checked inside the executor; the orchestrator does not consult it yet
+        and there is no KillSwitch adapter in src/ (Phase 1 safety review, finding 7). This
+        asserts the transition exists for it, not that the path runs today — the other three
+        causes below are live.
+        """
         applied = escalate(ReviewReason(code=ReviewCode.KILL_SWITCH_ACTIVE))
         assert applied.case.state is CaseState.NEEDS_HUMAN_REVIEW
         assert applied.transition.id == "T90"

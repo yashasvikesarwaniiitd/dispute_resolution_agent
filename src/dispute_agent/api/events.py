@@ -73,7 +73,19 @@ def build_events_router(runtime: Runtime) -> APIRouter:
         except RecipientNotAllowedError as refused:
             # 422 and nothing stored. Refusing late would leave a case the system can never
             # safely act on (I11, S27).
-            raise HTTPException(status_code=422, detail=str(refused)) from refused
+            #
+            # The message is fixed rather than str(refused), which embedded the submitted
+            # address verbatim. Not an I5 violation - nothing merges it into instructions -
+            # but echoing attacker-controlled text into a response body is a habit worth not
+            # having. The address is in the exception for the logs, which are redacted.
+            log.info("dispute_refused", reason="recipient_not_allowlisted")
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "the seller contact is not on the test recipient allowlist; this "
+                    "project writes only to the owner's own test addresses (I11)"
+                ),
+            ) from refused
 
     return router
 

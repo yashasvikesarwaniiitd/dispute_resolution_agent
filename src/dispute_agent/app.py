@@ -230,7 +230,7 @@ def build_application(
     registry = validate_modules(load_modules_file(directory), app_env=env)
     clock = SystemClock()
     ids = UlidIdGenerator()
-    runtime = _build_runtime(database, loaded, clock, ids) if database else None
+    runtime = _build_runtime(directory, database, loaded, clock, ids) if database else None
     return Application(
         registry=registry,
         adapters=build_adapters(registry),
@@ -272,10 +272,13 @@ def _default_database() -> Path | None:
     return path if path.is_file() else None
 
 
-def _build_runtime(database: Path, settings: Settings, clock: Clock, ids: IdGenerator) -> Runtime:
+def _build_runtime(
+    config_dir: Path, database: Path, settings: Settings, clock: Clock, ids: IdGenerator
+) -> Runtime:
     """Wire storage, intake and the step loop. The only place any of this is assembled."""
     from datetime import timedelta
 
+    from dispute_agent.infra.policy import load_policy
     from dispute_agent.infra.sqlite.engine import create_sqlite_engine, verify_pragmas
     from dispute_agent.infra.sqlite.unit_of_work import unit_of_work_factory
     from dispute_agent.infra.transitions import default_table
@@ -284,7 +287,6 @@ def _build_runtime(database: Path, settings: Settings, clock: Clock, ids: IdGene
         Orchestrator,
         phase_1_steps,
     )
-    from dispute_agent.kernel.policy.config import PolicyConfig
     from dispute_agent.kernel.statemachine.machine import StateMachine
     from dispute_agent.modules.cross_case.null import (
         NullOutcomeObserver,
@@ -293,15 +295,16 @@ def _build_runtime(database: Path, settings: Settings, clock: Clock, ids: IdGene
 
     engine = create_sqlite_engine(database)
     verify_pragmas(engine)
-    policy = PolicyConfig()
 
-    allowed = (
-        tuple(settings.test_seller_email.split(","))
-        if settings.test_seller_email
-        else tuple(policy.messages.allowed_recipients)
-    )
+    # One source for the allowlist. It used to be read twice - intake from the environment,
+    # R06 from a PolicyConfig nobody loaded - and the two could disagree (safety review,
+    # finding 3). The addresses come from TEST_SELLER_EMAIL so a checked-in file can never
+    # name a mailbox (I11), and are merged into the policy here.
+    from_env = tuple(settings.test_seller_email.split(",")) if settings.test_seller_email else ()
+    policy = load_policy(config_dir, allowed_recipients=from_env)
+
     intake = Intake(
-        allowed_recipients=allowed,
+        allowed_recipients=tuple(policy.messages.allowed_recipients),
         reopen_window=timedelta(days=policy.timers.reopen_window_days),
     )
     orchestrator = Orchestrator(

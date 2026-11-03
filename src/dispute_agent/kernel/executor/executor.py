@@ -107,7 +107,15 @@ class ActionStore(Protocol):
         self, action_id: ActionId, status: ActionStatus, now: datetime, **fields: object
     ) -> Action: ...
     def find_approval_for(self, intent_id: object) -> Approval | None: ...
-    def live_credits(self, shipment_ref: str, reason_code: str) -> int: ...
+
+    def live_credits(self, shipment_ref: str, reason_code: str) -> int:
+        """Credits for this shipment and reason that are PLANNED, SENT, UNKNOWN or VERIFIED,
+        across every case. Only a FAILED one — proven not to have happened — frees the slot."""
+        ...
+
+    def has_verified_credit(self, case_id: object) -> bool:
+        """ADR 0012: a case that already credited is finished with crediting."""
+        ...
 
 
 class KillSwitch(Protocol):
@@ -164,6 +172,11 @@ class ActionExecutor:
         # approval they cannot see, and they would correctly deny every message.
         approval = self._actions.find_approval_for(intent.id)
 
+        # Every safety input a rule reads is gathered here, from the stores, at execution
+        # time. The first version of this passed only the stage, intent, approval and clock,
+        # which left R02 reading a kill switch nobody set and R17 counting credits nobody
+        # counted — so a duplicate credit would have been allowed by a rule that believed it
+        # had checked. "Fresh counts" in executor.md section 4 step 1 means these.
         verdict = self._policy.evaluate(
             ctx.model_copy(
                 update={
@@ -171,6 +184,9 @@ class ActionExecutor:
                     "intent": intent,
                     "approval": approval,
                     "now": now,
+                    "kill_switch": self._kill_switch.is_engaged(),
+                    "live_credits_same_shipment_reason": self._live_credits(intent),
+                    "case_has_verified_credit": self._actions.has_verified_credit(case.id),
                 }
             )
         )
@@ -203,8 +219,30 @@ class ActionExecutor:
             payload_hash=intent.payload_hash,
             status=ActionStatus.PLANNED,
             planned_at=now,
+            credit_shipment_ref=getattr(intent.payload, "shipment_ref", None)
+            if intent.action_type is ActionType.POST_CREDIT
+            else None,
+            credit_reason_code=getattr(intent.payload, "reason_code", None)
+            if intent.action_type is ActionType.POST_CREDIT
+            else None,
         )
         return self._actions.insert(action), verdict
+
+    def _live_credits(self, intent: ActionIntent) -> int:
+        """How many live credits already exist for this shipment and reason (R17, I3).
+
+        Zero for anything that is not a credit, so the count is never a stale number from a
+        caller's context — which is what made R17 a rule that believed it had checked.
+        """
+        if intent.action_type is not ActionType.POST_CREDIT:
+            return 0
+        shipment = getattr(intent.payload, "shipment_ref", None)
+        reason = getattr(intent.payload, "reason_code", None)
+        if shipment is None or reason is None:
+            # A credit payload without these cannot be checked for duplication, and the
+            # database index would be indexing NULLs. Refuse rather than count zero.
+            raise PolicyRefused("DENY", "credit_payload_incomplete")
+        return self._actions.live_credits(shipment, reason)
 
     def _require_binding(
         self, intent: ActionIntent, approval: Approval | None, now: datetime

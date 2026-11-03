@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from dispute_agent.kernel.domain.case import normalise_recipients
 from dispute_agent.kernel.domain.enums import ActionType
 from dispute_agent.kernel.policy.verdicts import allow, deny
 
@@ -31,10 +32,12 @@ class RecipientAllowlisted:
         if intent is None or intent.action_type is not ActionType.SEND_MESSAGE:
             return allow(self.rule_id, "not_a_message")
 
-        recipient = getattr(intent.payload, "to", "")
-        allowed = {entry.lower() for entry in ctx.policy.messages.allowed_recipients}
-        if recipient.lower() not in allowed:
+        recipient = getattr(intent.payload, "to", "").strip().lower()
+        # The same normaliser intake uses, so a blank or padded entry cannot mean one
+        # thing at the door and another here.
+        allowed = normalise_recipients(ctx.policy.messages.allowed_recipients)
+        if not recipient or recipient not in allowed:
             return deny(self.rule_id, "recipient_not_allowlisted")
-        if recipient.lower() != ctx.case.facts.seller_contact.lower():
+        if recipient != ctx.case.facts.seller_contact.strip().lower():
             return deny(self.rule_id, "recipient_mismatch")
         return allow(self.rule_id)

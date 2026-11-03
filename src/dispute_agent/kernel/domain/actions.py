@@ -263,6 +263,12 @@ class Action(BaseModel):
     verify_attempts: Annotated[int, Field(ge=0)] = 0
     verify_deadline_at: datetime | None = None
     verified_by: Actor | None = None
+    #: Copied from the credit intent so the database can refuse a second live credit.
+    #: schema.sql CHECKs both are present exactly for POST_CREDIT, and
+    #: `ux_actions_one_credit` indexes them - left off the model, the index would be
+    #: indexing (NULL, NULL) and enforcing nothing (I3). Found by the Phase 1 review.
+    credit_shipment_ref: str | None = None
+    credit_reason_code: str | None = None
 
     @field_validator("planned_at")
     @classmethod
@@ -271,9 +277,18 @@ class Action(BaseModel):
 
     @model_validator(mode="after")
     def _credit_needs_approval(self) -> Self:
-        """I3: no credit without a stored approval record."""
-        if self.action_type is ActionType.POST_CREDIT and self.approval_id is None:
+        """I3: no credit without a stored approval record, and nothing to index without."""
+        is_credit = self.action_type is ActionType.POST_CREDIT
+        if is_credit and self.approval_id is None:
             raise DomainValidationError("POST_CREDIT needs an approval (I3)")
+        has_credit_keys = (
+            self.credit_shipment_ref is not None and self.credit_reason_code is not None
+        )
+        if is_credit != has_credit_keys:
+            raise DomainValidationError(
+                "credit_shipment_ref and credit_reason_code are set exactly for POST_CREDIT; "
+                "without them ux_actions_one_credit cannot refuse a duplicate (I3)"
+            )
         return self
 
 

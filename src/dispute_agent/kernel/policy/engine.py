@@ -116,7 +116,14 @@ class PolicyEngine:
     def _run(self, rule: object, ctx: PolicyContext) -> RuleResult:
         rule_id = getattr(rule, "rule_id", "unknown")
         try:
-            return rule.evaluate(ctx)  # type: ignore[attr-defined, no-any-return]
+            evaluate = rule.evaluate  # type: ignore[attr-defined]
+            result = evaluate(ctx)
+            if not isinstance(result, RuleResult):
+                # A rule that *returns* nonsense would otherwise blow up later, outside this
+                # handler. A crash is safe, but it escapes the "a bad rule becomes DENY"
+                # story, and the story is what the next reader will rely on.
+                raise TypeError(f"{rule_id} returned {type(result).__name__}")
+            return result
         except Exception:
             # Fail safe (kernel-interfaces.md section 7). A buggy rule that stops an action
             # is recoverable; a buggy rule that is skipped means the system acted without a

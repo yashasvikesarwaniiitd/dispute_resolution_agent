@@ -163,8 +163,14 @@ class FakeActionStore:
     def find_approval_for(self, intent_id: object) -> Approval | None:
         return self.approval
 
+    live_credit_count: int = 0
+    verified_credit: bool = False
+
     def live_credits(self, shipment_ref: str, reason_code: str) -> int:
-        return 0
+        return self.live_credit_count
+
+    def has_verified_credit(self, case_id: object) -> bool:
+        return self.verified_credit
 
 
 class AlwaysOff:
@@ -470,3 +476,67 @@ class TestConstruction:
         engine = PolicyEngine(phase_1_rules(), FakeClock(NOW), FakeIdGenerator())
         with pytest.raises(ValueError, match="must exceed"):
             ActionExecutor(engine, store, AlwaysOff(), claim_lease_s=100, execute_budget_s=300)
+
+
+class TestTheExecutorSuppliesItsOwnSafetyInputs:
+    """Regression for the Phase 1 safety review, finding 1.
+
+    `plan` used to build the execution context with only the stage, intent, approval and
+    clock. Everything else came from whatever the caller passed, so R02 read a kill switch
+    nobody set and R17 counted credits nobody counted — a rule that believed it had checked.
+    The executor now gathers all three from the stores it already holds.
+    """
+
+    def plan_credit(self, store: FakeActionStore) -> tuple[Action, object]:
+        return executor(store).plan(CASE, credit_intent(), ctx(), NOW, ActionId("act_01HQ"))
+
+    def test_a_duplicate_credit_is_refused_even_with_a_clean_context(self) -> None:
+        """The break the review named: a VERIFIED credit already exists for this shipment
+        and reason, the caller's context says nothing, and R17 must still refuse."""
+        store = FakeActionStore(approval=an_approval(ApprovalSubject.CREDIT))
+        store.live_credit_count = 1
+        with pytest.raises(PolicyRefused):
+            self.plan_credit(store)
+
+    def test_a_case_that_already_credited_is_refused(self) -> None:
+        """ADR 0012, through the same path."""
+        store = FakeActionStore(approval=an_approval(ApprovalSubject.CREDIT))
+        store.verified_credit = True
+        with pytest.raises(PolicyRefused):
+            self.plan_credit(store)
+
+    def test_a_clean_credit_still_plans(self) -> None:
+        """The positive control: the count is consulted, not assumed to be non-zero."""
+        store = FakeActionStore(approval=an_approval(ApprovalSubject.CREDIT))
+        action, _ = self.plan_credit(store)
+        assert action.action_type is ActionType.POST_CREDIT
+
+    def test_the_planned_credit_carries_its_index_keys(self) -> None:
+        """Without these, ux_actions_one_credit indexes NULLs and refuses nothing (I3)."""
+        store = FakeActionStore(approval=an_approval(ApprovalSubject.CREDIT))
+        action, _ = self.plan_credit(store)
+        assert action.credit_shipment_ref == "SHP-0001"
+        assert action.credit_reason_code == "calculation_error"
+
+    def test_the_kill_switch_reaches_the_policy_engine_too(self) -> None:
+        """R02 was a dead rule on this path: the context's kill_switch was never set from
+        the switch the executor holds. plan() raises before policy now, so this asserts the
+        direct check and the rule agree rather than only one of them working."""
+        store = FakeActionStore(approval=an_approval())
+        with pytest.raises(KillSwitchEngaged):
+            executor(store, AlwaysOn()).plan(
+                CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ")
+            )
+
+    def test_a_credit_payload_missing_its_keys_is_refused(self) -> None:
+        """Counting zero for a payload that cannot be checked would be the same bug again."""
+        store = FakeActionStore(approval=an_approval(ApprovalSubject.CREDIT))
+        broken = credit_intent().model_copy(
+            update={
+                "payload": MessagePayload(
+                    kind=MessageKind.REMINDER, to=SELLER, subject="s", body="b"
+                )
+            }
+        )
+        with pytest.raises(PolicyRefused, match="credit_payload_incomplete"):
+            executor(store).plan(CASE, broken, ctx(), NOW, ActionId("act_01HQ"))

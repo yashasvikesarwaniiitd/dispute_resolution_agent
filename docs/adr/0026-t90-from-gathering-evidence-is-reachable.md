@@ -22,12 +22,20 @@ But `T90` is not an evidence transition. It is declared against the whole `escal
 and fires on the `escalate` trigger, which the orchestrator raises for reasons that have
 nothing to do with what a step is doing:
 
-- the **kill switch** is engaged (I10): the case stops wherever it is, including mid-gather
+- the **kill switch** is engaged (I10): the case stops wherever it is, including
+  mid-gather. *(Phase 1 note, added after the safety review: the switch is checked inside
+  the executor, and the orchestrator does not consult it yet — there is no `KillSwitch`
+  adapter in `src/` at all. This reason is sound in design and not yet wired, which the
+  review was right to catch. The three below are live today.)*
 - the **step limit** is reached (`orchestrator.md` section 3): a case producing work without
   resting stops and tells someone
 - a **module the step needs is disabled** (I6): `module_unavailable:evidence` is raised and
   converted in the orchestrator's one conversion point
 - an **internal error** leaves the case somewhere it cannot continue from
+
+Three of the four are implemented and walked by
+`tests/unit/statemachine/test_t90_from_gathering.py`; the kill-switch one waits on an
+adapter. Any one of them is enough for the edge to stay.
 
 Each of those can happen while a case is in `GATHERING_EVIDENCE`, and in each the case must
 reach `NEEDS_HUMAN_REVIEW`. Removing the edge would mean that a kill switch thrown at the

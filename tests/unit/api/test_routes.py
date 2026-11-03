@@ -11,7 +11,7 @@ a dispute got to; the diary says how and why.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,9 +20,7 @@ from dispute_agent.app import create_app
 from dispute_agent.infra.settings import Settings
 from dispute_agent.infra.sqlite.engine import apply_schema, create_sqlite_engine, schema_sql_path
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
+ROOT = Path(__file__).resolve().parents[3]
 SELLER = "seller@example.invalid"
 
 PHASE_0_MODULES = """
@@ -57,6 +55,10 @@ def a_dispute(source_event_id: str = "form-1", **overrides: object) -> dict[str,
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     (tmp_path / "modules.yaml").write_text(PHASE_0_MODULES, encoding="utf-8")
+    # The shipped policy file, so the test app is configured exactly as a real one is.
+    (tmp_path / "policy.yaml").write_text(
+        (ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     database = tmp_path / "cases.sqlite3"
     engine = create_sqlite_engine(database)
     apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))

@@ -264,6 +264,12 @@ class StateMachine:
                     "a case with a person needs to say why (I6)"
                 )
             reason = review_reason
+        # Leaving NEEDS_HUMAN_REVIEW clears the reason from the case row, including on
+        # the way to HANDED_TO_HUMAN. That is schema.sql's rule, not a choice here:
+        # review_code is CHECKed non-null exactly when the state is NEEDS_HUMAN_REVIEW.
+        # The audit trail keeps it - the STATE_CHANGED event that entered review carries
+        # the reason - so nothing is lost, only moved to where it belongs. (Confirmed in
+        # answer to the Phase 1 safety review, finding 12.)
         if effects.clear_review_reason or target is not CaseState.NEEDS_HUMAN_REVIEW:
             reason = None
         if target is CaseState.NEEDS_HUMAN_REVIEW and reason is None:

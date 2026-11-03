@@ -14,13 +14,16 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.json_values import JsonScalar
 from dispute_agent.kernel.domain.values import Money, UntrustedText, require_aware
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 _FROZEN = ConfigDict(frozen=True, extra="forbid", strict=True)
 
@@ -31,6 +34,19 @@ Ref = Annotated[str, Field(pattern=REF_PATTERN)]
 # Deliberately permissive. The kernel's job is to reject something that is plainly not an
 # address, not to adjudicate RFC 5322; the mail adapter finds out what actually delivers.
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def normalise_recipients(allowed: Iterable[str]) -> frozenset[str]:
+    """Lower-cased, stripped, with blanks dropped.
+
+    Shared by intake and R06 so the two cannot disagree: intake used to strip and drop
+    empties while the rule did neither, which meant a blank entry in the allowlist let
+    an empty recipient past R06's first check. Found by the Phase 1 safety review.
+
+    It lives here rather than in either caller because the alternative was policy
+    importing from the orchestrator for one function.
+    """
+    return frozenset(entry.strip().lower() for entry in allowed if entry.strip())
 
 
 class CaseFacts(BaseModel):

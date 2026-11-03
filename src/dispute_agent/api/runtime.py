@@ -107,7 +107,12 @@ class Runtime:
             advanced = self._orchestrator.advance(result.case, raised.id)
             for produced in advanced.events:
                 work.events.append(produced)
-            if advanced.case.state != result.case.state:
+            # Compared whole, not by state. A transition whose only effects are a
+            # counter bump or clear_pending would otherwise commit its STATE_CHANGED
+            # event and discard the row change, leaving the diary and the case row
+            # disagreeing - the exact thing I8 exists to prevent. Not reachable in
+            # Phase 1, reachable in Phase 2. Found by the Phase 1 safety review.
+            if advanced.case != result.case:
                 work.cases.save(advanced.case, result.case.version)
 
             inbox.mark_processed(inbox_id, result.case.id, raised.id)

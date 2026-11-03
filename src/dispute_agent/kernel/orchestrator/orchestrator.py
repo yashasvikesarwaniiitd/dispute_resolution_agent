@@ -15,8 +15,12 @@ of nine steps.
 honest response is to stop it and tell someone rather than let it run. Twelve steps
 (`cases.max_steps_per_advance`), then `step_limit`.
 
-The three cross-case hooks are wired to the Null adapters from P0-06. They are called on
-every run, which is the point of D3: Phase 7 changes an adapter, not this file.
+The cross-case hooks are present and wired to the Null adapters from P0-06, but `advance`
+does not call them yet: `patterns_for` belongs in the investigate step and `record_outcome`
+in the transition that records an outcome, and neither exists until Phase 2. The point of D3
+is that the socket is here and the kernel will not change when Phase 7 fills it — not that
+it is already in use. (The first draft of this docstring claimed it was; the Phase 1 safety
+review caught the overstatement.)
 """
 
 from __future__ import annotations
@@ -146,17 +150,23 @@ class Orchestrator:
         return None
 
     def patterns_for(self, facts: CaseFacts) -> Sequence[PatternRecord]:
-        """HOOK A. Called on every run; the Null adapter returns () until Phase 7 (D3).
+        """HOOK A. The Null adapter returns () until Phase 7 (D3).
 
-        A failure here is not a silent skip — the caller turns it into a caution signal,
-        because not knowing whether a pattern applies is a reason to be careful (I7).
+        Not yet called by `advance`: this belongs in the investigate step, which Phase 2
+        builds. When it is called, a failure must not be a silent skip — it becomes a
+        `pattern_context_unavailable` caution signal, because not knowing whether a pattern
+        applies is a reason to be careful (I7). `kernel/policy/signals.py` already has it.
         """
         if self._patterns is None:
             return ()
         return self._patterns.patterns_for(facts)  # type: ignore[attr-defined, no-any-return]
 
     def record_outcome(self, outcome: CaseOutcome) -> None:
-        """HOOK C. Its failure never affects the case."""
+        """HOOK C. Its failure never affects the case.
+
+        Not yet called by `advance`: it belongs with the `record_outcome` transition effect,
+        which no Phase 1 step reaches.
+        """
         if self._outcomes is None:
             return
         self._outcomes.on_outcome(outcome)  # type: ignore[attr-defined]
@@ -253,7 +263,13 @@ class Orchestrator:
             self._clock.now(),
             self._new_event_id(),
             causation_id,
-            guards=dict.fromkeys(self._machine.table.guards, True),
+            # Deliberately empty. An earlier version passed every guard in the table as
+            # True, which is exactly the assumption `StateMachine.apply` refuses to make —
+            # and it would have satisfied `intent_is_not_credit` and `no_verified_credit`
+            # among them. It is inert today only because no escalate row carries guards, and
+            # `test_no_escalate_transition_carries_guards` fails in CI the moment one does,
+            # which is a better place to find out than a ConfigError in production.
+            guards={},
             review_reason=reason,
         )
 

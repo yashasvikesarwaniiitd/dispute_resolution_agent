@@ -316,3 +316,20 @@ class TestLookup:
     def test_loading_from_an_explicit_path_works(self) -> None:
         other = load_transition_table(ROOT / "docs" / "spec" / "transitions.yaml")
         assert other.version == TABLE.version
+
+
+def test_no_escalate_transition_carries_guards() -> None:
+    """The orchestrator escalates with no guards supplied, which is only safe while no
+    escalate row needs any.
+
+    Found by the Phase 1 safety review: the orchestrator used to pass every guard in the
+    table as True, satisfying `intent_is_not_credit` and `no_verified_credit` among them. It
+    now passes nothing, so a guarded escalate row would raise ConfigError at runtime. This
+    test turns that into a build failure instead — if you are adding a guard to an escalate
+    transition, the orchestrator needs to learn how to evaluate it first.
+    """
+    guarded = [t.id for t in TABLE.transitions if t.trigger is Trigger.ESCALATE and t.guards]
+    assert not guarded, (
+        f"escalate transitions {guarded} now carry guards; teach the orchestrator to "
+        "evaluate them before adding one"
+    )
