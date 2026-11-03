@@ -214,11 +214,11 @@ class TestARetryCannotProduceASecondIssue:
         assert jira.creates() == 2
 
     def test_a_create_that_times_out_leaves_the_decision_to_the_executor(self) -> None:
-        """The adapter raises transient and makes no second attempt of its own. Whether
-        anything was created is unknowable from here, and guessing is what produces the
-        duplicate."""
+        """The adapter makes no second attempt of its own. Whether anything was created is
+        unknowable from here - Jira may have made it before the gateway gave up - so the
+        answer is ambiguous, never transient, and guessing is what produces the duplicate."""
         jira = Jira().on("POST", "/issue", httpx.Response(504))
-        with pytest.raises(TransientPortError):
+        with pytest.raises(AmbiguousOutcome):
             jira.system().upsert_issue(SPEC, KEY)
         assert jira.creates() == 1
 
@@ -375,11 +375,19 @@ class TestReadBack:
 
 
 class TestErrorMapping:
-    @pytest.mark.parametrize("status", [429, 500, 502, 503, 504])
-    def test_retryable_statuses_are_transient(self, status: int) -> None:
-        jira = Jira().on("POST", "/issue", httpx.Response(status))
+    @pytest.mark.parametrize("status", [500, 502, 503, 504])
+    def test_a_server_error_on_a_write_is_ambiguous(self, status: int) -> None:
+        """executor.md section 7: the server may have applied it before failing to
+        answer. Transient would record FAILED and let a replan write a second copy
+        (second Phase 3 review, finding 1)."""
+        with pytest.raises(AmbiguousOutcome):
+            Jira().on("POST", "/issue", httpx.Response(status)).system().upsert_issue(SPEC, KEY)
+
+    def test_rate_limiting_on_a_write_is_transient(self) -> None:
+        """A 429 is refused before any work is done, so retrying is safe."""
+        status = 429
         with pytest.raises(TransientPortError):
-            jira.system().upsert_issue(SPEC, KEY)
+            Jira().on("POST", "/issue", httpx.Response(status)).system().upsert_issue(SPEC, KEY)
 
     def test_a_400_is_permanent_and_never_retried(self) -> None:
         """Scenario S12c. Retrying an argument we got wrong gets the same answer."""
@@ -459,7 +467,7 @@ class TestTheTokenIsAPassword:
     @pytest.mark.parametrize("status", [400, 429, 500])
     def test_no_error_message_contains_the_token(self, status: int) -> None:
         jira = Jira().on("POST", "/issue", httpx.Response(status, json={"errorMessages": ["no"]}))
-        with pytest.raises((PermanentPortError, TransientPortError)) as failure:
+        with pytest.raises((PermanentPortError, TransientPortError, AmbiguousOutcome)) as failure:
             jira.system().upsert_issue(SPEC, KEY)
         assert JIRA_TOKEN not in str(failure.value)
         assert "Basic" not in str(failure.value)

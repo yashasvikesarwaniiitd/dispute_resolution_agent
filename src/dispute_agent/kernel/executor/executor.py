@@ -44,8 +44,10 @@ from dispute_agent.kernel.domain.errors import (
     DomainValidationError,
     ExternalNotFound,
     KillSwitchEngaged,
+    ModuleUnavailable,
     PermanentPortError,
     PolicyRefused,
+    PortError,
     TransientPortError,
 )
 from dispute_agent.kernel.executor.keys import idempotency_key
@@ -105,7 +107,14 @@ class ActionStore(Protocol):
 
     def insert(self, action: Action) -> Action: ...
     def get(self, action_id: ActionId) -> Action: ...
-    def claim(self, action_id: ActionId, worker: str, now: datetime, lease_s: int) -> bool: ...
+    def claim(self, action_id: ActionId, worker: str, now: datetime, lease_s: int) -> bool:
+        """Take the action for this worker. A successful claim increments `attempts`.
+
+        The increment is not bookkeeping: executor.md 5.1 decides whether a write may be
+        attempted at all by reading `attempts` from *before* the claim.
+        """
+        ...
+
     def set_status(
         self, action_id: ActionId, status: ActionStatus, now: datetime, **fields: object
     ) -> Action: ...
@@ -309,10 +318,23 @@ class ActionExecutor:
         if action.status is not ActionStatus.PLANNED:
             return ExecutionResult(Outcome.BLOCKED, action_id, "already_started")
 
-        # I13 at the last moment it can be checked. Content used to arrive by argument,
-        # unchecked, one line after the authorisation was checked - so an upstream bug could
-        # send text other than the approved text (Phase 3 review, finding 7). Nothing is
-        # sent on a mismatch, so FAILED is the truth; the case then reaches a person.
+        # Inside execute, not only at the entry point (I10). An action planned a second
+        # before the switch went on must not reach the outside world.
+        if self._kill_switch.is_engaged():
+            self._actions.set_status(
+                action_id, ActionStatus.FAILED, now, last_error_code="kill_switch_active"
+            )
+            return ExecutionResult(Outcome.FAILED, action_id, "kill_switch_active")
+
+        # Read before the claim: the claim counts this attempt (executor.md 5.1).
+        attempts_before = action.attempts
+        if not self._actions.claim(action_id, self._worker, now, self._lease_s):
+            # Someone else holds it. Rest: no commit, no escalation, the sweep comes back.
+            return ExecutionResult(Outcome.BLOCKED, action_id, "claimed_elsewhere")
+
+        # I13 at the last moment it can be checked, and after the claim, so a caller with
+        # the wrong payload cannot fail a row another worker holds (second review, finding
+        # 5). Nothing is sent on a mismatch, so FAILED is the truth; a person then sees it.
         if _hash_of(payload) != action.payload_hash:
             self._actions.set_status(
                 action_id,
@@ -322,18 +344,6 @@ class ActionExecutor:
                 last_error_detail="the payload does not match the planned and approved hash",
             )
             return ExecutionResult(Outcome.FAILED, action_id, "payload_mismatch")
-
-        # Inside execute, not only at the entry point (I10). An action planned a second
-        # before the switch went on must not reach the outside world.
-        if self._kill_switch.is_engaged():
-            self._actions.set_status(
-                action_id, ActionStatus.FAILED, now, last_error_code="kill_switch_active"
-            )
-            return ExecutionResult(Outcome.FAILED, action_id, "kill_switch_active")
-
-        if not self._actions.claim(action_id, self._worker, now, self._lease_s):
-            # Someone else holds it. Rest: no commit, no escalation, the sweep comes back.
-            return ExecutionResult(Outcome.BLOCKED, action_id, "claimed_elsewhere")
 
         key = action.idempotency_key
 
@@ -348,6 +358,13 @@ class ActionExecutor:
                 found = None
             if found is not None:
                 return self._to_sent(action_id, now, found, "found_by_lookup")
+
+        # executor.md 5.1: an earlier attempt may have written, the far end cannot recognise
+        # a repeat, and nothing above found it. Writing again could send a second copy, so a
+        # person decides. This is the backstop under every path that leaves a possibly-sent
+        # action PLANNED - a lookup that errored out, a crash between write and record.
+        if attempts_before > 0 and not port.idempotent_writes:
+            return self._to_unknown(action_id, now, "recovery_unconfirmed")
 
         try:
             receipt = port.send(payload, key)
@@ -453,7 +470,10 @@ class ActionExecutor:
         if port.lookup_supported:
             try:
                 found = port.find_sent(key)
-            except (AmbiguousOutcome, TransientPortError):
+            except (PortError, ModuleUnavailable):
+                # Any failure to look - including an expired token or a disabled module - is
+                # simply "could not prove it happened". Letting it escape left a possibly-sent
+                # action PLANNED and open to a second send (second review, finding 2).
                 found = None
             if found is not None:
                 return self._to_sent(action_id, now, found, "found_after_ambiguous_write")

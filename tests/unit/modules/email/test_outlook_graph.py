@@ -186,7 +186,8 @@ class TestSendingIsDraftThenSend:
         graph = (
             Graph().on("POST", "/me/messages", created()).on("POST", "/send", httpx.Response(503))
         )
-        with pytest.raises(TransientPortError):
+        # Ambiguous, not transient: the 503 may have come after Graph accepted the send.
+        with pytest.raises(AmbiguousOutcome):
             graph.channel().send(MESSAGE, KEY)
         assert not any(r.method == "DELETE" for r in graph.requests)
 
@@ -350,11 +351,19 @@ class TestReadBack:
 class TestErrorMapping:
     """How an HTTP answer becomes a decision. This table is the executor's behaviour."""
 
-    @pytest.mark.parametrize("status", [429, 500, 502, 503, 504])
-    def test_retryable_statuses_are_transient(self, status: int) -> None:
-        graph = Graph().on("POST", "/me/messages", httpx.Response(status))
+    @pytest.mark.parametrize("status", [500, 502, 503, 504])
+    def test_a_server_error_on_a_write_is_ambiguous(self, status: int) -> None:
+        """executor.md section 7: the server may have applied it before failing to
+        answer. Transient would record FAILED and let a replan write a second copy
+        (second Phase 3 review, finding 1)."""
+        with pytest.raises(AmbiguousOutcome):
+            Graph().on("POST", "/me/messages", httpx.Response(status)).channel().send(MESSAGE, KEY)
+
+    def test_rate_limiting_on_a_write_is_transient(self) -> None:
+        """A 429 is refused before any work is done, so retrying is safe."""
+        status = 429
         with pytest.raises(TransientPortError):
-            graph.channel().send(MESSAGE, KEY)
+            Graph().on("POST", "/me/messages", httpx.Response(status)).channel().send(MESSAGE, KEY)
 
     @pytest.mark.parametrize("status", [400, 413, 422])
     def test_a_refusal_is_permanent_and_never_a_timeout(self, status: int) -> None:
@@ -400,6 +409,13 @@ class TestErrorMapping:
         recorded a sent email as FAILED and let a retry send the seller a second copy."""
         with pytest.raises(AmbiguousOutcome):
             self._channel_that_raises(httpx.ReadTimeout("no answer")).send(MESSAGE, KEY)
+
+    @pytest.mark.parametrize("status", [500, 503])
+    def test_a_server_error_on_a_read_is_transient(self, status: int) -> None:
+        """A read changes nothing, so a server error on one is safe to retry."""
+        graph = Graph().on("GET", "inbox", httpx.Response(status))
+        with pytest.raises(TransientPortError):
+            graph.channel().fetch_replies(NOW)
 
     def test_a_lost_answer_to_a_read_is_transient(self) -> None:
         """A read changes nothing, so retrying it is safe."""
@@ -461,7 +477,7 @@ class TestNoSecretEscapes:
         graph = Graph().on(
             "POST", "/me/messages", httpx.Response(status, json={"error": {"code": "x"}})
         )
-        with pytest.raises((PermanentPortError, TransientPortError)) as failure:
+        with pytest.raises((PermanentPortError, TransientPortError, AmbiguousOutcome)) as failure:
             graph.channel().send(MESSAGE, KEY)
         assert TOKEN not in str(failure.value)
         assert "Bearer" not in str(failure.value)

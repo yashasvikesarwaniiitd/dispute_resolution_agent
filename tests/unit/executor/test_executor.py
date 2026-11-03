@@ -160,6 +160,9 @@ class FakeActionStore:
         if str(action_id) in self.claimed:
             return False
         self.claimed.add(str(action_id))
+        # The contract executor.md 5.1 rests on: a successful claim counts the attempt.
+        current = self.rows[str(action_id)]
+        self.rows[str(action_id)] = current.model_copy(update={"attempts": current.attempts + 1})
         return True
 
     def set_status(

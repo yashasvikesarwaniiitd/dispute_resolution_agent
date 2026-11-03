@@ -342,10 +342,24 @@ class OutlookGraphChannel:
             raise AuthPortError(f"Graph refused the request ({response.status_code})")
         if response.status_code == 404:
             raise ExternalNotFound(f"{method} {path} returned 404")
-        if response.status_code in RETRYABLE:
+        if response.status_code == 429:
+            # Rate limited: refused before any work was done, so safe to retry.
             raise TransientPortError(
-                f"Graph returned {response.status_code}",
-                retry_after_s=_retry_after(response),
+                f"rate limited ({response.status_code})", retry_after_s=_retry_after(response)
+            )
+        if response.status_code in RETRYABLE:
+            if method == "GET":
+                raise TransientPortError(
+                    f"server error {response.status_code} on a read",
+                    retry_after_s=_retry_after(response),
+                )
+            # executor.md section 7: a 500/502/503/504 on a write is ambiguous - the server
+            # may have applied it before failing to answer. Calling it transient told the
+            # executor "certainly did not happen", recorded FAILED, and let a replan with a
+            # new key send a second copy (second Phase 3 review, finding 1).
+            raise AmbiguousOutcome(
+                f"{method} {path}: server error {response.status_code} after the request "
+                "was accepted; it may have taken effect"
             )
         if response.status_code >= 400:
             raise PermanentPortError(

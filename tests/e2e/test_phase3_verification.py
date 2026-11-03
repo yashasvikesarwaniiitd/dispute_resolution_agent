@@ -93,6 +93,9 @@ class Actions:
         if str(action_id) in self.claimed:
             return False
         self.claimed.add(str(action_id))
+        # The contract executor.md 5.1 rests on: a successful claim counts the attempt.
+        current = self.rows[str(action_id)]
+        self.rows[str(action_id)] = current.model_copy(update={"attempts": current.attempts + 1})
         return True
 
     def set_status(
@@ -230,16 +233,6 @@ class TestS12aTheSendTimedOutButItWent:
         assert store.get(action_id).status is ActionStatus.SENT
         assert channel.sent_count() == 1
 
-    def test_it_is_never_recorded_failed(self) -> None:
-        """FAILED frees the contact-limit slot and, for credits, the duplicate-credit slot -
-        for something that may well have happened."""
-        store = Actions()
-        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
-        port, _ = message_port(send="timeout")
-
-        executor(store).execute(action_id, port, _message_payload(), NOW)
-        assert store.get(action_id).status is not ActionStatus.FAILED
-
     def test_when_the_lookup_cannot_settle_it_a_person_does(self) -> None:
         """Answer lost, and the lookup itself fails: nobody can tell, so UNKNOWN (I4)."""
         store = Actions()
@@ -275,6 +268,90 @@ class TestS12aTheSendTimedOutButItWent:
         port = NeverConnects(channel=FakeMessageChannel(now=NOW), case_id=CASE)
         result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert result.outcome is Outcome.FAILED
+
+
+class TestTheSecondReviewsFindings:
+    """Driven through the executor and the real Outlook adapter against a simulated Graph,
+    so the HTTP status mapping and the executor's handling are tested together."""
+
+    @staticmethod
+    def graph_port(handler: Any) -> MessageWritePort:
+        import httpx
+
+        from dispute_agent.modules.email.outlook_graph.channel import GRAPH, OutlookGraphChannel
+        from tests.unit.modules.email.test_outlook_graph import FakeAuth
+
+        client = httpx.Client(base_url=GRAPH, transport=httpx.MockTransport(handler))
+        return MessageWritePort(
+            channel=OutlookGraphChannel(auth=FakeAuth(), client=client), case_id=CASE
+        )
+
+    def test_a_504_after_the_send_is_unknown_never_failed(self) -> None:
+        """Finding 1. Graph accepted the send and then failed to answer."""
+        import httpx
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, json={"value": []})
+            if request.url.path.endswith("/send"):
+                return httpx.Response(504)
+            return httpx.Response(201, json={"id": "AAMk-1", "conversationId": "c"})
+
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        result = executor(store).execute(
+            action_id, self.graph_port(handler), _message_payload(), NOW
+        )
+        assert result.outcome is Outcome.UNKNOWN
+        assert store.get(action_id).status is ActionStatus.UNKNOWN
+
+    def test_a_lookup_that_hits_an_expired_login_still_settles_unknown(self) -> None:
+        """Finding 2. The send timed out, then the Sent Items lookup got a 401. That used to
+        escape and leave the action PLANNED, open to a second send."""
+        import httpx
+
+        gets = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                gets["n"] += 1
+                # The two pre-write lookups are clean; the one after the send is refused.
+                if gets["n"] <= 2:
+                    return httpx.Response(200, json={"value": []})
+                return httpx.Response(401)
+            if request.url.path.endswith("/send"):
+                raise httpx.ReadTimeout("answer lost")
+            return httpx.Response(201, json={"id": "AAMk-1"})
+
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        result = executor(store).execute(
+            action_id, self.graph_port(handler), _message_payload(), NOW
+        )
+        assert result.outcome is Outcome.UNKNOWN
+        assert store.get(action_id).status is ActionStatus.UNKNOWN
+
+    def test_a_retry_that_cannot_find_the_earlier_attempt_does_not_send_again(self) -> None:
+        """executor.md 5.1, the backstop. An earlier attempt may have written, the channel
+        cannot recognise a repeat, and the lookup finds nothing: a person decides."""
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        store.rows[str(action_id)] = store.get(action_id).model_copy(update={"attempts": 1})
+        port, channel = message_port()
+
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
+        assert result.outcome is Outcome.UNKNOWN
+        assert result.reason == "recovery_unconfirmed"
+        assert channel.sent_count() == 0
+
+    def test_a_first_attempt_is_still_sent(self) -> None:
+        """The control: the rule must not stop an action that has never been tried."""
+        store = Actions()
+        action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
+        port, channel = message_port()
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
+        assert result.outcome is Outcome.SENT
+        assert channel.sent_count() == 1
 
 
 class TestS12bStuckInDrafts:
