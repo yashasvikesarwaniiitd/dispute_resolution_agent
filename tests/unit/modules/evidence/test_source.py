@@ -23,13 +23,14 @@ from dispute_agent.kernel.domain.enums import EvidenceStatus
 from dispute_agent.kernel.domain.errors import ModuleUnavailable
 from dispute_agent.kernel.domain.evidence import EvidenceRequirement
 from dispute_agent.kernel.domain.ids import CaseId
+from dispute_agent.kernel.orchestrator.evidence import is_retryable
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import fixture
 from dispute_agent.modules.evidence.synthetic_shipments.source import (
+    FAULT_CODES,
     PERMANENT_FAULTS,
     REQUIREMENT_KEYS,
     TRANSIENT_FAULTS,
     SyntheticShipmentSource,
-    is_transient,
 )
 
 CASE = CaseId("case_p205")
@@ -135,20 +136,36 @@ class TestDisabledIsNotAFailure:
 
 
 class TestWhatTheRetryLoopReads:
-    def test_transient_faults_are_retryable(self) -> None:
-        assert all(is_transient(code) for code in TRANSIENT_FAULTS)
+    """Asserted on the codes this source actually emits, not on the fault tokens.
 
-    def test_a_permanent_fault_is_not_transient(self) -> None:
+    An earlier version asked `is_transient(token)` for every token, which passed happily
+    for `timeout_twice` - a token that emits the code `timeout` and so never reaches a
+    result at all. The retry decision reads the code, so the tests must too.
+    """
+
+    def test_every_fault_token_emits_the_code_the_map_says(self) -> None:
+        for token, code in FAULT_CODES.items():
+            src = source(**{"shipment.zone": token})
+            emitted = {
+                src.fetch(CASE, FACTS, need("shipment.zone")).error_code for _ in range(3)
+            } - {None}
+            assert emitted == {code}, f"{token} emitted {emitted}, not {code!r}"
+
+    def test_a_transient_token_emits_a_code_the_kernel_retries(self) -> None:
+        for token in TRANSIENT_FAULTS:
+            assert is_retryable(FAULT_CODES[token])
+
+    def test_a_permanent_token_emits_a_code_the_kernel_does_not_retry(self) -> None:
         """S21: no retry timer is armed for this one."""
-        assert not any(is_transient(code) for code in PERMANENT_FAULTS)
+        for token in PERMANENT_FAULTS:
+            assert not is_retryable(FAULT_CODES[token])
 
-    def test_no_code_is_both(self) -> None:
+    def test_no_token_is_both(self) -> None:
         assert not TRANSIENT_FAULTS & PERMANENT_FAULTS
 
-    def test_an_unknown_code_is_not_retried(self) -> None:
-        """Erring towards not hammering something nobody classified."""
-        assert not is_transient("something_new")
-        assert not is_transient(None)
+    def test_every_token_the_source_handles_is_classified(self) -> None:
+        """So a new fault cannot be added without saying whether it is worth waiting out."""
+        assert set(FAULT_CODES) == TRANSIENT_FAULTS | PERMANENT_FAULTS
 
 
 class TestFreeTextTravelsLabelled:

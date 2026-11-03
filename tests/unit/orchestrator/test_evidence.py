@@ -2,9 +2,13 @@
 
 The file is built around one question — *can a round ever produce a value nobody fetched?* —
 asked in as many ways as there are to fail: a source that times out, one that is switched
-off, one nobody registered, one that lies about having found something. `test_never_invents`
-asks it of every one of them at once, which is the version that keeps working when somebody
-adds a fourth failure mode.
+off, one nobody registered, one that lies about having found something.
+
+Be clear about which assertion in `TestNeverInvents` is load-bearing. `invented_values()` is
+always empty, because `EvidenceResult` refuses to hold a value unless the status is FOUND —
+those assertions are regression tripwires for that model validator, not runtime checks. The
+one that actually carries I4 here is the `pytest.raises` showing the empty-but-found item
+cannot be constructed at all.
 
 The retry arithmetic (D41) is tested on the count rather than on the clock, because the
 clock is not what goes wrong. What goes wrong is counting per case instead of per round
@@ -216,12 +220,19 @@ class TestRecoveringOnARetry:
         assert not final.rests
         assert final.failures() == ()
 
-    def test_a_source_that_never_recovers_is_the_control(self) -> None:
-        """Without this, a retry loop that silently stopped calling the source would pass
-        the test above."""
+    def test_each_round_really_asks_the_source_again(self) -> None:
+        """The control for the test above, which that version was not: it asserted one call
+        after one round, which is true however the retry loop behaves. What makes the
+        recovery test mean anything is that a later round *re-fetches* - so count the calls
+        across rounds against the same source."""
+        source = FakeSource({DIMS.key: ["timeout", "timeout", "found"]})
+        for retries in (0, 1, 2):
+            run(source, retries=retries)
+        assert source.calls[DIMS.key] == 3
+
+    def test_a_source_that_never_recovers_keeps_failing(self) -> None:
         source = FakeSource({DIMS.key: ["timeout"]})
-        assert run(source, retries=2).rests
-        assert source.calls[DIMS.key] == 1
+        assert all(run(source, retries=n).failures() for n in (0, 1, 2, 3))
 
 
 class TestPermanentFailuresDoNotRetry:

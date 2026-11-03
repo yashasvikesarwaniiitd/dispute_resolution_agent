@@ -31,7 +31,7 @@ from dispute_agent.kernel.domain.ids import AssessmentId
 from dispute_agent.kernel.domain.values import Money
 from dispute_agent.packs.weight_dispute import eligibility as eligibility_rules
 from dispute_agent.packs.weight_dispute.baseline import baseline_proposal, decide
-from dispute_agent.packs.weight_dispute.calculator import Dimensions, calculate, difference
+from dispute_agent.packs.weight_dispute.calculator import Dimensions, calculate
 from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD
 from dispute_agent.packs.weight_dispute.reconcile import LedgerLine, prove
 
@@ -132,17 +132,30 @@ class WeightDisputePack:
     # -- the numbers ----------------------------------------------------------------------
 
     def assess(
-        self, case_id: CaseId, gather_round: int, bundle: EvidenceBundle
+        self,
+        case_id: CaseId,
+        gather_round: int,
+        bundle: EvidenceBundle,
+        *,
+        claim_ref: str | None = None,
     ) -> ChargeAssessment:
-        """Recalculate the charge and reconcile it against the ledger. Never raises."""
-        charged = _charged(bundle)
+        """Recalculate the charge and reconcile it against the ledger. Never raises.
+
+        `claim_ref` says which charge line the dispute is about. Without it this had to
+        take the first DEBIT in the round and hope, and a shipment with two charge lines
+        would recalculate one dispute against the other's charge - proving an error worth
+        the difference between two unrelated bills (I9). The `DomainPack` port does not
+        carry it yet; see BACKLOG.
+        """
+        charged = _charged(bundle, claim_ref)
         measured = _dims(bundle, MEASURED)
         dead = _int(bundle, MEASURED, "dead_grams")
         zone = _str(bundle, ZONE, "zone")
         packaging = _str(bundle, ZONE, "packaging")
-        claim_ref = _claim_ref(bundle)
 
         recalculated: Money | None = None
+        remeasured_charge: Money | None = None
+        duplicate_total: Money | None = None
         definite_errors: tuple[str, ...] = ()
         facts: list[Fact] = []
 
@@ -166,9 +179,15 @@ class WeightDisputePack:
                     remeasured_dead_grams=remeasured_dead,
                 )
                 definite_errors = reconciliation.definite_errors
+                remeasured_charge = reconciliation.recalculated_remeasured
+                duplicate_total = reconciliation.duplicate_debit_total
 
+        # The absolute difference, which is what `ChargeAssessment` validates against.
+        # `difference` clamps an undercharge to zero because no credit follows from one;
+        # using it here made `assess` raise on a bill that was too low, which contradicts
+        # the one thing this method promises - that it reports rather than raises.
         discrepancy = (
-            difference(charged, recalculated)
+            _gap(charged, recalculated)
             if charged is not None and recalculated is not None
             else None
         )
@@ -188,6 +207,8 @@ class WeightDisputePack:
             charged=charged,
             recalculated=recalculated,
             discrepancy=discrepancy,
+            recalculated_remeasured=remeasured_charge,
+            duplicate_debit_total=duplicate_total,
             definite_errors=definite_errors,
             facts=tuple(facts),
             input_hash=payload_hash(bundle.model_dump(mode="json")),
@@ -203,7 +224,12 @@ class WeightDisputePack:
         A pack that could return nothing would leave the reasoner with no legal answer, and
         the one answer that is always legal is "a person should look at this".
         """
-        if assessment.eligible == "ineligible":
+        if assessment.eligible != "eligible":
+            # Not just "ineligible". An `unknown` eligibility with the full menu lets B3
+            # credit a parcel nobody could show was delivered, and money-rules.md section 1
+            # requires eligibility to be `eligible` before any credit. The eligibility step
+            # already sends `unknown` to a person; this is the same answer one step later,
+            # for the case where the evidence round is what made it unknown.
             return (ProposalAction.ESCALATE_TO_HUMAN,)
         if state is not CaseState.INVESTIGATING:
             return (ProposalAction.ESCALATE_TO_HUMAN,)
@@ -301,20 +327,30 @@ def _ledger_lines(bundle: EvidenceBundle) -> tuple[LedgerLine, ...]:
     return tuple(lines)
 
 
-def _charged(bundle: EvidenceBundle) -> Money | None:
-    """What the seller was actually billed: the first DEBIT on the claim.
+def _gap(charged: Money, recalculated: Money) -> Money:
+    """|charged - recalculated|, the quantity `ChargeAssessment` validates."""
+    return charged - recalculated if charged >= recalculated else recalculated - charged
+
+
+def _charged(bundle: EvidenceBundle, claim_ref: str | None) -> Money | None:
+    """What the seller was billed on *this* charge line: its first DEBIT.
 
     From the ledger rather than from the dispute statement, always. The seller's own figure
     is outside text (I5) and the amount a credit is computed against must be the one the
     books hold.
+
+    With no claim to scope it to, this answers None rather than taking whichever row came
+    first. "We do not know what was charged" is a true statement the assessment can carry;
+    a number belonging to another charge line is not.
     """
-    debits = [line for line in _ledger_lines(bundle) if line.kind == "DEBIT"]
+    if claim_ref is None:
+        return None
+    debits = [
+        line
+        for line in _ledger_lines(bundle)
+        if line.kind == "DEBIT" and line.claim_ref == claim_ref
+    ]
     return Money.from_paise(debits[0].amount_paise) if debits else None
-
-
-def _claim_ref(bundle: EvidenceBundle) -> str | None:
-    lines = _ledger_lines(bundle)
-    return lines[0].claim_ref if lines else None
 
 
 def _finding_dims(bundle: EvidenceBundle) -> tuple[Dimensions | None, int | None]:

@@ -25,15 +25,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from dispute_agent.kernel.domain.actions import Timer
 from dispute_agent.kernel.domain.enums import (
     EvidenceStatus,
     Provenance,
     ReviewCode,
+    TimerKind,
     Trigger,
 )
+from dispute_agent.kernel.domain.errors import ConfigError
 from dispute_agent.kernel.domain.evidence import EvidenceBundle, EvidenceItem
 from dispute_agent.kernel.domain.hashing import payload_hash
-from dispute_agent.kernel.domain.ids import EvidenceItemId
+from dispute_agent.kernel.domain.ids import EvidenceItemId, TimerId
 from dispute_agent.kernel.domain.models import ReviewReason
 from dispute_agent.kernel.orchestrator.evidence import MODULE_UNAVAILABLE, gather
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
@@ -60,15 +63,23 @@ if TYPE_CHECKING:
     )
 
 
-class RetryCounter(Protocol):
-    """How many EVIDENCE_RETRY timers have fired for the case's current gather round.
+class RetryTimers(Protocol):
+    """Counting the EVIDENCE_RETRY timers of a gather round, and arming the next one.
 
-    One method, because that is all the gather round needs. A step holding a whole
-    TimerStore could arm or cancel timers, and which timers a state has is the transition
-    table's business, not a step's.
+    Both halves, because the step needs both and splitting them is how the first version of
+    this lost a case. It computed a due time, returned a rest, and nothing ever wrote the
+    timer: the case sat in GATHERING_EVIDENCE with nothing scheduled to wake it, the round
+    was never recorded, and D41's documented ending - "after the last retry the round is
+    recorded with the FAILED item" - was unreachable. A step that rests has to arm the thing
+    that brings it back, in the same transaction, or resting means disappearing.
+
+    Still narrower than a TimerStore: it cannot cancel, and which timers a state cancels is
+    the transition table's business, not a step's.
     """
 
     def retries_this_round(self, case_id: CaseId, gather_round: int) -> int: ...
+
+    def schedule(self, timer: Timer) -> Timer: ...
 
 
 class CasePack(Protocol):
@@ -85,7 +96,12 @@ class CasePack(Protocol):
     def evidence_plan(self, facts: CaseFacts) -> Sequence[EvidenceRequirement]: ...
 
     def assess(
-        self, case_id: CaseId, gather_round: int, bundle: EvidenceBundle
+        self,
+        case_id: CaseId,
+        gather_round: int,
+        bundle: EvidenceBundle,
+        *,
+        claim_ref: str | None = None,
     ) -> ChargeAssessment: ...
 
 
@@ -128,14 +144,14 @@ class GatherEvidenceStep:
     sources: Mapping[str, EvidenceSource]
     store: EvidenceStore
     ids: IdGenerator
-    retries: RetryCounter | None = None
+    timers_store: RetryTimers | None = None
     timers: TimersConfig | None = None
     name: str = "gather_evidence"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
         fired = (
-            self.retries.retries_this_round(case.id, case.gather_round)
-            if self.retries is not None
+            self.timers_store.retries_this_round(case.id, case.gather_round)
+            if self.timers_store is not None
             else 0
         )
         outcome = gather(
@@ -149,13 +165,40 @@ class GatherEvidenceStep:
         )
 
         if outcome.rests:
-            # Nothing is written. The round is not over, and a half-recorded round would be
-            # assessed as a complete one by whatever reaches `assess` first.
+            # No evidence is written: the round is not over, and a half-recorded round would
+            # be assessed as a complete one by whatever reaches `assess` first. The timer
+            # *is* written, because it is the only thing that will bring the case back here.
+            assert outcome.retry_due_at is not None
+            self._arm_retry(case, outcome.retry_due_at, now)
             return StepOutcome(detail=outcome.rest_reason)
 
         for result in outcome.results:
             self.store.add(self._item(case, result))
         return StepOutcome(trigger=Trigger.EVIDENCE_RECORDED)
+
+    def _arm_retry(self, case: Case, due_at: datetime, now: datetime) -> None:
+        """Arm EVIDENCE_RETRY for this round, so resting is waiting rather than stopping."""
+        if self.timers_store is None:
+            raise ConfigError(
+                "gather_evidence rested with no timer store to arm EVIDENCE_RETRY with; "
+                "the case would wait for something nobody scheduled (D41)"
+            )
+        self.timers_store.schedule(
+            Timer(
+                id=TimerId(self.ids.new_id("tmr")),
+                case_id=case.id,
+                kind=TimerKind.EVIDENCE_RETRY,
+                due_at=due_at,
+                anchor_at=now,
+                armed_in_state=case.state,
+                armed_at_version=case.version,
+                # EVIDENCE_RETRY alone carries this, and D41's limit cannot be counted per
+                # round without it (finding B22).
+                gather_round=case.gather_round,
+                correlation_id=case.correlation_id,
+                created_at=now,
+            )
+        )
 
     def _item(self, case: Case, result: EvidenceResult) -> EvidenceItem:
         return EvidenceItem(
@@ -194,7 +237,12 @@ class AssessStep:
                 detail=f"{MODULE_UNAVAILABLE}{unavailable}",
             )
 
-        assessment = self.pack.assess(case.id, case.gather_round, bundle)
+        # The claim the dispute is about. Without it the pack takes the first DEBIT in
+        # the round, and a shipment with two charge lines recalculates one dispute
+        # against the other's charge.
+        assessment = self.pack.assess(
+            case.id, case.gather_round, bundle, claim_ref=case.facts.claim_ref
+        )
         self.assessments.add(assessment)
 
         if assessment.eligible == "ineligible":
@@ -226,4 +274,4 @@ def _unavailable_module(bundle: EvidenceBundle, pack: CasePack, case: Case) -> s
     return None
 
 
-__all__ = ["AssessStep", "CasePack", "EligibilityStep", "GatherEvidenceStep", "RetryCounter"]
+__all__ = ["AssessStep", "CasePack", "EligibilityStep", "GatherEvidenceStep", "RetryTimers"]

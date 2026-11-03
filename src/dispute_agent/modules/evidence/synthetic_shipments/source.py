@@ -35,9 +35,9 @@ if TYPE_CHECKING:
 MODULE = "evidence"
 ADAPTER = "synthetic_shipments"
 
-#: Faults that mean "try again" (D41 retries these).
+#: Fault tokens whose failure the gather round will wait out (D41 retries these).
 TRANSIENT_FAULTS = frozenset({"timeout", "timeout_twice"})
-#: Faults that mean "do not try again".
+#: Fault tokens whose failure is not worth retrying.
 PERMANENT_FAULTS = frozenset({"error_permanent"})
 #: The module itself is off, which is not a fault of this fetch at all (I6).
 UNAVAILABLE_FAULTS = frozenset({"unavailable"})
@@ -105,7 +105,7 @@ class SyntheticShipmentSource:
         if self.fixture is None:
             return self._missing(key, now)
 
-        value = self._value_for(key, self.fixture)
+        value = self._value_for(key, self.fixture, facts)
         if value is None:
             return self._missing(key, now)
 
@@ -136,7 +136,7 @@ class SyntheticShipmentSource:
             requirement_key=key, source=self.name, status=EvidenceStatus.MISSING, retrieved_at=now
         )
 
-    def _value_for(self, key: str, built: Fixture) -> dict[str, object] | None:
+    def _value_for(self, key: str, built: Fixture, facts: CaseFacts) -> dict[str, object] | None:
         shipment = built.shipment
         match key:
             case "shipment.status":
@@ -151,7 +151,11 @@ class SyntheticShipmentSource:
             case "shipment.zone":
                 return {"zone": shipment.zone, "packaging": shipment.packaging}
             case "ledger.entries":
+                # This claim's entries, not the shipment's. A shipment can carry several
+                # charge lines, and handing the pack all of them lets it recalculate a
+                # dispute about one line against the charge for another (I9).
                 return {
+                    "claim_ref": facts.claim_ref,
                     "entries": [
                         {
                             "transaction_id": entry.transaction_id,
@@ -161,12 +165,18 @@ class SyntheticShipmentSource:
                             "reason_code": entry.reason_code,
                         }
                         for entry in shipment.ledger
-                    ]
+                        if entry.claim_ref == facts.claim_ref
+                    ],
                 }
             case "shipment.image_description":
                 if built.image_description is None:
                     return None
-                return {"description": built.image_description}
+                # The sentence itself is deliberately NOT in here. It is written by a
+                # person, and agent-design.md section 1 renders a SYSTEM item's `value` in
+                # the model's *trusted* block: a description left in the value would arrive
+                # as fact. It travels as UntrustedText instead (`_untrusted_for`), which is
+                # the whole of I5 for this key.
+                return {"present": True}
             case "shipment.history":
                 return {"entries": list(built.history)} if built.history else None
             case "ops.finding":
@@ -217,22 +227,24 @@ def _now() -> datetime:
     return _datetime.now(UTC)
 
 
-def is_transient(error_code: str | None) -> bool:
-    """Whether the gather step should arm a retry (D41).
-
-    The distinction lives with the adapter because only it knows what happened. Treating a
-    permanent error as transient means hammering a dead endpoint three times per round; the
-    other way round means giving up on a blip.
-    """
-    return error_code in TRANSIENT_FAULTS
+#: What each fault token comes out as. The tokens are *inputs* a test injects; the codes are
+#: what a FAILED result carries, and they are not the same vocabulary. `timeout_twice` emits
+#: the code `timeout`, so a function answering "is this retryable?" from the token set was
+#: answering about something no result ever contains. The retry decision has one home:
+#: `kernel.orchestrator.evidence.is_retryable`, which reads the code.
+FAULT_CODES: dict[str, str] = {
+    "timeout": "timeout",
+    "timeout_twice": "timeout",
+    "error_permanent": "error_permanent",
+}
 
 
 __all__ = [
     "ADAPTER",
+    "FAULT_CODES",
     "MODULE",
     "PERMANENT_FAULTS",
     "REQUIREMENT_KEYS",
     "TRANSIENT_FAULTS",
     "SyntheticShipmentSource",
-    "is_transient",
 ]

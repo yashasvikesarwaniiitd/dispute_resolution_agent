@@ -74,3 +74,30 @@ From the Phase 1 safety review (2026-11-03), carried rather than fixed:
 - **`config/modules.yaml` still has `rules_only` disabled**, with the comment "on from Phase
   2, when the pack baseline exists". It exists now. Turning it on is a composition-root
   change and belongs with P2-09's wiring being finished, not with the adapter being written.
+
+## From the Phase 2 safety review (2026-11-03)
+
+Two HIGH and six MEDIUM findings were fixed in the phase. Four are recorded here instead.
+
+- **`credit_amount` still has no caller.** `reconcile.credit_amount` is the only code that
+  nets a credit against earlier ones (money-rules.md section 3), and nothing in `src/` calls
+  it: `orchestrator.md` section 3.6 says the credit amount is `assessment.discrepancy`,
+  which carries no netting. The assessment now carries `recalculated_remeasured` and
+  `duplicate_debit_total` so the amount *can* be derived from the proven reason, but the
+  derivation belongs with the proposal-to-intent step in Phase 4. **Until that is wired, do
+  not take `assessment.discrepancy` as the credit amount**: money-rules' own worked example
+  (case A credited 200, case B proves 600 → B owes 200) would pay 400.
+- **B7's "no evidence request sent yet" is approximated by `gather_round <= 1`.**
+  `agent-design.md` section 5 says what it means; `ContactStatus` carries
+  `clarifications_sent` but no evidence-request flag, so there is nothing exact to read. It
+  is mostly shielded by B5 — any round carrying a reply escalates first — but it is a
+  substitution, not a reading. Add the field to `ContactStatus` when Phase 3 builds the
+  briefing for real.
+- **`SqliteEvidenceStore.bundle` does not verify `content_hash`.** The hash is computed and
+  stored for exactly this check and never recomputed on read. Low while the case database is
+  the only writer; worth doing when anything else can write evidence rows.
+- **`DomainPack.assess` has no way to say which charge line a dispute is about.** The pack's
+  `assess` now takes `claim_ref` as a keyword the port does not declare, because without it
+  the pack took the first DEBIT in the round and a shipment with two charge lines
+  recalculated one dispute against the other's charge. Settle the port's signature (add
+  `facts` or `claim_ref`) with an ADR when Phase 3 revisits `DomainPack`.

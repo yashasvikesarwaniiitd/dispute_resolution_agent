@@ -68,7 +68,7 @@ def briefing_for(name: str) -> CaseBriefing:
             for n, result in enumerate(outcome.results)
         ),
     )
-    assessment = PACK.assess(CASE, 1, bundle)
+    assessment = PACK.assess(CASE, 1, bundle, claim_ref=facts.claim_ref)
     return CaseBriefing(
         case_id=CASE,
         state=CaseState.INVESTIGATING,

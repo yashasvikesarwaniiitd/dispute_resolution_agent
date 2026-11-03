@@ -39,7 +39,9 @@ from dispute_agent.kernel.domain.enums import (
     EvidenceStatus,
     InboundEventType,
     ReviewCode,
+    TimerKind,
 )
+from dispute_agent.kernel.domain.errors import NotFound
 from dispute_agent.kernel.domain.events import Event, EventPayload, InboundEvent, InboundPayload
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
 from dispute_agent.kernel.domain.models import Actor
@@ -149,7 +151,7 @@ def run(engine, name: str, *, faults: dict[str, str] | None = None, status: str 
                 sources={"evidence": source},
                 store=work.evidence,
                 ids=FakeIdGenerator(),
-                retries=work.timers,
+                timers_store=work.timers,
             ),
             "assess": AssessStep(PACK, work.evidence, work.assessments),
             # Still escalating: there is no reasoner until Phase 4. What differs from
@@ -174,11 +176,12 @@ def run(engine, name: str, *, faults: dict[str, str] | None = None, status: str 
         work.cases.save(advanced.case, opened.case.version)
 
         assessment = work.assessments.latest(advanced.case.id)
-        bundle = (
-            work.evidence.bundle(advanced.case.id, advanced.case.gather_round)
-            if advanced.case.gather_round
-            else None
-        )
+        try:
+            # None when the round rested: a resting round writes no evidence, and `bundle`
+            # says so by raising rather than by handing back an empty one.
+            bundle = work.evidence.bundle(advanced.case.id, advanced.case.gather_round)
+        except NotFound:
+            bundle = None
     return advanced, assessment, bundle
 
 
@@ -260,8 +263,14 @@ class TestTheEvidenceModuleIsOff:
         )
         assert assessment is None
 
-    def test_an_optional_item_being_off_does_not_stop_the_case(self, engine) -> None:
-        """Otherwise every dispute goes to a person the day the image service is off."""
+    def test_an_optional_item_failing_does_not_stop_the_case(self, engine) -> None:
+        """The required/optional boundary, end to end.
+
+        Injected per key, which is a fixture's privilege rather than a real state - a
+        genuinely disabled module fails every key, and then the required items fail too and
+        the case escalates anyway. `tests/unit/orchestrator/test_steps.py` tests the
+        boundary where it is unambiguous; this shows the wiring carries it.
+        """
         advanced, assessment, _ = run(
             engine, "kurta_box_larger", faults={"shipment.image_description": "unavailable"}
         )
@@ -269,6 +278,28 @@ class TestTheEvidenceModuleIsOff:
         assert advanced.case.review_reason is not None
         assert advanced.case.review_reason.code is ReviewCode.PROPOSAL_ESCALATED
         assert assessment is not None
+
+
+class TestATransientFailureWaitsRatherThanDisappearing:
+    """D41, end to end, against a real timer table.
+
+    The unit tests check that the step arms a timer. This checks the row lands in the
+    database in the same transaction as everything else, because the failure being guarded
+    is a case resting with nothing scheduled to wake it.
+    """
+
+    def test_the_round_rests_and_an_evidence_retry_is_armed(self, engine) -> None:
+        advanced, assessment, _ = run(
+            engine, "kurta_box_larger", faults={"shipment.measured_dims": "timeout"}
+        )
+        assert advanced.case.state is CaseState.GATHERING_EVIDENCE
+        assert assessment is None
+
+        with SqliteUnitOfWork(engine, clock=FakeClock(NOW)) as work:
+            armed = work.timers.active_for_case(advanced.case.id)
+        assert [t.kind for t in armed] == [TimerKind.EVIDENCE_RETRY]
+        assert armed[0].due_at == NOW + timedelta(minutes=15)
+        assert armed[0].gather_round == advanced.case.gather_round
 
 
 class TestIneligibilityProvenByEvidence:

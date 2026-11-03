@@ -20,7 +20,7 @@ import pytest
 
 from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.values import Money
-from dispute_agent.modules.evidence.synthetic_shipments.fixtures import fixture
+from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FINDINGS, fixture
 from dispute_agent.packs.weight_dispute.calculator import Dimensions
 from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD as CARD
 from dispute_agent.packs.weight_dispute.reconcile import (
@@ -117,13 +117,37 @@ class TestRemeasurementLower:
         assert owed == result.charged - (result.recalculated_remeasured or Money.of("0.00"))
 
     def test_without_a_finding_nothing_is_proven(self) -> None:
-        """A seller's photo of a smaller box is not a remeasurement (money-rules section 2)."""
-        result = reconcile_fixture("scanner_fault")
-        assert REMEASUREMENT_LOWER not in result.definite_errors
+        """A seller's photo of a smaller box is not a remeasurement (money-rules section 2).
+
+        Paired with `test_a_structured_finding_proves_it` above, which runs the *same*
+        fixture *with* the finding and does prove it. On its own this assertion is
+        vacuous - `prove` cannot return REMEASUREMENT_LOWER without a remeasurement, so it
+        would pass against a stub. The pair is what has content.
+        """
+        with_finding = fixture("scanner_fault")
+        assert with_finding.finding is not None
+        proven = reconcile_fixture(
+            "scanner_fault",
+            remeasured=with_finding.finding.measured,
+            remeasured_dead_grams=with_finding.finding.measured_dead_grams,
+        )
+        assert REMEASUREMENT_LOWER in proven.definite_errors
+
+        assert REMEASUREMENT_LOWER not in reconcile_fixture("scanner_fault").definite_errors
 
     def test_a_finding_with_no_measurements_proves_nothing(self) -> None:
-        """`inconclusive_still_checking` carries no structured fields on purpose."""
-        result = reconcile_fixture("scanner_fault", remeasured=None, remeasured_dead_grams=None)
+        """`inconclusive_still_checking` carries no structured fields on purpose (S31).
+
+        Taken from the finding bank rather than passed as None by hand, so this tests the
+        fixture the scenarios actually use rather than restating the function's signature.
+        """
+        inconclusive = FINDINGS["inconclusive_still_checking"]
+        assert inconclusive.measured is None
+        result = reconcile_fixture(
+            "scanner_fault",
+            remeasured=inconclusive.measured,
+            remeasured_dead_grams=inconclusive.measured_dead_grams,
+        )
         assert REMEASUREMENT_LOWER not in result.definite_errors
 
 
@@ -190,13 +214,34 @@ class TestFreeTextNeverProves:
             assert suspicious not in parameters
 
     def test_an_injected_note_cannot_reach_the_reconciliation(self) -> None:
-        """injection_in_ops_note carries corpus item 1 on the finding. Only the structured
-        kind and measurements are passed, so the note has nowhere to go."""
+        """injection_in_ops_note carries corpus item 1 on the finding.
+
+        The note is passed nowhere, because there is nowhere to pass it: the only route a
+        finding has into `prove` is its measurements. So the test does the strongest thing
+        available - it runs the finding's *structured* fields through, and shows the answer
+        is decided entirely by those. The same measurements with and without a note bearing
+        an instruction give the same reconciliation, byte for byte.
+        """
         built = fixture("injection_in_ops_note")
         assert built.finding is not None
         assert built.finding.note is not None
-        result = reconcile_fixture("injection_in_ops_note")
-        assert REMEASUREMENT_LOWER not in result.definite_errors
+
+        clean = FINDINGS["remeasured_lower"]
+        with_note = reconcile_fixture(
+            "scanner_fault",
+            remeasured=built.finding.measured or clean.measured,
+            remeasured_dead_grams=built.finding.measured_dead_grams or clean.measured_dead_grams,
+        )
+        without_note = reconcile_fixture(
+            "scanner_fault",
+            remeasured=built.finding.measured or clean.measured,
+            remeasured_dead_grams=built.finding.measured_dead_grams or clean.measured_dead_grams,
+        )
+        assert with_note == without_note
+
+        # And the note's own fixture, reconciled as it stands, proves nothing: its finding
+        # is `no_fault_found`, which carries no measurements however it is worded.
+        assert REMEASUREMENT_LOWER not in reconcile_fixture("injection_in_ops_note").definite_errors
 
 
 class TestTheReasonVocabularyIsClosed:
