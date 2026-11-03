@@ -18,10 +18,10 @@ from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
-from dispute_agent.kernel.domain.enums import EventType, InboundEventType
+from dispute_agent.kernel.domain.enums import CaseState, EventType, InboundEventType, Trigger
 from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, DedupeKey, EventId
-from dispute_agent.kernel.domain.models import Actor, Cause
+from dispute_agent.kernel.domain.models import Actor, Cause, ReviewReason
 from dispute_agent.kernel.domain.values import require_aware
 
 _FROZEN = ConfigDict(frozen=True, extra="forbid", strict=True)
@@ -55,6 +55,44 @@ class EventPayload(BaseModel):
     """
 
     model_config = _FROZEN
+
+
+class StateChangedPayload(EventPayload):
+    """The first concrete payload, because the state machine cannot work without it.
+
+    `schema.sql` denormalises `from_state` and `to_state` onto the events row for timeline
+    queries, and its CHECK requires `to_state` exactly when the type is STATE_CHANGED — so
+    this is not an optional convenience, it is what makes a state change storable.
+
+    `transition_id` is the T-number from transitions.yaml. Recording it means a row in the
+    diary can be traced back to the rule that permitted it, which is the difference between
+    an audit trail and a log.
+    """
+
+    from_state: CaseState
+    to_state: CaseState
+    transition_id: str
+    trigger: Trigger
+    review_reason: ReviewReason | None = None
+
+
+class EventRejectedPayload(EventPayload):
+    """An inbound event the acceptance matrix refused.
+
+    Recorded rather than dropped (P1-04): "we ignored this" is a fact about the case, and a
+    seller who replied to a closed case deserves better than silence in the record.
+    """
+
+    event_type: str
+    state: CaseState
+    reaction: str
+
+
+class StepPayload(EventPayload):
+    """A step ran. `detail` is staff-facing: no untrusted text, no secrets (I5, I12)."""
+
+    step: str
+    detail: str = ""
 
 
 class InboundEvent(BaseModel):
