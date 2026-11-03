@@ -94,6 +94,19 @@ class CasesConfig(BaseModel):
     max_steps_per_advance: int = 12
 
 
+class BaselineConfig(BaseModel):
+    """The rules-only baseline's one knob (config.md, agent-design.md section 5).
+
+    A measured size within this percentage of the declared size counts as agreeing, so B8
+    upholds; beyond it, B7 asks the seller for a photo. It is configuration rather than a
+    constant because it is a judgement about scanners and packing, not a fact.
+    """
+
+    model_config = _FROZEN
+
+    tolerance_pct: int = 5
+
+
 class PatternsConfig(BaseModel):
     model_config = _FROZEN
 
@@ -117,6 +130,7 @@ class PolicyConfig(BaseModel):
     approvals: ApprovalsConfig = Field(default_factory=ApprovalsConfig)
     cases: CasesConfig = Field(default_factory=CasesConfig)
     patterns: PatternsConfig = Field(default_factory=PatternsConfig)
+    baseline: BaselineConfig = Field(default_factory=BaselineConfig)
 
     def rules_version(self) -> str:
         """A hash of the effective configuration, recorded on every verdict.
