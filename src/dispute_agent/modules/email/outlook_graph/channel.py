@@ -200,7 +200,17 @@ class OutlookGraphChannel:
         "not yet", never as a failure. The case keeps waiting and becomes UNKNOWN at the
         deadline rather than being verified early or failed wrongly.
         """
-        raw = self._get_or_none(f"/me/messages/{receipt.external_message_id}")
+        raw = self._get_or_none(
+            f"/me/messages/{receipt.external_message_id}",
+            # Graph returns an extended property only when it is expanded by name. Without
+            # this the key we wrote is never read back, and the draft-and-mark design loses
+            # its point: we could not show the message in Sent Items is the one this action
+            # sent (integrations.md 1.4; Phase 3 review, finding 5).
+            params={"$expand": f"singleValueExtendedProperties($filter=id eq '{PROPERTY_ID}')"},
+            headers={
+                "Prefer": 'IdType="ImmutableId", outlook.body-content-type="text"',
+            },
+        )
         if raw is None:
             raw = self._by_filter_fallback(receipt)
 

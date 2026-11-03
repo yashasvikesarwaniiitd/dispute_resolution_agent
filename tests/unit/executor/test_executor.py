@@ -49,6 +49,7 @@ from dispute_agent.kernel.domain.errors import (
     PolicyRefused,
     TransientPortError,
 )
+from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import (
     ActionId,
     ApprovalId,
@@ -69,7 +70,16 @@ from dispute_agent.kernel.policy.verdicts import PolicyContext
 NOW = datetime(2026, 3, 1, 9, 30, tzinfo=UTC)
 LATER = NOW + timedelta(hours=72)
 HASH = PayloadHash("sha256:" + "a" * 64)
+
 SELLER = "seller@example.invalid"
+
+#: The approved message, with its real hash. `execute` refuses any payload that does not hash
+#: to what the action was planned with (Phase 3 review, finding 7), so the tests hand over the
+#: genuine approved plan rather than an arbitrary stand-in.
+APPROVED = MessagePayload(
+    kind=MessageKind.EVIDENCE_REQUEST, to=SELLER, subject="s", body="approved text"
+)
+APPROVED_HASH = payload_hash(APPROVED.model_dump(mode="json"))
 HUMAN = Actor(kind=ActorKind.HUMAN, id="human:owner")
 
 FACTS = CaseFacts(
@@ -200,10 +210,8 @@ def message_intent(**overrides: object) -> ActionIntent:
         "source_kind": IntentSource.PROPOSAL,
         "source_ref": "prp_01HQ",
         "action_type": ActionType.SEND_MESSAGE,
-        "payload": MessagePayload(
-            kind=MessageKind.EVIDENCE_REQUEST, to=SELLER, subject="s", body="approved text"
-        ),
-        "payload_hash": HASH,
+        "payload": APPROVED,
+        "payload_hash": APPROVED_HASH,
         "status": IntentStatus.PLANNED,
         "created_at": NOW,
     }
@@ -235,7 +243,7 @@ def an_approval(
         case_id=CASE.id,
         intent_id=IntentId("int_01HQ"),
         subject=subject,
-        payload_hash=HASH,
+        payload_hash=HASH if subject is ApprovalSubject.CREDIT else APPROVED_HASH,
         amount=Money.of("1820.00") if subject is ApprovalSubject.CREDIT else None,
         message_kind=MessageKind.EVIDENCE_REQUEST if subject is ApprovalSubject.MESSAGE else None,
         requested_at=NOW,
@@ -373,7 +381,7 @@ class TestIdempotentExecution:
         store = FakeActionStore(approval=an_approval())
         action_id = self.plan_one(store)
         port = FakePort()
-        result = executor(store).execute(action_id, port, "payload", NOW)
+        result = executor(store).execute(action_id, port, APPROVED, NOW)
         assert result.outcome is Outcome.SENT
         assert len(port.sends) == 1
 
@@ -382,13 +390,13 @@ class TestIdempotentExecution:
         store = FakeActionStore(approval=an_approval())
         action_id = self.plan_one(store)
         port = FakePort()
-        executor(store).execute(action_id, port, "payload", NOW)
+        executor(store).execute(action_id, port, APPROVED, NOW)
 
         store.rows[str(action_id)] = store.rows[str(action_id)].model_copy(
             update={"status": ActionStatus.PLANNED}
         )
         store.claimed.clear()
-        result = executor(store).execute(action_id, port, "payload", NOW)
+        result = executor(store).execute(action_id, port, APPROVED, NOW)
 
         assert result.outcome is Outcome.SENT
         assert result.reason == "found_by_lookup"
@@ -398,8 +406,8 @@ class TestIdempotentExecution:
         store = FakeActionStore(approval=an_approval())
         action_id = self.plan_one(store)
         port = FakePort()
-        executor(store).execute(action_id, port, "payload", NOW)
-        again = executor(store).execute(action_id, port, "payload", NOW)
+        executor(store).execute(action_id, port, APPROVED, NOW)
+        again = executor(store).execute(action_id, port, APPROVED, NOW)
         assert again.outcome is Outcome.BLOCKED
 
     def test_a_claim_held_elsewhere_rests_rather_than_failing(self) -> None:
@@ -407,7 +415,7 @@ class TestIdempotentExecution:
         store = FakeActionStore(approval=an_approval())
         action_id = self.plan_one(store)
         store.claimed.add(str(action_id))
-        result = executor(store).execute(action_id, FakePort(), "payload", NOW)
+        result = executor(store).execute(action_id, FakePort(), APPROVED, NOW)
         assert result.outcome is Outcome.BLOCKED
         assert result.reason == "claimed_elsewhere"
 
@@ -418,7 +426,7 @@ class TestTheKillSwitchIsCheckedInside:
         store = FakeActionStore(approval=an_approval())
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
         port = FakePort()
-        result = executor(store, AlwaysOn()).execute(action.id, port, "payload", NOW)
+        result = executor(store, AlwaysOn()).execute(action.id, port, APPROVED, NOW)
         assert result.outcome is Outcome.FAILED
         assert result.reason == "kill_switch_active"
         assert port.sends == []
@@ -427,7 +435,7 @@ class TestTheKillSwitchIsCheckedInside:
 class TestUnknownIsNeverSuccess:
     def plan_and_send(self, store: FakeActionStore, port: FakePort) -> ActionId:
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
-        executor(store).execute(action.id, port, "payload", NOW)
+        executor(store).execute(action.id, port, APPROVED, NOW)
         return action.id
 
     def test_an_ambiguous_write_becomes_unknown(self) -> None:
@@ -435,7 +443,7 @@ class TestUnknownIsNeverSuccess:
         store = FakeActionStore(approval=an_approval())
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
         port = FakePort(lookup_supported=False, send_error=AmbiguousOutcome("timeout"))
-        result = executor(store).execute(action.id, port, "payload", NOW)
+        result = executor(store).execute(action.id, port, APPROVED, NOW)
         assert result.outcome is Outcome.UNKNOWN
         assert result.is_success is False
 
@@ -472,7 +480,7 @@ class TestUnknownIsNeverSuccess:
         port = FakePort()
         action_id = self.plan_and_send(store, port)
         port.read_error = TransientPortError("not indexed yet")
-        result = executor(store).verify(action_id, port, Receipt(), {}, NOW)
+        result = executor(store).verify(action_id, port, Receipt(), {"body": "approved text"}, NOW)
         assert result.outcome is Outcome.BLOCKED
 
 
@@ -481,7 +489,7 @@ class TestFailures:
         store = FakeActionStore(approval=an_approval())
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
         port = FakePort(lookup_supported=False, send_error=PermanentPortError("bad request"))
-        result = executor(store).execute(action.id, port, "payload", NOW)
+        result = executor(store).execute(action.id, port, APPROVED, NOW)
         assert result.outcome is Outcome.FAILED
         assert result.reason == "permanent"
 
@@ -495,9 +503,49 @@ class TestFailures:
         store = FakeActionStore(approval=an_approval())
         action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
         port = FakePort(lookup_supported=False, send_error=TransientPortError("could not connect"))
-        result = executor(store).execute(action.id, port, "payload", NOW)
+        result = executor(store).execute(action.id, port, APPROVED, NOW)
         assert result.outcome is Outcome.FAILED
         assert result.reason == "transient_exhausted"
+
+
+class TestOnlyTheApprovedTextCanBeSent:
+    """Phase 3 review, finding 7. Content used to arrive by argument, unchecked."""
+
+    def test_a_payload_that_does_not_match_the_approval_is_never_sent(self) -> None:
+        store = FakeActionStore(approval=an_approval())
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        port = FakePort()
+        edited = APPROVED.model_copy(update={"body": "different text"})
+
+        result = executor(store).execute(action.id, port, edited, NOW)
+        assert result.outcome is Outcome.FAILED
+        assert result.reason == "payload_mismatch"
+        assert port.sends == []
+
+    def test_the_approved_payload_is_sent(self) -> None:
+        """The control."""
+        store = FakeActionStore(approval=an_approval())
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        port = FakePort()
+        assert executor(store).execute(action.id, port, APPROVED, NOW).outcome is Outcome.SENT
+        assert len(port.sends) == 1
+
+    def test_something_that_is_not_a_payload_at_all_is_refused(self) -> None:
+        store = FakeActionStore(approval=an_approval())
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        port = FakePort()
+        result = executor(store).execute(action.id, port, "just a string", NOW)
+        assert result.reason == "payload_mismatch"
+        assert port.sends == []
+
+    def test_verify_refuses_to_compare_nothing(self) -> None:
+        """An empty comparison used to report VERIFIED without reading anything."""
+        from dispute_agent.kernel.domain.errors import DomainValidationError
+
+        store = FakeActionStore(approval=an_approval())
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        with pytest.raises(DomainValidationError, match="at least one field"):
+            executor(store).verify(action.id, FakePort(), Receipt(), {}, NOW)
 
 
 class TestConstruction:

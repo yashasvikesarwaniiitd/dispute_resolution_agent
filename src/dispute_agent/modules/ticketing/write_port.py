@@ -14,11 +14,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from dispute_agent.kernel.domain.external import IssueSpec
 from dispute_agent.modules.ticketing.jira_cloud.ticketing import normalise
 
 if TYPE_CHECKING:
+    from dispute_agent.kernel.domain.actions import IssuePayload
     from dispute_agent.kernel.domain.external import IssueRef, IssueSnapshot
-    from dispute_agent.kernel.domain.ids import IdempotencyKey
+    from dispute_agent.kernel.domain.ids import CaseId, IdempotencyKey
     from dispute_agent.kernel.ports import TicketingSystem
 
 
@@ -38,9 +40,18 @@ class NormalisedIssue:
 
 @dataclass
 class IssueWritePort:
-    """Implements WritePort over any TicketingSystem, real or fake."""
+    """Implements WritePort over any TicketingSystem, real or fake.
+
+    `send` takes the intent's own `IssuePayload` and builds the issue here, with the
+    project taken from this bridge's one `project_key`. Before, the create used the spec's
+    project and the look-before-create search used the adapter's, so a mismatch made the
+    search silently blind and produced the duplicate issue ADR 0020 exists to prevent
+    (Phase 3 review, finding 8). One source now feeds both.
+    """
 
     system: TicketingSystem
+    case_id: CaseId
+    project_key: str
 
     @property
     def idempotent_writes(self) -> bool:
@@ -51,7 +62,17 @@ class IssueWritePort:
         return self.system.lookup_supported
 
     def send(self, payload: Any, key: IdempotencyKey) -> IssueRef:
-        return self.system.upsert_issue(payload, key)
+        approved: IssuePayload = payload
+        return self.system.upsert_issue(
+            IssueSpec(
+                project_key=self.project_key,
+                summary=approved.summary,
+                description=approved.description,
+                labels=approved.labels,
+                case_id=self.case_id,
+            ),
+            key,
+        )
 
     def find_sent(self, key: IdempotencyKey) -> IssueRef | None:
         return self.system.find_issue(key)

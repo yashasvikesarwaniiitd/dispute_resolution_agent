@@ -17,11 +17,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from dispute_agent.kernel.domain.external import OutboundMessage
 from dispute_agent.modules.email.outlook_graph.channel import normalise
 
 if TYPE_CHECKING:
+    from dispute_agent.kernel.domain.actions import MessagePayload
     from dispute_agent.kernel.domain.external import MessageSnapshot, SendReceipt
-    from dispute_agent.kernel.domain.ids import IdempotencyKey
+    from dispute_agent.kernel.domain.ids import CaseId, IdempotencyKey
     from dispute_agent.kernel.ports import MessageChannel
 
 
@@ -40,9 +42,16 @@ class NormalisedMessage:
 
 @dataclass
 class MessageWritePort:
-    """Implements WritePort over any MessageChannel, real or fake."""
+    """Implements WritePort over any MessageChannel, real or fake.
+
+    `send` takes the intent's own `MessagePayload` - the approved plan, whose hash the
+    executor has just checked - and builds the outbound message from it here. So the only
+    text that can reach the channel is text that matched the approval (I13). It used to be
+    handed a ready-made message by the caller, and nothing tied that to the approval.
+    """
 
     channel: MessageChannel
+    case_id: CaseId
 
     @property
     def idempotent_writes(self) -> bool:
@@ -53,7 +62,18 @@ class MessageWritePort:
         return self.channel.lookup_supported
 
     def send(self, payload: Any, key: IdempotencyKey) -> SendReceipt:
-        return self.channel.send(payload, key)
+        approved: MessagePayload = payload
+        return self.channel.send(
+            OutboundMessage(
+                to=approved.to,
+                subject=approved.subject,
+                body=approved.body,
+                in_reply_to=approved.in_reply_to,
+                case_id=self.case_id,
+                kind=approved.kind,
+            ),
+            key,
+        )
 
     def find_sent(self, key: IdempotencyKey) -> SendReceipt | None:
         return self.channel.find_sent(key)

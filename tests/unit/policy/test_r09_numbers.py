@@ -245,3 +245,43 @@ class TestTheReasonIsActionable:
         message that must not go out."""
         message = intent(body="We will refund ₹500.00.")
         assert verdict(message, CHARGED).verdict is VerdictKind.DENY
+
+
+class TestMaskingCannotBlindTheChecker:
+    """Phase 3 review, finding 4. References arrive on the intake request, so the submitter
+    chooses them - and a reference must never be able to hide a figure."""
+
+    def test_a_numeric_reference_does_not_hide_the_same_number(self) -> None:
+        from dispute_agent.kernel.policy.numbers import extract_numbers
+
+        tokens = extract_numbers("We recorded 750 g for this parcel.", masks=("750",))
+        assert [t.text for t in tokens] == ["750 g"]
+
+    def test_a_reference_is_masked_only_as_a_whole_token(self) -> None:
+        """ "SHP-1" inside "SHP-12" is not the reference, and its digits stay visible."""
+        from dispute_agent.kernel.policy.numbers import extract_numbers
+
+        tokens = extract_numbers("See SHP-12.", masks=("SHP-1",))
+        assert tokens, "a fragment match must not mask part of another identifier"
+
+    def test_a_real_reference_is_still_masked(self) -> None:
+        """The control: the masking still does its job for an ordinary reference."""
+        from dispute_agent.kernel.policy.numbers import extract_numbers
+
+        assert extract_numbers("About SHP-000001.", masks=("SHP-000001",)) == ()
+
+    def test_an_uncited_figure_beside_a_numeric_reference_is_denied(self) -> None:
+        """End to end through R09: the message names a figure nobody cited, and a numeric
+        seller reference that happens to match it must not let it through."""
+        numeric_case = CASE.model_copy(
+            update={"facts": CASE.facts.model_copy(update={"seller_ref": "750"})}
+        )
+        ctx = PolicyContext(
+            case=numeric_case,
+            stage=PolicyStage.PLANNING,
+            intent=intent(body="We recorded 750 g for this parcel."),
+            assessment=assessment(CHARGED),
+            policy=POLICY,
+            now=NOW,
+        )
+        assert MessageNumbersVerified().evaluate(ctx).verdict is VerdictKind.DENY

@@ -295,6 +295,36 @@ class TestReadBack:
         )
         assert normalise(snapshot.body) == normalise(MESSAGE.body)
 
+    def test_the_read_back_asks_graph_for_the_key_by_name(self) -> None:
+        """Graph omits an extended property unless it is expanded. The stub above includes
+        it either way - which is how this was missed - so this pins the request itself."""
+        graph = Graph().on(
+            "GET", "/me/messages/AAMk-1", httpx.Response(200, json=self.sent_message())
+        )
+        graph.channel().get_message(SendReceipt(external_message_id="AAMk-1", sent_at=NOW))
+        url = unquote_plus(graph.urls()[0])
+        assert "$expand=singleValueExtendedProperties" in url
+        assert PROPERTY_ID in url
+
+    def test_the_read_back_asks_for_a_text_body(self) -> None:
+        """So the body compared with the approved text is text, not HTML."""
+        graph = Graph().on(
+            "GET", "/me/messages/AAMk-1", httpx.Response(200, json=self.sent_message())
+        )
+        graph.channel().get_message(SendReceipt(external_message_id="AAMk-1", sent_at=NOW))
+        assert 'body-content-type="text"' in graph.requests[0].headers["Prefer"]
+
+    def test_a_message_without_our_key_reads_back_with_none(self) -> None:
+        """If Graph returns no property, the snapshot says so rather than inventing one,
+        and a verification that checks the key will fail rather than pass."""
+        raw = self.sent_message()
+        del raw["singleValueExtendedProperties"]
+        graph = Graph().on("GET", "/me/messages/AAMk-1", httpx.Response(200, json=raw))
+        snapshot = graph.channel().get_message(
+            SendReceipt(external_message_id="AAMk-1", sent_at=NOW)
+        )
+        assert snapshot.idempotency_key is None
+
     def test_a_draft_copy_is_not_yet_rather_than_verified(self) -> None:
         """With immutable ids the id resolves to the Drafts copy until the move happens.
         Verifying on that would mark a message sent that is still sitting in a folder."""

@@ -183,6 +183,15 @@ class JiraCloudTicketing:
         Searching first would look safer and be worse: a miss means nothing, so a slow
         index turns into a duplicate issue.
         """
+        if spec.project_key != self.project_key:
+            # find_issue searches self.project_key. Creating somewhere else would make that
+            # search blind to this issue, so a retry could never find it - the duplicate
+            # ADR 0020 exists to prevent. Refused before anything is written.
+            raise PermanentPortError(
+                f"issue is for project {spec.project_key!r} but this adapter searches "
+                f"{self.project_key!r}; refusing so the look-before-create cannot go blind",
+                status=None,
+            )
         created = self._post(
             f"{API}/issue",
             json={

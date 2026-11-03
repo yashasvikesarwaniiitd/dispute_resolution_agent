@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import inspect
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -334,11 +334,22 @@ class TestSigningIn:
         with pytest.raises(ConfigError, match="REVIEW_CONSOLE_TOKEN"):
             sign_in(TOKEN, None, "owner")
 
-    def test_the_comparison_is_constant_time(self) -> None:
-        """Far-fetched locally, and the careless version is what gets copied next."""
-        source = inspect.getsource(sign_in)
-        assert "compare_digest" in source
-        assert "provided == expected" not in source
+    def test_the_comparison_goes_through_compare_digest(self, monkeypatch: Any) -> None:
+        """Watched, not grepped. The first version searched the function's source for the
+        word "compare_digest", which would pass on code that called it and ignored the
+        answer (Phase 3 review, finding 9)."""
+        import hmac
+
+        seen: list[tuple[str, str]] = []
+        real = hmac.compare_digest
+
+        def spy(a: str, b: str) -> bool:
+            seen.append((a, b))
+            return real(a, b)
+
+        monkeypatch.setattr(hmac, "compare_digest", spy)
+        sign_in(TOKEN, TOKEN, "owner")
+        assert seen == [(TOKEN, TOKEN)]
 
 
 class TestARejectionReturnsTheCase:
@@ -363,12 +374,16 @@ class TestARejectionReturnsTheCase:
 
 
 class TestTheConsoleCannotSend:
-    def test_it_holds_no_channel_or_executor(self, store: SqliteApprovalStore) -> None:
+    def test_nothing_it_holds_can_send(self, store: SqliteApprovalStore) -> None:
         """A console that could send would be a second path to the outside world, missing
-        the executor and everything it guarantees (I2)."""
-        held = set(vars(console(store)))
-        for forbidden in ("channel", "executor", "port", "email", "ticketing"):
-            assert forbidden not in held
+        the executor and everything it guarantees (I2).
+
+        Checked by capability, not by name: the first version looked for fields called
+        "channel" or "executor", and would have passed a field called "mailer" (Phase 3
+        review, finding 9)."""
+        for name, held in vars(console(store)).items():
+            for verb in ("send", "upsert_issue", "post_credit", "execute"):
+                assert not callable(getattr(held, verb, None)), f"{name} can {verb}"
 
     def test_approving_writes_a_row_and_nothing_else(self, store: SqliteApprovalStore) -> None:
         store.add(a_request())

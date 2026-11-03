@@ -37,6 +37,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.errors import TransientPortError
 from dispute_agent.kernel.domain.external import IssueSpec, OutboundMessage
+from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import (
     ActionId,
     CaseId,
@@ -144,7 +145,8 @@ def planned(store: Actions, action_type: ActionType, payload: Any) -> ActionId:
             action_type=action_type,
             action_seq=1,
             idempotency_key=KEY,
-            payload_hash=HASH,
+            # The real hash of the approved plan. execute refuses anything else.
+            payload_hash=payload_hash(payload.model_dump(mode="json")),
             status=ActionStatus.PLANNED,
             planned_at=NOW,
         )
@@ -154,12 +156,12 @@ def planned(store: Actions, action_type: ActionType, payload: Any) -> ActionId:
 
 def message_port(**faults: str) -> tuple[MessageWritePort, FakeMessageChannel]:
     channel = FakeMessageChannel(faults=dict(faults), now=NOW)
-    return MessageWritePort(channel=channel), channel
+    return MessageWritePort(channel=channel, case_id=CASE), channel
 
 
 def issue_port(**faults: str) -> tuple[IssueWritePort, FakeTicketingSystem]:
     system = FakeTicketingSystem(faults=dict(faults), now=NOW)
-    return IssueWritePort(system=system), system
+    return IssueWritePort(system=system, case_id=CASE, project_key="WD"), system
 
 
 class TestAGoodSend:
@@ -168,7 +170,7 @@ class TestAGoodSend:
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
 
-        sent = executor(store).execute(action_id, port, MESSAGE, NOW)
+        sent = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert sent.outcome is Outcome.SENT
         assert store.get(action_id).status is ActionStatus.SENT
 
@@ -188,7 +190,7 @@ class TestAGoodSend:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
         assert channel.sent_count() == 1
 
     def test_a_message_not_yet_in_sent_items_rests_rather_than_failing(self) -> None:
@@ -197,10 +199,10 @@ class TestAGoodSend:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
 
         receipt = channel.find_sent(KEY)
-        result = executor(store).verify(action_id, port, receipt, {}, NOW)
+        result = executor(store).verify(action_id, port, receipt, {"in_sent_items": True}, NOW)
         assert result.outcome is Outcome.BLOCKED
         assert result.reason == "not_visible_yet"
         assert store.get(action_id).status is ActionStatus.SENT
@@ -221,7 +223,7 @@ class TestS12aTheSendTimedOutButItWent:
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port(send="timeout")
 
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
 
         assert result.outcome is Outcome.SENT
         assert result.reason == "found_after_ambiguous_write"
@@ -235,7 +237,7 @@ class TestS12aTheSendTimedOutButItWent:
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, _ = message_port(send="timeout")
 
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
         assert store.get(action_id).status is not ActionStatus.FAILED
 
     def test_when_the_lookup_cannot_settle_it_a_person_does(self) -> None:
@@ -244,7 +246,7 @@ class TestS12aTheSendTimedOutButItWent:
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port(send="timeout", find_sent="transient")
 
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert result.outcome is Outcome.UNKNOWN
         assert store.get(action_id).status is ActionStatus.UNKNOWN
         assert channel.sent_count() == 1
@@ -257,7 +259,7 @@ class TestS12aTheSendTimedOutButItWent:
         for _ in range(3):
             store.claimed.clear()
             store.set_status(action_id, ActionStatus.PLANNED, NOW)
-            executor(store).execute(action_id, port, MESSAGE, NOW)
+            executor(store).execute(action_id, port, _message_payload(), NOW)
         assert channel.sent_count() == 1
 
     def test_a_send_that_never_left_is_the_only_timeout_that_fails(self) -> None:
@@ -270,8 +272,8 @@ class TestS12aTheSendTimedOutButItWent:
             def send(self, payload: Any, key: IdempotencyKey) -> Any:
                 raise TransientPortError("could not connect")
 
-        port = NeverConnects(channel=FakeMessageChannel(now=NOW))
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        port = NeverConnects(channel=FakeMessageChannel(now=NOW), case_id=CASE)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert result.outcome is Outcome.FAILED
 
 
@@ -287,7 +289,7 @@ class TestS12bStuckInDrafts:
             port.send(MESSAGE, KEY)
         assert channel.drafts()
 
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert result.outcome is Outcome.UNKNOWN
         assert store.get(action_id).status is ActionStatus.UNKNOWN
 
@@ -299,7 +301,7 @@ class TestS12bStuckInDrafts:
         with pytest.raises(TransientPortError):
             port.send(MESSAGE, KEY)
 
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert result.is_success is False
         assert result.outcome is not Outcome.FAILED
 
@@ -311,7 +313,7 @@ class TestS12bStuckInDrafts:
         with pytest.raises(TransientPortError):
             port.send(MESSAGE, KEY)
 
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
         assert channel.sent_count() == 0
 
     def test_the_reason_carries_the_draft_for_a_person_to_find(self) -> None:
@@ -321,7 +323,7 @@ class TestS12bStuckInDrafts:
         with pytest.raises(TransientPortError):
             port.send(MESSAGE, KEY)
 
-        result = executor(store).execute(action_id, port, MESSAGE, NOW)
+        result = executor(store).execute(action_id, port, _message_payload(), NOW)
         assert "ambiguous" in (result.reason or "")
 
 
@@ -331,7 +333,7 @@ class TestS12cJiraRefuses:
         action_id = planned(store, ActionType.UPSERT_ISSUE, _issue_payload())
         port, system = issue_port(upsert_issue="permanent")
 
-        result = executor(store).execute(action_id, port, SPEC, NOW)
+        result = executor(store).execute(action_id, port, _issue_payload(), NOW)
         assert result.outcome is Outcome.FAILED
         assert store.get(action_id).status is ActionStatus.FAILED
         assert system.issue_count() == 0
@@ -342,7 +344,7 @@ class TestS12cJiraRefuses:
         action_id = planned(store, ActionType.UPSERT_ISSUE, _issue_payload())
         port, system = issue_port(upsert_issue="marker_fails")
 
-        result = executor(store).execute(action_id, port, SPEC, NOW)
+        result = executor(store).execute(action_id, port, _issue_payload(), NOW)
         assert result.outcome is Outcome.UNKNOWN
         assert system.issue_count() == 1
 
@@ -353,7 +355,7 @@ class TestVerificationComparesWhatWasMeant:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
         channel.now = LATER
 
         result = executor(store).verify(
@@ -372,7 +374,7 @@ class TestVerificationComparesWhatWasMeant:
         store = Actions()
         action_id = planned(store, ActionType.SEND_MESSAGE, _message_payload())
         port, channel = message_port()
-        executor(store).execute(action_id, port, MESSAGE, NOW)
+        executor(store).execute(action_id, port, _message_payload(), NOW)
         channel.now = LATER
 
         result = executor(store).verify(
@@ -384,7 +386,7 @@ class TestVerificationComparesWhatWasMeant:
         store = Actions()
         action_id = planned(store, ActionType.UPSERT_ISSUE, _issue_payload())
         port, system = issue_port()
-        sent = executor(store).execute(action_id, port, SPEC, NOW)
+        sent = executor(store).execute(action_id, port, _issue_payload(), NOW)
         assert sent.outcome is Outcome.SENT
 
         from dispute_agent.modules.ticketing.jira_cloud.ticketing import (

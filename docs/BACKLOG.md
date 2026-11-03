@@ -158,3 +158,10 @@ applies `schedule_timers` / `cancel_timers` in the same transaction as the trans
 database correctly refuses as an illegal jump the moment a case moves more than one state.
 It only worked before because every case stopped one step from where it started. Cases are
 now saved after every transition (`advance(..., commit=...)`), as orchestrator.md specifies.
+
+### From the Phase 3 safety review
+
+- **The SQLite ActionStore's first tests** (finding 6): `outbound_message_count` counts SEND_MESSAGE
+  rows in SENT, VERIFIED and UNKNOWN; a FAILED row is not counted; a re-executed row is
+  counted once; the `since` bound is respected. The stub-based tests that claimed this were
+  removed because they could not fail.

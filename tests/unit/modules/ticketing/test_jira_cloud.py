@@ -162,6 +162,19 @@ class TestCreating:
         assert not any("search" in str(r.url) for r in jira.requests)
 
 
+class TestOneProjectForCreateAndSearch:
+    """Phase 3 review, finding 8. find_issue searches the adapter's project; an issue
+    created anywhere else would be invisible to it, so a retry could never find it and
+    would create a duplicate - the failure ADR 0020 exists to prevent."""
+
+    def test_an_issue_for_another_project_is_refused_before_anything_is_written(self) -> None:
+        jira = Jira().on("POST", "/issue", made())
+        elsewhere = SPEC.model_copy(update={"project_key": "OTHER"})
+        with pytest.raises(PermanentPortError, match="go blind"):
+            jira.system().upsert_issue(elsewhere, KEY)
+        assert jira.requests == []
+
+
 class TestTheMarkerFailing:
     def test_an_unmarked_issue_is_ambiguous_and_names_itself(self) -> None:
         """The issue exists and only the marker is missing. Reporting failure would invite

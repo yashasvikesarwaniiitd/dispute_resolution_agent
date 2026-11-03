@@ -41,6 +41,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.errors import (
     AmbiguousOutcome,
+    DomainValidationError,
     ExternalNotFound,
     KillSwitchEngaged,
     PermanentPortError,
@@ -297,10 +298,30 @@ class ActionExecutor:
     def execute(
         self, action_id: ActionId, port: WritePort, payload: object, now: datetime
     ) -> ExecutionResult:
-        """Claim, look before writing, write, record. Never retried blindly."""
+        """Claim, look before writing, write, record. Never retried blindly.
+
+        `payload` is the intent's own payload - the approved plan - not something built
+        from it. It is checked against the hash the action was planned with, which is the
+        hash the approval bound to, before anything else happens. The port turns it into a
+        message or an issue; the executor never sends anything it has not matched.
+        """
         action = self._actions.get(action_id)
         if action.status is not ActionStatus.PLANNED:
             return ExecutionResult(Outcome.BLOCKED, action_id, "already_started")
+
+        # I13 at the last moment it can be checked. Content used to arrive by argument,
+        # unchecked, one line after the authorisation was checked - so an upstream bug could
+        # send text other than the approved text (Phase 3 review, finding 7). Nothing is
+        # sent on a mismatch, so FAILED is the truth; the case then reaches a person.
+        if _hash_of(payload) != action.payload_hash:
+            self._actions.set_status(
+                action_id,
+                ActionStatus.FAILED,
+                now,
+                last_error_code="payload_mismatch",
+                last_error_detail="the payload does not match the planned and approved hash",
+            )
+            return ExecutionResult(Outcome.FAILED, action_id, "payload_mismatch")
 
         # Inside execute, not only at the entry point (I10). An action planned a second
         # before the switch went on must not reach the outside world.
@@ -377,7 +398,17 @@ class ActionExecutor:
         checks: dict[str, object],
         now: datetime,
     ) -> ExecutionResult:
-        """Read the far end and compare. A receipt is a claim; a snapshot is evidence."""
+        """Read the far end and compare. A receipt is a claim; a snapshot is evidence.
+
+        `checks` must name something to compare. An empty mapping used to verify with no
+        comparison at all - a delivery check that ticks the box without looking (Phase 3
+        review, finding 7). That is a caller's bug, so it raises rather than deciding.
+        """
+        if not checks:
+            raise DomainValidationError(
+                "verify needs at least one field to compare; verifying against nothing "
+                "would mark an action VERIFIED without reading what is out there"
+            )
         action = self._actions.get(action_id)
         if action.status is not ActionStatus.SENT:
             return ExecutionResult(Outcome.BLOCKED, action_id, f"not_sent:{action.status.value}")
@@ -458,6 +489,17 @@ class _Missing:
 
 
 _MISSING = _Missing()
+
+
+def _hash_of(payload: object) -> object:
+    """The same hash the intent was planned with: canonical JSON of the payload model."""
+    from dispute_agent.kernel.domain.hashing import payload_hash
+
+    dump = getattr(payload, "model_dump", None)
+    if dump is None:
+        # Not a domain payload at all, so it cannot match an approved one.
+        return None
+    return payload_hash(dump(mode="json"))
 
 
 def _start_of_day(now: datetime, tz_name: str) -> datetime:

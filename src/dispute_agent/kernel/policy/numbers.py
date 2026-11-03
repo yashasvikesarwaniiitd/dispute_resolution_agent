@@ -99,10 +99,17 @@ def extract_numbers(text: str, *, masks: Iterable[str] = ()) -> tuple[NumberToke
     itself rendered are removed before the tokeniser ever sees them (rules 2 and 3).
     """
     masked = text
-    # Longest first, so a mask contained in another cannot blank out half of it.
+    # Longest first, so a mask contained in another cannot blank out half of it. Whole
+    # tokens only, and only masks that contain a letter: a mask with no letters cannot be
+    # told apart from a quantity, and an unanchored replace of "750" blanked every 750 in
+    # the message - including "750 g" - so the checker saw no numbers at all and allowed
+    # it (Phase 3 review, finding 4). Refused masks are simply checked like any figure,
+    # which errs towards refusing the message, never towards letting a number through.
     for mask in sorted(masks, key=len, reverse=True):
-        if mask:
-            masked = masked.replace(mask, " " * len(mask))
+        if not mask or not any(ch.isalpha() for ch in mask):
+            continue
+        pattern = rf"(?<![A-Za-z0-9]){re.escape(mask)}(?![A-Za-z0-9])"
+        masked = re.sub(pattern, lambda m: " " * len(m.group()), masked)
 
     tokens = []
     for match in TOKEN.finditer(masked):

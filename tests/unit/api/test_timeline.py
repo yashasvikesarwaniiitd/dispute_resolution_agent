@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from dispute_agent.api.timeline import events_table, render_timeline, untrusted_block
+from dispute_agent.api.timeline import events_table, render_timeline
 from dispute_agent.kernel.domain.case import CaseFacts
 from dispute_agent.kernel.domain.enums import (
     ActorKind,
@@ -196,9 +196,16 @@ class TestSellerTextIsVisiblyQuoted:
 
     def test_a_truncated_statement_says_it_was_truncated(self) -> None:
         """So a reviewer does not read a cut-off sentence as the whole of what was said."""
-        long_text = UntrustedText.create("x" * 25_000, "dispute_form", "form-1")
-        assert long_text.truncated
-        assert "truncated" in untrusted_block(long_text, "the statement")
+        # Drawn on the actual page. The first version only checked UntrustedText's own
+        # flag and never rendered anything (Phase 3 review, finding 9).
+        html = render_timeline(a_case("x" * 25_000), [])
+        label = html.split('<div class="label">')[1].split("</div>")[0]
+        assert "(truncated)" in label
+
+    def test_a_short_statement_is_not_labelled_truncated(self) -> None:
+        """The control, so the test above cannot pass on a label that is always there."""
+        html = render_timeline(a_case("a short statement"), [])
+        assert "(truncated)" not in html
 
     def test_a_case_with_no_statement_renders_no_block(self) -> None:
         assert 'class="untrusted"' not in render_timeline(a_case(), [])

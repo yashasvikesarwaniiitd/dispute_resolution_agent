@@ -99,9 +99,11 @@ class TestTheCountersAreActuallyGathered:
     def test_the_executor_asks_for_both_counts(self) -> None:
         from tests.unit.executor.test_executor import plan_a_message
 
-        store, context = plan_a_message(messages_total=0, messages_today=0)
+        store, _ = plan_a_message(messages_total=0, messages_today=0)
+        # The only claim here that can fail: the daily count is bounded by a day. The two
+        # refusal tests below are what prove the counts actually reach the rules - an
+        # earlier assertion on the caller's own context was 0 whatever the executor did.
         assert store.counted_since is not None, "the daily count must be bounded by a day"
-        assert context.messages_sent_total == 0
 
     def test_a_case_over_its_limit_is_refused_at_plan_time(self) -> None:
         """Not merely "the rule would deny it" - the executor refuses to create the action."""
@@ -119,29 +121,13 @@ class TestTheCountersAreActuallyGathered:
             plan_a_message(messages_total=0, messages_today=1)
 
 
-class TestARetryIsNotASecondMessage:
-    """The card's third case.
-
-    The count is of action rows, not of attempts. A send that timed out and is retried is
-    the same message - the executor reuses the stored idempotency key and the same row - so
-    it must not consume another slot against the limit. Otherwise a flaky network silently
-    spends a seller's three messages on one.
-    """
-
-    def test_the_count_is_of_rows_not_attempts(self) -> None:
-        from tests.unit.executor.test_executor import plan_a_message
-
-        store, _ = plan_a_message(messages_total=1, messages_today=0)
-        before = store.messages_total
-        # A retry does not insert another row, so the number the limit reads does not move.
-        assert store.outbound_message_count(CASE.id) == before
-
-    def test_two_separate_messages_do_count_twice(self) -> None:
-        """The control: if the counter never moved, the limits would be dead again."""
-        from tests.unit.executor.test_executor import plan_a_message
-
-        store, _ = plan_a_message(messages_total=2, messages_today=0)
-        assert store.outbound_message_count(CASE.id) == 2
+# Removed after the Phase 3 safety review (finding 6): `TestARetryIsNotASecondMessage`.
+# Both of its tests asked a stub for the number the stub had been configured to return, so
+# they asserted 1 == 1 and 2 == 2 while claiming to prove a retry is not double-counted.
+# That claim is about the real count over action rows - SENT, VERIFIED and UNKNOWN counted,
+# a re-executed row counted once - and it can only be tested against the SQLite ActionStore,
+# which does not exist yet. It is listed in BACKLOG.md as the first test that store needs.
+# A test that cannot fail is worse than no test, because it reads as coverage.
 
 
 class TestTheDayBoundary:
