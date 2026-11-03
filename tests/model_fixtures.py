@@ -30,7 +30,7 @@ def valid_answer(**overrides: Any) -> dict[str, Any]:
             {
                 "kind": "missing_evidence",
                 "statement": "No packed-parcel photo has been supplied.",
-                "evidence_refs": ["declared_weight_g"],
+                "evidence_refs": ["f_charged"],
             }
         ],
         "action_parameters": {"requested_items": ["A photo of the packed parcel on a scale"]},

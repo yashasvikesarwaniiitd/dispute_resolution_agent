@@ -47,7 +47,15 @@ from dispute_agent.kernel.domain.enums import (
     Trigger,
     VerdictKind,
 )
-from dispute_agent.kernel.domain.errors import DomainValidationError
+from dispute_agent.kernel.domain.errors import (
+    AgentDrift,
+    BudgetExceeded,
+    DomainValidationError,
+    GuardrailBlocked,
+    InvalidModelOutput,
+    ModuleUnavailable,
+    TransientPortError,
+)
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import ApprovalId, IntentId
 from dispute_agent.kernel.domain.models import ReviewReason
@@ -111,6 +119,10 @@ class InvestigateStep:
     ids: IdGenerator
     modules: Mapping[str, bool] = field(default_factory=dict)
     config: PolicyConfig = field(default_factory=PolicyConfig)
+    #: The rules-only baseline, built with `fallback_used=True`, for when `reasoner` is a
+    #: model that cannot be reached (orchestrator.md section 5). None when `reasoner` is
+    #: already the baseline: there is nothing further to fall back to.
+    fallback: Reasoner | None = None
     name: str = "investigate"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -122,7 +134,10 @@ class InvestigateStep:
             return _escalate(ReviewCode.INTERNAL_ERROR, "no assessment for this round")
 
         briefing = self._briefing(case, assessment)
-        proposal = self.reasoner.propose(briefing)
+        decided = self._propose(briefing)
+        if isinstance(decided, StepOutcome):
+            return decided
+        proposal = decided
 
         # The menu is code's decision, not the reasoner's (I1). Before this check the menu
         # was built, put on the briefing and then ignored, so an off-menu proposal - the
@@ -134,6 +149,47 @@ class InvestigateStep:
                 f"proposed {proposal.action.value}, which is not on this case's menu",
             )
         return self._act_on(case, proposal, assessment, now, briefing.allowed_actions)
+
+    # -- asking the reasoner -------------------------------------------------------------------
+
+    def _propose(self, briefing: CaseBriefing) -> Proposal | StepOutcome:
+        """orchestrator.md section 5: who decides when the model cannot.
+
+        Two different failures, deliberately treated differently. A model that could not be
+        *reached* is replaced by the rules baseline, which decides the clear cases. A model
+        that *answered badly* - invalid output, over budget, blocked, drifted - is not
+        replaced: the case goes to a person with that reason (FLOW section 7b). Falling back
+        there would quietly turn "the AI produced something we cannot trust" into "rules
+        decided", and nobody would look at why.
+        """
+        try:
+            return self.reasoner.propose(briefing)
+        except (ModuleUnavailable, TransientPortError) as down:
+            module = down.module if isinstance(down, ModuleUnavailable) else "model_gateway"
+            if self.fallback is None:
+                raise ModuleUnavailable(module) from down
+            proposal = self.fallback.propose(briefing)
+            if proposal.action is ProposalAction.ESCALATE_TO_HUMAN:
+                # The baseline could not decide this one either, so the honest reason is the
+                # missing model, not "the proposal said escalate" (spec section 5).
+                return StepOutcome(
+                    trigger=Trigger.ESCALATE,
+                    review_reason=ReviewReason(
+                        code=ReviewCode.MODULE_UNAVAILABLE,
+                        module=module,
+                        detail="the model was unavailable and the rules could not decide",
+                    ),
+                    detail=f"reasoner_fallback: {module}",
+                )
+            return proposal
+        except InvalidModelOutput as invalid:
+            return _escalate(ReviewCode.INVALID_MODEL_OUTPUT, str(invalid))
+        except BudgetExceeded as budget:
+            return _escalate(ReviewCode.LLM_BUDGET_EXCEEDED, str(budget))
+        except GuardrailBlocked as blocked:
+            return _escalate(ReviewCode.GUARDRAIL_BLOCKED, str(blocked))
+        except AgentDrift as drift:
+            return _escalate(ReviewCode.AGENT_DRIFT, str(drift))
 
     # -- building the briefing ---------------------------------------------------------------
 

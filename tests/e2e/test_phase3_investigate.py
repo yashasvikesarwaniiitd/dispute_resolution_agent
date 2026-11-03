@@ -40,6 +40,7 @@ from dispute_agent.kernel.domain.enums import (
 from dispute_agent.kernel.domain.events import Event, EventPayload, InboundEvent, InboundPayload
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
 from dispute_agent.kernel.domain.models import Actor
+from dispute_agent.kernel.domain.values import UntrustedText
 from dispute_agent.kernel.orchestrator.intake import Intake
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
@@ -57,6 +58,7 @@ from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 from dispute_agent.packs.weight_dispute.render import TemplateDrafter
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 NOW = datetime(2026, 3, 1, 9, 30, tzinfo=UTC)
@@ -87,7 +89,7 @@ class RestrictedMenu:
         return self.menu
 
 
-def facts_for(name: str) -> CaseFacts:
+def facts_for(name: str, statement: str | None = None) -> CaseFacts:
     built = fixture(name)
     return CaseFacts(
         shipment_ref=built.shipment.ref,
@@ -95,14 +97,30 @@ def facts_for(name: str) -> CaseFacts:
         seller_ref=built.shipment.seller_id,
         seller_contact=built.seller_contact,
         raised_at=NOW,
+        statement=(
+            UntrustedText.create(statement, "dispute_form", "form-1") if statement else None
+        ),
         pack_facts={STATUS_KEY: built.shipment.status},
     )
 
 
-def run(engine, name: str, *, menu: tuple[Any, ...] | None = None, allow_seller: bool = True):
+def run(
+    engine,
+    name: str,
+    *,
+    menu: tuple[Any, ...] | None = None,
+    allow_seller: bool = True,
+    reasoner: Callable[[FakeIdGenerator, FakeClock], Any] | None = None,
+    fallback: bool = False,
+    statement: str | None = None,
+):
     """Intake a fixture's dispute and advance it as far as it will go, with the real
-    investigate station in place. Returns the case and what the station wrote."""
-    facts = facts_for(name)
+    investigate station in place. Returns the case and what the station wrote.
+
+    `reasoner` swaps the rules for another reasoner (Phase 4P: the model-backed one);
+    `fallback` gives the station the rules baseline to fall back to.
+    """
+    facts = facts_for(name, statement)
     clock = FakeClock(NOW)
     ids = FakeIdGenerator()
     inbound = InboundEvent(
@@ -168,7 +186,16 @@ def run(engine, name: str, *, menu: tuple[Any, ...] | None = None, allow_seller:
             "assess": AssessStep(PACK, work.evidence, work.assessments),
             "investigate": InvestigateStep(
                 pack=RestrictedMenu(menu) if menu is not None else PACK,  # type: ignore[arg-type]
-                reasoner=RulesOnlyReasoner(pack=PACK, ids=ids, clock=clock),
+                reasoner=(
+                    reasoner(ids, clock)
+                    if reasoner
+                    else RulesOnlyReasoner(pack=PACK, ids=ids, clock=clock)
+                ),
+                fallback=(
+                    RulesOnlyReasoner(pack=PACK, ids=ids, clock=clock, fallback_used=True)
+                    if fallback
+                    else None
+                ),
                 drafter=TemplateDrafter(),
                 policy=PolicyEngine(phase_3_rules(), clock, ids),
                 evidence=work.evidence,
