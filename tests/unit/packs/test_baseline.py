@@ -419,7 +419,7 @@ class TestTheProposalItBuilds:
         therefore never fires on a baseline proposal (section 15.2)."""
         for kwargs in ({}, {"reply_in_round": True}, {"definite_errors": ("duplicate_charge",)}):
             proposal = baseline_proposal(
-                briefing(**kwargs),  # type: ignore[arg-type]
+                briefing(**kwargs),
                 proposal_id=ProposalId("prp_1"),
                 now=NOW,
                 required_keys=REQUIRED,
