@@ -276,7 +276,7 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 
 ## Phase 6 - open items (2026-11-04)
 
-- **P6-12 tracing check** waits on the owner: create Application Insights, put its connection
+- **P6-12 tracing check - DONE 2026-11-04 (D55).** Was waiting on the owner: create Application Insights, put its connection
   string in `.env` (`APPLICATIONINSIGHTS_CONNECTION_STRING`), `uv sync --group telemetry`, then
   `uv run pytest tests/integration/test_observability.py -m integration` and look in the portal
   (Application Insights > Search). The exporter is a beta (`azure-monitor-opentelemetry-exporter`

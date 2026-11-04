@@ -11,7 +11,7 @@ All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The d
 - The one live eval of the Foundry agent (gpt-5-mini) is in `docs/evals/`. It scored 62% of 45, below the approved 90% bar (D47); the fix is better instructions (BACKLOG).
 
 **Waiting on the owner:**
-1. P6-12: create Application Insights and put its connection string in `.env` (before the credit window ends on 27 Nov). Then: `uv sync --group telemetry` and `pytest tests/integration/test_observability.py -m integration`.
+1. Done 2026-11-04: P6-12 passed (traces reach Application Insights with no content).
 2. Real channels: the test mailbox and Jira project settings in `.env` are empty, so Outlook and Jira have only run against fakes (`docs/SETUP_CHANNELS.md`).
 3. Optional, paid: decide how strict PA-E1 should be, then one more pattern_analyst run (D53); `make agents-sync` for the reply-reader agent so the third red-team route can run.
 
@@ -91,6 +91,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D52 | (2026-11-04) `pattern_analyst` stays `inactive`: its recorded eval suite passes, but activation needs a live run, which is paid and needs the owner's approval. Until then patterns keep their code-written summary. |
 | D53 | (2026-11-04) pattern_analyst live eval (foundry_openai, $0.28 of a $0.50 owner cap): FAIL, 3 of 6 under the all-must-pass rule fixed beforehand; it stays `inactive`. Two prompt defects fixed (output budget, unnamed hypothesis kinds); the model still writes identifiers into hypothesis statements, which the PA-E1 check refuses. Injection held in all 24 answers. `docs/evals/2026-11-04-pattern-analyst-live.md`. |
 | D54 | (2026-11-04) The owner approved every phase (0 to 7, 4P, 4+; 4b covered by them) and asked for Phase 7 to be merged into main and pushed. P6-12 stays open until Application Insights exists. |
+| D55 | (2026-11-04) P6-12 closed: the owner created Application Insights and set the connection string locally; the integration check passed with no message content exported. Phase 6 is complete. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
