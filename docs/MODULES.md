@@ -12,7 +12,7 @@ that is off is never skipped silently: a case that needs it goes to a person wit
 | model_gateway | **off** | `fake`, `foundry_agent_service`, `foundry_openai`, `anthropic_direct` (failover) | costs money; `docs/SETUP_FOUNDRY.md` |
 | input_screen | on | `rules_based`, `foundry_guardrails` | advisory: a flag only adds caution (I15) |
 | tracing | on | `noop`, `otel_foundry` (preview) | content is never exported (I14) |
-| email | on | `fake`, `outlook_graph` | `outlook_graph` needs the owner's test mailbox |
+| email | on | `fake`, `outlook_graph`, `gmail_api` | the real adapters need the owner's test mailbox; `gmail_api` added by ADR 0038 |
 | ticketing | on | `fake`, `jira_cloud` | `jira_cloud` needs the owner's test project |
 | ledger | on | `simulated` | its own SQLite file; depends on approvals (I3) |
 | approvals | on | `store_backed` | the approvals table and the review console |

@@ -80,6 +80,33 @@ human review rather than failing silently. Run `make email-login` again.
 
 ---
 
+## 1-alt. Gmail instead of Outlook (ADR 0038)
+
+Use this if you would rather not create a Microsoft directory. You need a **dedicated Gmail**
+for the project (the sender) - not your main one, so the project never sees your own inbox.
+
+1. Create a new Gmail account for the project, e.g. `yk.dispute.agent@gmail.com`.
+2. Signed in **as that account**, open [console.cloud.google.com](https://console.cloud.google.com)
+   and create a project (`dispute-agent`). No card and no credits are needed for the Gmail API.
+3. **APIs & Services → Library**: search **Gmail API** → **Enable**.
+4. **Google Auth Platform** (or **APIs & Services → OAuth consent screen**): start the setup.
+   - App name `dispute-agent`, support email: the project Gmail.
+   - Audience: **External**. Leave it in **Testing**.
+   - **Test users → Add users**: the project Gmail.
+   - Data access / scopes: add `.../auth/gmail.send` and `.../auth/gmail.readonly`.
+5. **Clients → Create client** (or **Credentials → Create credentials → OAuth client ID**):
+   type **Desktop app**, name `dispute-agent-local`. Copy the **Client ID** and **Client secret**.
+6. Put them in `.env` as `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET`, and the project Gmail as
+   `GMAIL_MAILBOX` (use the clipboard command; never paste them into chat).
+7. Sign in once: `make gmail-login` (or `uv run python scripts/make.py gmail-login`). A browser
+   tab opens; sign in as the project Gmail. Google shows **"Google hasn't verified this app"**
+   for your own testing app: choose **Continue**. Allow both permissions.
+
+**Every 7 days** (Testing status) the sign-in expires: sends stop with `reauth_required`, cases
+go to a person, and you run `make gmail-login` again.
+
+---
+
 ## 2. Jira Cloud
 
 1. Create a free Jira Cloud site at [atlassian.com](https://www.atlassian.com/software/jira/free)

@@ -163,6 +163,27 @@ def _not_built(module: str, adapter: str) -> ConfigError:
     )
 
 
+def _build_gmail(settings: Settings | None) -> MessageChannel:
+    """The owner's pilot Gmail (ADR 0038). Refuses without every setting and a sign-in (I11)."""
+    from dispute_agent.modules.email.gmail_api.auth import GmailAuth
+    from dispute_agent.modules.email.gmail_api.channel import GmailChannel
+
+    secret = None if settings is None else settings.gmail_client_secret
+    if settings is None or not (settings.gmail_client_id and secret and settings.gmail_mailbox):
+        raise _needs_accounts("email", "gmail_api")
+    auth = GmailAuth(
+        client_id=settings.gmail_client_id,
+        client_secret=secret.get_secret_value(),
+        cache_path=settings.gmail_token_cache_path,
+        timeout_s=settings.http_timeout_s,
+    )
+    # Not signed in still builds: sends then fail as reauth_required and cases reach a person,
+    # exactly as config.md describes for outlook_graph. `make gmail-login` fixes it.
+    return GmailChannel(
+        auth=auth, mailbox=settings.gmail_mailbox, timeout_s=settings.http_timeout_s
+    )
+
+
 def _build_jira(settings: Settings | None) -> TicketingSystem:
     """The owner's real Jira test project (ADR 0020). Refuses without every setting (I11)."""
     from dispute_agent.modules.ticketing.jira_cloud.ticketing import JiraCloudTicketing
@@ -401,6 +422,8 @@ def build_adapters(
         from dispute_agent.modules.email.fake.channel import FakeMessageChannel
 
         email = FakeMessageChannel()
+    elif email_adapter == "gmail_api":
+        email = _build_gmail(settings)
     else:
         raise _needs_accounts("email", email_adapter)
 

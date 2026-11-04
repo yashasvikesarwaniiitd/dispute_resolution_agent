@@ -104,6 +104,11 @@ def run_approvals() -> int:
     )
 
 
+def gmail_login() -> int:
+    """Sign in to the pilot Gmail in the browser (ADR 0038). Every 7 days in Testing status."""
+    return uv("python", "-m", "dispute_agent.modules.email.gmail_api.login")
+
+
 def email_login() -> int:
     """The once-per-90-days interactive sign-in (ADR 0023, docs/SETUP_CHANNELS.md).
 
@@ -182,6 +187,7 @@ TARGETS = {
     "scenarios": scenarios,
     "run-api": run_api,
     "email-login": email_login,
+    "gmail-login": gmail_login,
     "run-approvals": run_approvals,
     "demo": demo,
     "eval": evaluate,

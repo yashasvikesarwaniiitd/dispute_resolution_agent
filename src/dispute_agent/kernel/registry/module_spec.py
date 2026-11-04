@@ -116,6 +116,7 @@ MODULE_SPECS: dict[str, ModuleSpec] = {
         adapters=_adapters(
             AdapterSpec("fake"),
             AdapterSpec("outlook_graph"),
+            AdapterSpec("gmail_api"),  # ADR 0038: a personal Gmail as the pilot mailbox
         ),
     ),
     "ticketing": ModuleSpec(

@@ -43,6 +43,7 @@ ENTRIES: dict[str, str] = {
 DEFAULTED = {
     "GRAPH_AUTHORITY",  # the consumers authority; identical for every personal account
     "GRAPH_TOKEN_CACHE_PATH",  # a path under the git-ignored data/ folder
+    "GMAIL_TOKEN_CACHE_PATH",  # the same, for the Gmail adapter (ADR 0038)
     "ANTHROPIC_MODEL_HAIKU",  # a model id, published by Anthropic
     "APP_ENV",
     "KILL_SWITCH",

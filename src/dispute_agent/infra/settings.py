@@ -41,6 +41,9 @@ class Settings(BaseSettings):
 
     # --- credentials for the real integrations, Phases 3 and 4b --------------------------
     jira_api_token: SecretStr | None = None
+    #: Google says a desktop OAuth client's secret is not confidential; it is held as one
+    #: anyway, so it is redacted from logs like every other credential (ADR 0038).
+    gmail_client_secret: SecretStr | None = None
     applicationinsights_connection_string: SecretStr | None = None
 
     # --- non-secret settings the adapters need -------------------------------------------
@@ -58,6 +61,11 @@ class Settings(BaseSettings):
     #: The file is a secret even though the path is not: it holds a refresh token, encrypted
     #: at rest (DPAPI on Windows). It lives under `data/`, which is git-ignored.
     graph_token_cache_path: str = "data/msal_cache.bin"
+    #: Gmail through the Gmail API (ADR 0038): a desktop OAuth client, signed in once by
+    #: `make gmail-login`. The cache file holds the refresh token, encrypted at rest.
+    gmail_client_id: str | None = None
+    gmail_mailbox: str | None = None
+    gmail_token_cache_path: str = "data/gmail_token.bin"
     #: Seconds. Every network call has one (CLAUDE.md section 7); a call with no timeout is
     #: a worker that never comes back.
     http_timeout_s: float = 30.0

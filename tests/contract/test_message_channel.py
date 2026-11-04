@@ -140,9 +140,43 @@ class OutlookHarness:
         raise UnsupportedError("counting Sent Items would depend on the mailbox history")
 
 
+class GmailHarness(OutlookHarness):
+    """The Gmail adapter against the owner's pilot Gmail (ADR 0038). Same honest refusals."""
+
+    name = "gmail_api"
+
+    def channel(self, **conditions: str) -> Any:
+        if conditions:
+            raise UnsupportedError(
+                f"a real mailbox cannot be told to {sorted(conditions.values())}"
+            )
+        from dispute_agent.infra.settings import Settings
+        from dispute_agent.modules.email.gmail_api.auth import GmailAuth
+        from dispute_agent.modules.email.gmail_api.channel import GmailChannel
+
+        settings = Settings()
+        secret = settings.gmail_client_secret
+        if not (settings.gmail_client_id and secret and settings.gmail_mailbox):
+            raise UnsupportedError("GMAIL_* settings are not set; see docs/SETUP_CHANNELS.md")
+        if not settings.test_seller_email:
+            raise UnsupportedError("TEST_SELLER_EMAIL is not set")
+        auth = GmailAuth(
+            client_id=settings.gmail_client_id,
+            client_secret=secret.get_secret_value(),
+            cache_path=settings.gmail_token_cache_path,
+            timeout_s=settings.http_timeout_s,
+        )
+        if not auth.signed_in():
+            raise UnsupportedError("not signed in; run `make gmail-login`")
+        return GmailChannel(
+            auth=auth, mailbox=settings.gmail_mailbox, timeout_s=settings.http_timeout_s
+        )
+
+
 ADAPTERS = [
     ready("fake", FakeChannelHarness),
     ready("outlook_graph", OutlookHarness, integration=True),
+    ready("gmail_api", GmailHarness, integration=True),
 ]
 
 

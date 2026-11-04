@@ -59,7 +59,7 @@ modules:
 | `reasoning` | `rules_only`, `llm` | `model_gateway` when `llm` | |
 | `input_screen` | `rules_based`, `foundry_guardrails` | `model_gateway` with a Foundry primary when `foundry_guardrails` | |
 | `tracing` | `noop`, `otel_foundry` | — | `otel_foundry` is `preview: true` (never required by `make verify`) |
-| `email` | `fake`, `outlook_graph` | — | settings in `integrations.md` section 1 |
+| `email` | `fake`, `outlook_graph`, `gmail_api` | — | settings in `integrations.md` section 1; `gmail_api` added by ADR 0038 (owner-approved spec change) |
 | `ticketing` | `fake`, `jira_cloud` | — | settings in `integrations.md` section 2 |
 | `ledger` | `simulated` | `approvals` | |
 | `approvals` | `store_backed` | — | |
@@ -207,6 +207,10 @@ gates:
 | `GRAPH_AUTHORITY` | no | `outlook_graph` (default `https://login.microsoftonline.com/consumers/`) | email adapter |
 | `GRAPH_TOKEN_CACHE_PATH` | no (the **file** is a secret: encrypted, git-ignored) | `outlook_graph` (default `data/msal_cache.bin`) | email adapter |
 | `GRAPH_MAILBOX` | no | `outlook_graph` | the one mailbox the app sends from and reads |
+| `GMAIL_CLIENT_ID` | no | `gmail_api` | Google OAuth desktop client (ADR 0038) |
+| `GMAIL_CLIENT_SECRET` | treated as one (Google says a desktop client's is not confidential) | `gmail_api` | Google OAuth desktop client |
+| `GMAIL_TOKEN_CACHE_PATH` | no (the **file** is a secret: encrypted, git-ignored) | `gmail_api` (default `data/gmail_token.bin`) | email adapter |
+| `GMAIL_MAILBOX` | no | `gmail_api` | the one Gmail address the app sends from and reads |
 | `TEST_SELLER_EMAIL` | no | `email` on | recipient allowlist (I11) |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_PROJECT_KEY` | no | `jira_cloud` | ticketing adapter |
 | `JIRA_API_TOKEN` | yes | `jira_cloud` | ticketing adapter |
