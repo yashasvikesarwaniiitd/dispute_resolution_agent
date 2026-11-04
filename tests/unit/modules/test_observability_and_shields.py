@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,7 +19,18 @@ from tests.anthropic_stub import haiku
 from tests.model_fixtures import SECRET_MARKER, valid_answer
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT / "scripts"))
+
+
+def script(name: str) -> Any:
+    """Load a script from scripts/ by path; the folder is not a package."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 SENTINEL_SECRET = "sk-" + "ant-sentinel-secret-0123456789abcdef"
 
@@ -123,13 +133,15 @@ class TestPromptShields:
             clock=clock,
         )
         report = run_trial("scanner_fault", reasoner, policy=PolicyConfig(), clock=clock, ids=ids)
+        assert report.case is not None and report.case.review_reason is not None
         assert report.case.review_reason.code is ReviewCode.MANIPULATION_SUSPECTED
+        assert report.proposal is not None
         assert "prompt_shield:indirect_attack" in report.proposal.manipulation_flags
 
 
 class TestSpendReport:
     def test_warnings_at_fifty_and_eighty_percent(self) -> None:
-        from foundry_spend import report
+        report = script("foundry_spend").report
 
         caps = {"foundry_agent_service": Decimal(100), "anthropic_direct": Decimal(10)}
         lines = report(
@@ -139,7 +151,7 @@ class TestSpendReport:
         assert "over 80%" in lines[1]
 
     def test_under_half_has_no_warning(self) -> None:
-        from foundry_spend import report
+        report = script("foundry_spend").report
 
         line = report(
             {"foundry_agent_service": Decimal(1)}, {"foundry_agent_service": Decimal(100)}
@@ -150,7 +162,8 @@ class TestSpendReport:
 class TestLlmCheck:
     def test_the_output_is_ids_and_counts_only(self) -> None:
         """P4-12's named test: no prompt or response content in what it prints."""
-        from llm_check import PROBE_SYSTEM, PROBE_USER, probe
+        check = script("llm_check")
+        PROBE_SYSTEM, PROBE_USER, probe = check.PROBE_SYSTEM, check.PROBE_USER, check.probe  # noqa: N806
 
         gateway, _ = haiku([{"ok": True}])
         line = probe(gateway)
