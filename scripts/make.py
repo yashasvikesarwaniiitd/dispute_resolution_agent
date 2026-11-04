@@ -155,6 +155,11 @@ def try_agent(*args: str) -> int:
     return uv("python", "scripts/try_agent.py", *args)
 
 
+def red_team(*args: str) -> int:
+    """The injection corpus through every route (P6-11, D35). `--live` costs money."""
+    return uv("python", "scripts/red_team.py", *args)
+
+
 def evaluate(*args: str) -> int:
     """Baseline versus model on the scenario catalogue. `--live` uses Foundry (costs)."""
     return uv("python", "scripts/eval.py", *args)
@@ -180,6 +185,7 @@ TARGETS = {
     "run-approvals": run_approvals,
     "demo": demo,
     "eval": evaluate,
+    "red-team": red_team,
 }
 
 

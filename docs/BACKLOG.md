@@ -273,3 +273,18 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **When to uphold**: S09a never upheld.
 - **Credits a person should decide** (S24, S43a; the baseline does the same): check which rule
   should catch them in the full flow, and add a scenario test if none does.
+
+## Phase 6 - open items (2026-11-04)
+
+- **P6-12 tracing check** waits on the owner: create Application Insights, put its connection
+  string in `.env` (`APPLICATIONINSIGHTS_CONNECTION_STRING`), `uv sync --group telemetry`, then
+  `uv run pytest tests/integration/test_observability.py -m integration` and look in the portal
+  (Application Insights > Search). The exporter is a beta (`azure-monitor-opentelemetry-exporter`
+  1.0.0b58): opt-in group only, never in `make verify`.
+- **Red team, reply route live**: `make agents-sync` creates only the investigator agent. Extend it
+  to sync `seller_reply_interpreter` (owner runs it), then `make red-team ARGS="--live"`.
+- **Live quality gates** fail for gpt-5-mini today (62% of 45; D47 keeps the bars): write
+  `case_investigator/v2` from docs/evals/2026-11-04-live-gpt-5-mini.md, then a live run.
+- **The API has no sign-in**: loopback only; `/inbound` takes replies and bounces only. Ops findings,
+  withdrawals and people's decisions need authenticated sources before any wider exposure.
+- **T18**: test the review screen's order and labelling.

@@ -700,6 +700,30 @@ def build_scenario_models(
     )
 
 
+def build_live_models(
+    settings: Settings, policy: PolicyConfig, clock: Clock, ids: IdGenerator
+) -> ScenarioModels:
+    """The real Foundry agent behind the spending guard, for live evals and the red-team run.
+
+    Reasoner and reply interpreter share the one guarded gateway, so every call counts against
+    the same per-case and lifetime caps (ADR 0017) and lands in the same call log.
+    """
+    from dispute_agent.api.scenario_runner import ScenarioModels
+    from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    gateway = build_model_gateway(
+        "foundry_agent_service", settings=settings, policy=policy, clock=clock, ids=ids
+    )
+    reasoner = build_llm_reasoner(gateway, settings=settings, policy=policy, clock=clock, ids=ids)
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    return ScenarioModels(
+        gateway=gateway,
+        reasoner=reasoner,
+        interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
+    )
+
+
 def build_llm_reasoner(
     gateway: ModelGateway,
     *,

@@ -40,6 +40,9 @@ dev = [
     "types-pyyaml>=6.0",
     "types-jsonschema>=4.26.0.20261006",
 ]
+telemetry = [
+    "azure-monitor-opentelemetry-exporter>=1.0.0b58",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -119,6 +122,12 @@ show_error_codes = true
 # MSAL ships no type information. The adapter confines it to one module and one method, and
 # `GraphAuth.token()` is annotated, so nothing untyped escapes past that boundary.
 module = ["msal", "msal.*", "msal_extensions", "msal_extensions.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# The Azure Monitor trace exporter is a beta, installed only with `uv sync --group telemetry`
+# (P6-12). It is imported inside one method of the otel adapter; nothing untyped escapes.
+module = ["azure.monitor.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

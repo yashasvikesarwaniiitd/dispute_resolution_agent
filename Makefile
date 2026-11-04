@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team
 
 setup:
 	$(PY) setup
@@ -65,3 +65,8 @@ foundry-spend:
 
 llm-check:
 	$(PY) llm-check
+
+# make red-team                 the injection corpus through every route, offline (free)
+# make red-team ARGS="--live"   against the real Foundry agent (costs; owner approval first)
+red-team:
+	$(PY) red-team $(ARGS)

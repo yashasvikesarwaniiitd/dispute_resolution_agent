@@ -75,6 +75,8 @@ class Line:
     interpreter: ReplyInterpreter | None = None
     modules: Mapping[str, bool] = field(default_factory=dict)
     kill_switch: Any = field(default_factory=_Off)
+    #: Spans for every step (observability.md 3); None: untraced, as the Tracer port allows.
+    tracer: Any = None
 
     def machine(self) -> StateMachine:
         return StateMachine(default_table())
@@ -231,6 +233,7 @@ class Line:
             outcomes=NullOutcomeObserver(),
             max_steps=self.policy.cases.max_steps_per_advance,
             record=work.events.append,
+            tracer=self.tracer,
             effects=TransitionEffects(
                 timers=work.timers,
                 intents=work.intents,

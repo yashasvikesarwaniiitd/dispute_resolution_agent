@@ -66,7 +66,7 @@ def filtered(name: str, attrs: dict[str, str]) -> dict[str, str]:
 class OtelTracer:
     """Implements Tracer."""
 
-    def __init__(self, tracer: Any | None = None) -> None:
+    def __init__(self, tracer: Any | None = None, provider: Any | None = None) -> None:
         if tracer is None:
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
@@ -75,6 +75,43 @@ class OtelTracer:
             provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
             tracer = provider.get_tracer("dispute_agent")
         self._tracer = tracer
+        self._provider = provider
+
+    @classmethod
+    def to_azure_monitor(cls, connection_string: str, *extra_processors: Any) -> OtelTracer:
+        """Spans to Application Insights (P6-12, foundry.md section 10, I14).
+
+        The exporter alone - `azure-monitor-opentelemetry-exporter`, a beta, installed only with
+        `uv sync --group telemetry` - never the `azure-monitor-opentelemetry` distro, whose
+        automatic HTTP instrumentation would export full URLs (mailbox, `$filter` with the key,
+        JQL) outside the allow-list (risk F13). Only this adapter's own spans are exported, and
+        they carry only allow-listed attributes. Offline storage is off, so no span copy is ever
+        written to disk. `extra_processors` lets a test watch exactly what is exported.
+        """
+        from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        provider = TracerProvider()
+        provider.add_span_processor(
+            BatchSpanProcessor(
+                AzureMonitorTraceExporter(
+                    connection_string=connection_string, disable_offline_storage=True
+                )
+            )
+        )
+        for processor in extra_processors:
+            provider.add_span_processor(processor)
+        return cls(provider.get_tracer("dispute_agent"), provider)
+
+    def flush(self, timeout_ms: int = 30_000) -> bool:
+        """Send what is buffered now (a short run would otherwise exit first). Never raises."""
+        if self._provider is None:
+            return True
+        try:
+            return bool(self._provider.force_flush(timeout_ms))
+        except Exception:
+            return False
 
     @contextmanager
     def span(self, name: str, **attrs: str) -> Iterator[None]:
