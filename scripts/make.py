@@ -122,6 +122,12 @@ def agents_sync() -> int:
     return uv("python", "scripts/agents_sync.py")
 
 
+def foundry_login(*args: str) -> int:
+    """Sign in to Azure once, in the browser (no Azure CLI needed). `--device-code` if the
+    browser redirect is blocked."""
+    return uv("python", "scripts/foundry_login.py", *args)
+
+
 def foundry_check() -> int:
     """Is everything in place to call the agent? No model call, no cost."""
     return uv("python", "scripts/foundry_check.py")
@@ -145,6 +151,7 @@ TARGETS = {
     "verify": verify,
     "agents-sync": agents_sync,
     "foundry-check": foundry_check,
+    "foundry-login": foundry_login,
     "try-agent": try_agent,
     "test": test,
     "test-integration": test_integration,
@@ -166,6 +173,8 @@ def main(argv: Sequence[str]) -> int:
         return 0
     if argv[0] == "try-agent":
         return try_agent(*argv[1:])
+    if argv[0] == "foundry-login":
+        return foundry_login(*argv[1:])
     code = 0
     for name in argv:
         target = TARGETS.get(name)

@@ -75,8 +75,17 @@ sitting if you can.**
    ```
    The numbers above show the shape only. The app refuses to call Foundry without this row:
    a spending cap with no price would count every call as free.
-9. **Sign in.** Install the Azure CLI and run `az login`. There are no keys in this project;
-   the app signs in as you, through Entra ID (I14).
+9. **Sign in (no Azure CLI needed).**
+   - In the Azure portal, open **Microsoft Entra ID**, and on its **Overview** page copy the
+     **Tenant ID** (a code like `1a2b3c4d-...`). Put it in `.env` as `AZURE_TENANT_ID`. It is not
+     a secret; it tells the app which directory to sign in to, so a work account already
+     signed in on your laptop is never used by mistake.
+   - Run `make foundry-login`. A browser page opens; sign in with the account that owns your
+     Azure subscription (if it offers your work account, choose "Use another account"). The
+     sign-in is saved encrypted on your laptop; later commands sign in silently.
+   - If no browser opens, run `make foundry-login ARGS="--device-code"`: it prints a short code
+     to enter at microsoft.com/devicelogin.
+   - Run it again whenever a command says the sign-in has expired.
 10. **Create the agent:** `make agents-sync`. It creates the agent `wd-case-investigator` from
     `prompts/case_investigator/v1/system.md`, reads it back to confirm Foundry stored exactly
     that, and records the version in `config/foundry_agents.lock.json`. Commit that file.
@@ -118,7 +127,7 @@ Cases worth trying, and what a good result looks like:
 | `MISSING FOUNDRY_PROJECT_ENDPOINT` | `.env` line empty | step 5 |
 | `prompt ... is inactive` | the opt-in is off | step 7, `PROMPTS_ALLOW_INACTIVE=true` |
 | `no price for ...` | pricing row missing | step 8 |
-| `Azure sign-in` | no `az login` session | step 9 |
+| `AZURE_TENANT_ID` / `Foundry sign-in` | tenant missing, or not signed in / expired | step 9, `make foundry-login` |
 | `no synced agent` / `prompt changed since the last sync` | lock missing or stale | `make agents-sync` |
 | `agent in Foundry differs from the lock` | someone edited the agent in the portal | `make agents-sync` makes a fresh version |
 | `Handed to a person because: agent_drift` | same as above, caught at call time | `make agents-sync` |

@@ -122,3 +122,15 @@ For the prototype, `make try-agent` runs one synthetic case through the full lin
 deciding, in a throwaway database, with no channel wired, so nothing can be sent
 (`src/dispute_agent/api/agent_trial.py`). `make try-agent ARGS="--offline"` runs the same path
 with the scripted fake.
+
+## Addendum, 2026-11-04: signing in without the Azure CLI
+
+The owner's work laptop cannot install the Azure CLI, so `az login` (and `DefaultAzureCredential`,
+which relies on it locally) is not available. Sign-in is now explicit and still Entra ID only (I14):
+`make foundry-login` signs in once with `InteractiveBrowserCredential` (or `DeviceCodeCredential`,
+`--device-code`) for the tenant in `AZURE_TENANT_ID`, into an encrypted token cache
+(`allow_unencrypted_storage=False`), and writes an authentication record (account and tenant, no
+token) to `data/foundry_auth_record.json`. Every other command signs in silently from that cache with
+automatic authentication disabled, so an expired sign-in is an `AuthPortError` naming the fix, never
+a browser window in a background run. The tenant is pinned so a work account signed in on the same
+machine is never picked up. Same shape as the Outlook sign-in (ADR 0023).

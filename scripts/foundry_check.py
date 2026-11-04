@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 
 from dispute_agent.app import (
     DEFAULT_CONFIG_DIR,
+    FOUNDRY_AUTH_RECORD,
     FOUNDRY_LOCK,
     MODEL_CALL_LOG,
     PRICING,
@@ -92,13 +93,23 @@ def main() -> int:
         )
     ok(f"prompt {PROMPT}/{VERSION} ({status}{', opt-in on' if status != 'active' else ''})")
 
-    try:
-        from azure.identity import DefaultAzureCredential
+    from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
+        SCOPE,
+        check_tenant,
+        runtime_credential,
+    )
 
-        DefaultAzureCredential().get_token("https://ai.azure.com/.default")
+    try:
+        check_tenant(settings.azure_tenant_id)
+    except KernelError:
+        return stop("AZURE_TENANT_ID", "Entra ID > Overview > Tenant ID, into .env (setup step 9)")
+    ok("tenant id is set")
+    try:
+        credential = runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD)
+        credential.get_token(SCOPE)
     except Exception as failed:
-        return stop(f"Azure sign-in ({type(failed).__name__})", "run `az login`, then try again")
-    ok("Azure sign-in works (Entra ID)")
+        return stop(f"Foundry sign-in ({type(failed).__name__})", "run `make foundry-login`")
+    ok("signed in to Azure (Entra ID, from the encrypted cache)")
 
     lock = read_lock(FOUNDRY_LOCK)
     entry = lock.agents.get(PROMPT)
@@ -114,7 +125,7 @@ def main() -> int:
 
     try:
         deployed = AzureAgentServiceClient(
-            settings.foundry_project_endpoint, timeout_s=30
+            settings.foundry_project_endpoint, timeout_s=30, credential=credential
         ).get_version(entry.agent_name, entry.version)
     except KernelError as failed:
         return stop(

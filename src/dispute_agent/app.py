@@ -334,6 +334,8 @@ PROMPTS_DIR = PROJECT_ROOT / "prompts"
 FOUNDRY_LOCK = PROJECT_ROOT / "config" / "foundry_agents.lock.json"
 PRICING = PROJECT_ROOT / "config" / "pricing.yaml"
 MODEL_CALL_LOG = PROJECT_ROOT / "data" / "model_calls.sqlite3"
+#: Names the signed-in account and tenant; no token (tokens are in the encrypted cache).
+FOUNDRY_AUTH_RECORD = PROJECT_ROOT / "data" / "foundry_auth_record.json"
 
 
 def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
@@ -410,9 +412,19 @@ def build_foundry_gateway(settings: Settings, policy: PolicyConfig) -> ModelGate
             "AZURE_CREDIT_EXPIRES_ON must be set for the Foundry route, so calls stop when "
             "the free credit ends (D18)"
         )
+    from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
+        check_tenant,
+        runtime_credential,
+    )
+
+    check_tenant(settings.azure_tenant_id)
+    if not FOUNDRY_AUTH_RECORD.is_file():
+        raise ConfigError("not signed in to Foundry yet; run `make foundry-login`")
     return FoundryAgentServiceGateway(
         client=AzureAgentServiceClient(
-            settings.foundry_project_endpoint, timeout_s=policy.llm.call_timeout_s
+            settings.foundry_project_endpoint,
+            timeout_s=policy.llm.call_timeout_s,
+            credential=runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD),
         ),
         lock=read_lock(FOUNDRY_LOCK),
         price=load_price(PRICING, ROUTE, settings.foundry_model_deployment),

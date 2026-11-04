@@ -76,12 +76,11 @@ class AgentServiceClient(Protocol):
 class AzureAgentServiceClient:
     """Implements AgentServiceClient over azure-ai-projects 2.x. Entra ID only (I14)."""
 
-    def __init__(self, endpoint: str, *, timeout_s: float) -> None:
+    def __init__(self, endpoint: str, *, timeout_s: float, credential: Any) -> None:
         from azure.ai.projects import AIProjectClient
-        from azure.identity import DefaultAzureCredential
 
-        # No key, no connection string: DefaultAzureCredential uses `az login` locally.
-        self._project = AIProjectClient(endpoint=endpoint, credential=DefaultAzureCredential())
+        # No key, no connection string: an Entra ID credential from `signin.py`.
+        self._project = AIProjectClient(endpoint=endpoint, credential=credential)
         self._timeout_s = timeout_s
         self._openai: Any = None
 
@@ -193,7 +192,9 @@ def _map(exc: BaseException) -> KernelError | None:
         CredentialUnavailableError = ()  # type: ignore[assignment,misc]  # noqa: N806
 
     if isinstance(exc, CredentialUnavailableError | azure_errors.ClientAuthenticationError):
-        return AuthPortError("Azure sign-in is not available; run `az login`", status=401)
+        return AuthPortError(
+            "the Foundry sign-in has expired or is missing; run `make foundry-login`", status=401
+        )
     if isinstance(exc, openai.AuthenticationError | openai.PermissionDeniedError):
         return AuthPortError("the Foundry project refused this identity", status=exc.status_code)
     if isinstance(exc, openai.NotFoundError | azure_errors.ResourceNotFoundError):
