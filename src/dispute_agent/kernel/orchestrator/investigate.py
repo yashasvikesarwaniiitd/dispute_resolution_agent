@@ -79,6 +79,9 @@ from dispute_agent.kernel.orchestrator.replies import sender_unauthenticated
 from dispute_agent.kernel.policy.config import PolicyConfig
 from dispute_agent.kernel.policy.credit import credit_amount
 from dispute_agent.kernel.policy.signals import (
+    pattern_changed_signal,
+    pattern_context_unavailable_signal,
+    pattern_match_signal,
     repeat_dispute_signal,
     sender_unauthenticated_signal,
 )
@@ -92,7 +95,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle
     from dispute_agent.kernel.domain.ids import EvidenceItemId
     from dispute_agent.kernel.domain.models import Case
-    from dispute_agent.kernel.domain.patterns import CautionSignal
+    from dispute_agent.kernel.domain.patterns import CautionSignal, PatternRecord
     from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal, ReplyReading
     from dispute_agent.kernel.domain.values import UntrustedText
     from dispute_agent.kernel.ports import (
@@ -106,10 +109,14 @@ if TYPE_CHECKING:
         ProposalStore,
         Reasoner,
     )
+    from dispute_agent.kernel.ports.pattern_context_provider import PatternContextProvider
 
 #: Prose the template interpolates verbatim. No digits, on purpose: anything numeric here
 #: would be a number with no fact behind it, and R09 would refuse the message.
 NEXT_STEP = "We will decide as soon as your reply arrives."
+
+#: Patterns shown to the investigator per case (agent-design.md section 1).
+MAX_PATTERNS = 5
 
 
 class MenuPack(Protocol):
@@ -183,6 +190,9 @@ class InvestigateStep:
     #: The contact counters for this round (reply in round, clarifications sent, ops still
     #: remeasuring). None: a first round with nothing outstanding, as before the reply round.
     contact: Callable[[Case, EvidenceBundle], ContactStatus] | None = None
+    #: HOOK A (D3): open patterns matching the case, as caution-only hypothesis context. None or
+    #: the Null adapter: no patterns, exactly as before Phase 7 (ADR 0035).
+    patterns: PatternContextProvider | None = None
     name: str = "investigate"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -193,7 +203,9 @@ class InvestigateStep:
             # thing this step must never do.
             return _escalate(ReviewCode.INTERNAL_ERROR, "no assessment for this round")
 
+        self._pattern_signals: tuple[CautionSignal, ...] = ()
         briefing = self._briefing(case, assessment)
+        briefing = briefing.model_copy(update={"pattern_context": self._patterns_for(case)})
         screened = self._screen(briefing)
         if isinstance(screened, StepOutcome):
             return screened
@@ -205,6 +217,9 @@ class InvestigateStep:
         if isinstance(decided, StepOutcome):
             return decided
         proposal = decided
+        if proposal.pattern_influence.changed_recommendation:
+            # Pass 2 with patterns was more cautious than pass 1 (ADR 0025): a person approves.
+            self._pattern_signals = (*self._pattern_signals, pattern_changed_signal(str(case.id)))
         if self.proposals is not None:
             # Kept before anything is checked or done with it, so a refused proposal is on
             # the record too - "why did the case go to a person" needs it most.
@@ -412,13 +427,31 @@ class InvestigateStep:
             )
         return self.contact(case, bundle or self.evidence.bundle(case.id, case.gather_round))
 
+    def _patterns_for(self, case: Case) -> tuple[PatternRecord, ...]:
+        """HOOK A. Patterns are hypotheses about other cases; each is a caution floor (I7).
+
+        At most MAX_PATTERNS, newest first. A provider that cannot be read is not a silent skip:
+        not knowing whether a pattern applies is a reason to be careful (the port's contract).
+        """
+        if self.patterns is None:
+            return ()
+        try:
+            found = tuple(self.patterns.patterns_for(case.facts))
+        except (PortError, ModuleUnavailable):
+            self._pattern_signals = (pattern_context_unavailable_signal(),)
+            return ()
+        found = tuple(sorted(found, key=lambda p: p.last_seen_at, reverse=True)[:MAX_PATTERNS])
+        floor = self.config.patterns.match_min_verdict
+        self._pattern_signals = tuple(pattern_match_signal(str(p.id), floor) for p in found)
+        return found
+
     def _signals(self, case: Case) -> tuple[CautionSignal, ...]:
         """Caution the case carries into every verdict (I7): R24, and T03's failed sender."""
         found: list[CautionSignal] = []
         bundle = self.evidence.bundle(case.id, case.gather_round)
         if sender_unauthenticated(bundle):
             found.append(sender_unauthenticated_signal(str(case.id)))
-        return (*found, *self._repeat(case))
+        return (*found, *self._repeat(case), *getattr(self, "_pattern_signals", ()))
 
     def _repeat(self, case: Case) -> tuple[CautionSignal, ...]:
         if case.prior_case_id is None:
@@ -754,6 +787,13 @@ class InvestigateStep:
                 pending_intent_id=planned_intent.id,
                 action_seq=action.action_seq,
             )
+
+        if intent.action_type is ActionType.UPSERT_ISSUE:
+            # Approvals exist for credits and messages only (schema, ApprovalSubject). A
+            # verdict that asks for one on an issue - a pattern's caution floor (ADR 0035) -
+            # goes to a person instead: strictly more cautious, never less (I7).
+            reason = _first_reason(verdict)
+            return _escalate(_review_code_for(reason, ReviewCode.POLICY_ESCALATED), reason)
 
         # REQUIRE_APPROVAL: write the plan, then the request that points at it. The approval
         # binds to this hash, so the text cannot change between here and your yes (I13).

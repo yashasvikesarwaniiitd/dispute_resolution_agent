@@ -80,6 +80,30 @@ def screen_flag_signal(reason: str, source_ref: str) -> CautionSignal:
     )
 
 
+def pattern_match_signal(
+    pattern_id: str, floor: VerdictKind = VerdictKind.REQUIRE_APPROVAL
+) -> CautionSignal:
+    """HOOK A: an open pattern matches this case (I7). A floor - never ALLOW, never lower."""
+    return CautionSignal(
+        kind="pattern_match",
+        min_verdict=VerdictKind.ESCALATE
+        if floor is VerdictKind.ESCALATE
+        else VerdictKind.REQUIRE_APPROVAL,
+        reason="pattern_match: an open cross-case pattern matches this case",
+        source_ref=pattern_id,
+    )
+
+
+def pattern_changed_signal(source_ref: str) -> CautionSignal:
+    """Pass 2, with patterns, chose more caution than pass 1 (ADR 0025): a person approves."""
+    return CautionSignal(
+        kind="pattern_changed_recommendation",
+        min_verdict=VerdictKind.REQUIRE_APPROVAL,
+        reason="pattern_changed_recommendation: the pattern made the proposal more cautious",
+        source_ref=source_ref,
+    )
+
+
 def pattern_context_unavailable_signal(source_ref: str = "cross_case") -> CautionSignal:
     """HOOK A failed. Not knowing whether a pattern applies is a reason to be careful."""
     return CautionSignal(

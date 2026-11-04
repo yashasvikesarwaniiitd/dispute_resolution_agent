@@ -77,6 +77,8 @@ class Line:
     kill_switch: Any = field(default_factory=_Off)
     #: Spans for every step (observability.md 3); None: untraced, as the Tracer port allows.
     tracer: Any = None
+    #: HOOK A: the PatternContextProvider (Null until cross_case is on, ADR 0035).
+    patterns: Any = None
 
     def machine(self) -> StateMachine:
         return StateMachine(default_table())
@@ -145,6 +147,7 @@ class Line:
                 contact=lambda case, bundle: contact_status(
                     case, bundle, work.actions, work.intents, work.timers
                 ),
+                patterns=self.patterns,
             ),
             "apply_approval": ApplyApprovalStep(
                 intents=work.intents,

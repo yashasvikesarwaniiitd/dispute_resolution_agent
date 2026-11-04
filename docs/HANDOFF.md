@@ -76,6 +76,7 @@ No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4
 | D46 | (2026-11-04) Scenario S30's script gains `approve(upheld_explanation)@24h`: in the pilot every message is reviewed (D6), so the case cannot resolve without it. A change to the frozen catalogue, recorded in ADR 0034. |
 | D47 | (2026-11-04) O6 resolved: the release-gate thresholds stay as drafted in Stage A4. The live model gates (correct action 0.90, no regression 0) are kept although gpt-5-mini scores 62% of 45 with 7 regressions today: the answer is better instructions (case_investigator v2), not lower bars. |
 | D48 | (2026-11-04) O3 resolved: Foundry's built-in evaluators are not used now; the local gates are the authority. The red-team scan (P6-11) and the tracing check (P6-12) go ahead with the owner's setup and spend approval. |
+| D49 | (2026-11-04) Phase 7 planning found the cross-case socket unconnected: nothing in the kernel called `PatternContextProvider`. The owner approved one disclosed kernel change to connect it (HOOK A, ADR 0035), tagged `phase-6-complete`; Phase 7 then makes zero kernel changes. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
