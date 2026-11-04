@@ -40,9 +40,25 @@ class ManipulationFlagged:
             if reading.intent == "contains_instruction_attempt" or reading.manipulation_flags:
                 return escalate(self.rule_id, "manipulation_suspected: flagged in a reply")
         for result in ctx.screen_results:
-            if any(f == "instruction_like" or f.startswith("prompt_shield:") for f in result.flags):
-                return escalate(self.rule_id, "manipulation_suspected: flagged by a screen")
+            flagged = sorted(f for f in result.flags if _needs_a_person(f))
+            if flagged:
+                return escalate(
+                    self.rule_id, f"manipulation_suspected: flagged by a screen ({flagged[0]})"
+                )
         return allow(self.rule_id)
+
+
+# Screen flags that send a case to a person. A screen that errored, text that was cut off and
+# a reference to something that does not exist are not proof of an attack, but each means the
+# text was not checked as it should have been - and an unchecked text is never trusted (I15).
+# Phase 5 safety review, finding 2: only instruction_like and prompt_shield:* escalated.
+_ESCALATING_FLAGS = frozenset(
+    {"instruction_like", "screen_error", "truncated_input", "fabricated_reference"}
+)
+
+
+def _needs_a_person(flag: str) -> bool:
+    return flag in _ESCALATING_FLAGS or flag.startswith("prompt_shield:")
 
 
 class LowConfidenceConsequential:

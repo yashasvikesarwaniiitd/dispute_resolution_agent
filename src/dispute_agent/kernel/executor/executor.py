@@ -53,7 +53,7 @@ from dispute_agent.kernel.domain.errors import (
 from dispute_agent.kernel.executor.keys import idempotency_key
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from datetime import datetime
 
     from dispute_agent.kernel.domain.actions import Action, ActionIntent, Approval, PolicyVerdict
@@ -313,7 +313,13 @@ class ActionExecutor:
     # -- execute ---------------------------------------------------------------------------
 
     def execute(
-        self, action_id: ActionId, port: WritePort, payload: object, now: datetime
+        self,
+        action_id: ActionId,
+        port: WritePort,
+        payload: object,
+        now: datetime,
+        *,
+        checkpoint: Callable[[], None] | None = None,
     ) -> ExecutionResult:
         """Claim, look before writing, write, record. Never retried blindly.
 
@@ -339,6 +345,13 @@ class ActionExecutor:
         if not self._actions.claim(action_id, self._worker, now, self._lease_s):
             # Someone else holds it. Rest: no commit, no escalation, the sweep comes back.
             return ExecutionResult(Outcome.BLOCKED, action_id, "claimed_elsewhere")
+
+        # Make the claim durable before anything leaves the building. Without this the claim
+        # (and its attempt count) lives only in an open transaction: a crash after the far end
+        # accepted the write would roll it back to an untouched PLANNED row, and the recovery
+        # backstop below (`attempts_before > 0`) could never fire (Phase 5 safety review, 1).
+        if checkpoint is not None:
+            checkpoint()
 
         # I13 at the last moment it can be checked, and after the claim, so a caller with
         # the wrong payload cannot fail a row another worker holds (second review, finding

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -37,7 +38,7 @@ from dispute_agent.kernel.domain.ids import IdempotencyKey
 from dispute_agent.kernel.domain.values import Money
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
     from pathlib import Path
 
     from dispute_agent.kernel.domain.external import CreditRequest
@@ -100,7 +101,7 @@ class SimulatedLedger:
         if mode == "reject_400":
             raise PermanentPortError("the ledger refused the credit", status=400)
 
-        with self._db() as db:
+        with self._write_lock() as db:
             earlier = db.execute(
                 "SELECT transaction_id FROM entries WHERE idempotency_key = ?", (str(key),)
             ).fetchone()
@@ -255,9 +256,28 @@ class SimulatedLedger:
         return int(debit) - int(credit)
 
     def _db(self) -> sqlite3.Connection:
-        # IMMEDIATE: the outstanding-charge read and the insert happen under one write lock,
-        # so two posts cannot both see room for a credit only one of them fits in.
         return sqlite3.connect(self.path, isolation_level="IMMEDIATE")
+
+    @contextmanager
+    def _write_lock(self) -> Iterator[sqlite3.Connection]:
+        """One explicit BEGIN IMMEDIATE around every read and the insert of a post.
+
+        `isolation_level="IMMEDIATE"` alone is not enough: Python's sqlite3 only issues the
+        BEGIN before the first INSERT, so the duplicate, clash and outstanding-charge reads
+        ran outside the lock and two posts could both see room for one credit (Phase 5
+        safety review, 8). Autocommit mode plus an explicit BEGIN takes the lock first.
+        """
+        db = sqlite3.connect(self.path, isolation_level=None)
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                yield db
+            except BaseException:
+                db.execute("ROLLBACK")
+                raise
+            db.execute("COMMIT")
+        finally:
+            db.close()
 
 
 def _paise(amount: Money) -> int:

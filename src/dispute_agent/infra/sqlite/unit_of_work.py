@@ -128,6 +128,17 @@ class SqliteUnitOfWork:
                 return ConcurrencyConflict(case_id, version)
         return error
 
+    def checkpoint(self) -> None:
+        """Commit what is written so far and carry on in a fresh IMMEDIATE transaction.
+
+        The executor calls this after claiming an action and before the external write, so a
+        crash mid-write leaves a claimed row with its attempt counted - which recovery treats
+        as "may have happened" - instead of a PLANNED row that looks untouched.
+        """
+        connection = self.connection
+        connection.commit()
+        connection.begin()
+
     def note_save(self, case_id: CaseId, expected_version: int) -> None:
         """Remembered so a commit-time conflict can name the case it was about."""
         self._last_save = (case_id, expected_version)

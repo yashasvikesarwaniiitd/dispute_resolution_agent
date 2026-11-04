@@ -21,7 +21,7 @@ channel, ticketing system or ledger of its own.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from typing import TYPE_CHECKING, Protocol
 
@@ -43,6 +43,7 @@ from dispute_agent.kernel.domain.errors import (
     DomainValidationError,
     KillSwitchEngaged,
     ModuleUnavailable,
+    NotFound,
     PolicyRefused,
     PortError,
 )
@@ -108,6 +109,9 @@ class ConfirmationDrafter(Protocol):
 
 class Policy(Protocol):
     def evaluate(self, ctx: PolicyContext) -> PolicyVerdict: ...
+
+
+_VERIFIED = ActionStatus.VERIFIED.value
 
 
 def _escalate(code: ReviewCode, detail: str, module: str | None = None) -> StepOutcome:
@@ -184,7 +188,7 @@ class ApplyApprovalStep:
             modules=self.modules,
             policy=self.config,
             now=now,
-            kernel_facts=_kernel_facts(intent),
+            kernel_facts=_kernel_facts(intent, self.intents, self.actions),
         )
         if intent.action_type is ActionType.POST_CREDIT:
             ctx = ctx.model_copy(update=_credit_ctx(case, self.actions, self.ledger))
@@ -215,6 +219,7 @@ class ExecuteStep:
     actions: Actions
     executor: ActionExecutor
     ports: Callable[[Case, ActionType], WritePort]
+    checkpoint: Callable[[], None] | None = None
     name: str = "execute"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -228,7 +233,11 @@ class ExecuteStep:
             return StepOutcome(trigger=Trigger.ACTION_SENT, detail="already sent")
         try:
             result = self.executor.execute(
-                action.id, self.ports(case, action.action_type), intent.payload, now
+                action.id,
+                self.ports(case, action.action_type),
+                intent.payload,
+                now,
+                checkpoint=self.checkpoint,
             )
         except KillSwitchEngaged:
             return _escalate(ReviewCode.KILL_SWITCH_ACTIVE, "kill switch engaged at execution")
@@ -239,7 +248,23 @@ class ExecuteStep:
         if result.outcome is Outcome.UNKNOWN:
             # It may have happened. Never a retry, never a success (I4).
             return _escalate(ReviewCode.ACTION_UNKNOWN, result.reason)
+        if result.outcome is Outcome.BLOCKED:
+            return self._blocked(action.id, result.reason)
         return _escalate(ReviewCode.ACTION_FAILED, result.reason)
+
+    def _blocked(self, action_id: ActionId, reason: str) -> StepOutcome:
+        """Nothing was sent by this call. What to do depends on why (safety review, 3).
+
+        Another worker holding the claim is normal: rest, the sweep comes back. An action that
+        was already started is described by its row: UNKNOWN may have happened (I4), FAILED
+        did not, and anything else is a state this step should never see - a person decides.
+        """
+        if reason == "claimed_elsewhere":
+            return StepOutcome()
+        status = self.actions.get(action_id).status
+        if status is ActionStatus.FAILED:
+            return _escalate(ReviewCode.ACTION_FAILED, f"{reason}: {status.value}")
+        return _escalate(ReviewCode.ACTION_UNKNOWN, f"{reason}: {status.value}")
 
 
 @dataclass
@@ -268,6 +293,13 @@ class VerifyStep:
             return _escalate(ReviewCode.INTERNAL_ERROR, "nothing sent to verify")
         port = self.ports(case, action.action_type)
         result = self.executor.verify(action.id, port, _receipt(action), intent.payload, now)
+        if result.outcome is Outcome.BLOCKED and result.reason == f"not_sent:{_VERIFIED}":
+            # Verified on an earlier pass that crashed before moving the case on. The proof
+            # is on the row; reading it again would only fail on the status (review, 6).
+            result = replace(result, outcome=Outcome.VERIFIED)
+        elif result.outcome is Outcome.BLOCKED and result.reason != "not_visible_yet":
+            # Not SENT and not verified: there is nothing out there this step can prove.
+            return _escalate(ReviewCode.VERIFICATION_FAILED, result.reason)
         if result.outcome is Outcome.BLOCKED:
             if action.sent_at is not None and now - action.sent_at > VERIFY_DEADLINE:
                 self.actions.set_status(
@@ -400,20 +432,34 @@ def _receipt(action: Action) -> object:
     return SendReceipt(external_message_id=ref, sent_at=action.sent_at or action.planned_at)
 
 
-def _kernel_facts(intent: ActionIntent) -> tuple[Fact, ...]:
-    """A confirmation re-checked at EXECUTION cites the credited amount from its credit."""
+def _kernel_facts(intent: ActionIntent, intents: IntentStore, actions: Actions) -> tuple[Fact, ...]:
+    """The credited amount a confirmation may cite, re-derived from the credit it confirms.
+
+    It used to be read from the confirmation's own `numbers_used` - the message vouching for
+    itself, so an edited number would have validated against itself (safety review, 5). Now
+    it is the amount of the credit intent the confirmation follows, and only once that
+    credit's action is VERIFIED. Anything missing or unreadable gives no fact, so R09 denies
+    the number rather than trusting it.
+    """
     if getattr(intent.payload, "kind", None) is not MessageKind.CREDIT_CONFIRMATION:
         return ()
-    for use in getattr(intent.payload, "numbers_used", ()):
-        if use.fact_id == "credited_amount":
-            return (
-                Fact(
-                    fact_id="credited_amount",
-                    label="amount credited",
-                    value=Money.of(use.text.replace("\u20b9", "").replace(",", "")),
-                ),
-            )
-    return ()
+    if intent.source_kind is not IntentSource.FOLLOW_UP or not intent.source_ref:
+        return ()
+    try:
+        credit = intents.get(IntentId(intent.source_ref))
+        action = actions.for_intent(credit.id)
+    except (NotFound, PortError, DomainValidationError):
+        return ()
+    amount = getattr(credit.payload, "amount", None)
+    if (
+        credit.case_id != intent.case_id
+        or credit.action_type is not ActionType.POST_CREDIT
+        or action is None
+        or action.status is not ActionStatus.VERIFIED
+        or not isinstance(amount, Money)
+    ):
+        return ()
+    return (Fact(fact_id="credited_amount", label="amount credited", value=amount),)
 
 
 def _credit_ctx(case: Case, actions: Actions, ledger: Ledger | None) -> dict[str, object]:

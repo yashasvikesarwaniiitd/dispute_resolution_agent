@@ -239,6 +239,7 @@ def run_full(
                         actions=work.actions,
                         executor=executor,
                         ports=ports,
+                        checkpoint=work.checkpoint,
                     ),
                     "verify": VerifyStep(
                         intents=work.intents,

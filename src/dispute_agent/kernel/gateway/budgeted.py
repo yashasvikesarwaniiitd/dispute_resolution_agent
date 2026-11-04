@@ -102,6 +102,15 @@ class BudgetedModelGateway:
 
     def _fail_over(self, req: ModelRequest, reason: str) -> ModelResponse:
         assert self.secondary is not None
+        # M01 again: the failed primary attempt reached a provider and was counted, so the
+        # case may now be at its limit. Failover is a second call, never a free one (review, 7).
+        if req.case_id is not None and (
+            self.ledger.calls_for_case(req.case_id) >= self.limits.max_calls_per_case
+        ):
+            self._record(
+                req, self.secondary_route, "budget", _NO_USAGE, error_code="max_calls_per_case"
+            )
+            raise BudgetExceeded("llm_budget_exceeded")
         # M05: the secondary's own cap; reaching it is a stop, never a further route (D42).
         if self.ledger.spend_usd(self.secondary_route) >= self.secondary_cap_usd:
             self._record(

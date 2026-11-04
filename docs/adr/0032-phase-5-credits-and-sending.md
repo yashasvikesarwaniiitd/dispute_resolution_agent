@@ -56,6 +56,27 @@ never treated as zero.
 `make demo ARGS="--offline"` answers every approval; the end-to-end tests do either. They cannot
 drift apart.
 
+## 8. What the safety review changed
+
+No HIGH findings. Each fix below has a test in `tests/unit/review/test_phase5_safety_fixes.py`
+that fails against the code before it.
+
+- **The claim is saved before the external write.** `ActionExecutor.execute` takes a
+  `checkpoint`; the unit of work commits the claim (and its attempt count) before `send`. A crash
+  mid-write now leaves `attempts = 1`, so recovery asks a person (`recovery_unconfirmed`) instead
+  of finding an untouched PLANNED row.
+- **The credited amount is re-derived.** A confirmation's `credited_amount` comes from the credit
+  intent it follows, and only once that credit's action is VERIFIED - never from the message's own
+  numbers.
+- **R21 escalates on unchecked text**: `screen_error`, `truncated_input` and
+  `fabricated_reference`, alongside `instruction_like` and `prompt_shield:*`.
+- **The ledger locks first.** `post_credit` runs under an explicit `BEGIN IMMEDIATE`, so the
+  duplicate, clash and outstanding-charge reads and the insert are one atomic step.
+- Smaller: a BLOCKED execute rests only when another worker holds the claim (UNKNOWN stays
+  UNKNOWN, FAILED is a failure); verification rests only on "not visible yet" and moves on for an
+  action already VERIFIED; the direct Foundry route charges billed timeouts and filter stops; a
+  failover re-checks the per-case call limit (M01).
+
 ## Deferred (BACKLOG.md)
 
 The long-running runtime (`make run-api`) still assembles only the Phase 1 steps; the live demo

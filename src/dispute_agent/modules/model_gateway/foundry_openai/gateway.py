@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.errors import ConfigError, GuardrailBlocked
+from dispute_agent.kernel.domain.reasoning import ModelUsage
 from dispute_agent.modules.model_gateway.foundry_agent_service.client import map_error
 from dispute_agent.modules.model_gateway.output import RawReply, complete_with_one_retry
 
@@ -63,6 +64,16 @@ class FoundryOpenAiGateway:
             route=ROUTE,
         )
 
+    def _worst(self, prompt_chars: int, max_output_tokens: int) -> ModelUsage:
+        """What one call costs at most: every prompt token, and every output token allowed."""
+        tokens_in = prompt_chars // CHARS_PER_TOKEN_WORST + 1
+        return ModelUsage(
+            input_tokens=tokens_in,
+            output_tokens=max_output_tokens,
+            latency_ms=0,
+            cost_usd=self.price.cost(tokens_in, max_output_tokens),
+        )
+
     def _call(self, system: str, user: str, max_tokens: int, prompt_chars: int) -> RawReply:
         sent: dict[str, object] = {
             "model": self.deployment,
@@ -77,13 +88,15 @@ class FoundryOpenAiGateway:
             mapped = map_error(exc)
             if mapped is None:
                 raise
+            if mapped.maybe_billed and mapped.usage is None:
+                # Azure may still charge for a generation it never returned. Charge the worst
+                # case, so a run of timeouts cannot spend past the cap unseen (review, 4).
+                mapped.usage = self._worst(prompt_chars, max_tokens)
             raise mapped from None
         latency_ms = int((self.monotonic() - started) * 1000)
         status = str(getattr(response, "status", "") or "")
         details = getattr(response, "incomplete_details", None)
         reason = str(getattr(details, "reason", "") or "")
-        if status == "incomplete" and "content_filter" in reason:
-            raise GuardrailBlocked("the deployment's content filter stopped the answer")
         usage = getattr(response, "usage", None)
         reported_in: Any = getattr(usage, "input_tokens", None)
         reported_out: Any = getattr(usage, "output_tokens", None)
@@ -91,6 +104,16 @@ class FoundryOpenAiGateway:
             tokens_in, tokens_out = reported_in, reported_out
         else:
             tokens_in, tokens_out = prompt_chars // CHARS_PER_TOKEN_WORST + 1, max_tokens
+        if status == "incomplete" and "content_filter" in reason:
+            # A filtered answer is still a billed answer: carry its cost (review, 4).
+            blocked = GuardrailBlocked("the deployment's content filter stopped the answer")
+            blocked.usage = ModelUsage(
+                input_tokens=tokens_in,
+                output_tokens=tokens_out,
+                latency_ms=int((self.monotonic() - started) * 1000),
+                cost_usd=self.price.cost(tokens_in, tokens_out),
+            )
+            raise blocked
         return RawReply(
             text=str(getattr(response, "output_text", "") or "") if status == "completed" else "",
             input_tokens=tokens_in,
