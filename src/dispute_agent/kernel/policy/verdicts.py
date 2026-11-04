@@ -24,6 +24,7 @@ from dispute_agent.kernel.domain.evidence import ChargeAssessment
 from dispute_agent.kernel.domain.models import Case
 from dispute_agent.kernel.domain.patterns import CautionSignal
 from dispute_agent.kernel.domain.reasoning import Proposal, ReplyReading, ScreenResult
+from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.policy.config import PolicyConfig
 
 if TYPE_CHECKING:
@@ -63,6 +64,17 @@ class PolicyContext(BaseModel):
     case_has_verified_credit: bool = False
     screen_results: tuple[ScreenResult, ...] = ()
     reply_readings: tuple[ReplyReading, ...] = ()
+    #: Credits on this shipment in any case, not FAILED (PLANNED, SENT, UNKNOWN, VERIFIED),
+    #: from the action store - so a credit planned but not yet posted still counts. None
+    #: means it could not be read, which R15/R16 treat as "refuse", never as zero.
+    credited_on_shipment: Money | None = None
+    credited_duplicate_on_shipment: Money | None = None
+    #: DEBITs on the shipment from the ledger (R16). None means the ledger could not be read.
+    debited_on_shipment: Money | None = None
+    clarifications_sent: int = 0
+    #: True at execution, when this intent's own action row is already in the store and so
+    #: already inside `credited_on_shipment`; R15/R16 subtract it rather than count it twice.
+    intent_counted_in_store: bool = False
     #: The case's menu at this step. R01 compares the proposal against it. None means no
     #: menu was supplied, and R01 says so rather than inventing one - but the investigate
     #: step always supplies it (second Phase 3 review, finding 3).

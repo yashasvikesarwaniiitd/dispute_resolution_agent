@@ -13,6 +13,19 @@ from __future__ import annotations
 
 from typing import Final
 
+from dispute_agent.kernel.policy.rules.credit_rules import (
+    ApprovalFresh,
+    CreditAmountDeterministic,
+    CreditReasonProven,
+    CreditWithinOutstanding,
+    NoSecondOutcomeAfterCredit,
+)
+from dispute_agent.kernel.policy.rules.model_signal_rules import (
+    GuardrailBlockedRule,
+    LowConfidenceConsequential,
+    ManipulationFlagged,
+    WithdrawalClaimed,
+)
 from dispute_agent.kernel.policy.rules.r01_action_on_menu import ActionOnMenu
 from dispute_agent.kernel.policy.rules.r02_kill_switch import KillSwitchRule
 from dispute_agent.kernel.policy.rules.r03_module_available import ModuleAvailable
@@ -74,6 +87,35 @@ def phase_3_rules() -> tuple[object, ...]:
     )
 
 
+def phase_5_rules() -> tuple[object, ...]:
+    """Every rule the line runs from Phase 4+/5 on: money (R14-R18, R25) and the model and
+    screen signals (R20-R23), in catalogue order. R11 and R19 are carried by the investigate
+    step (a blocked draft and a wait both escalate there); R12 arrives with the reply round.
+    """
+    return (
+        ActionOnMenu(),
+        KillSwitchRule(),
+        ModuleAvailable(),
+        ContactLimitCase(),
+        ContactLimitDaily(),
+        RecipientAllowlisted(),
+        MessageReviewRequired(),
+        MessageNumbersVerified(),
+        MessageApprovalBound(),
+        CreditRequiresApproval(),
+        CreditReasonProven(),
+        CreditAmountDeterministic(),
+        CreditWithinOutstanding(),
+        CreditNotDuplicate(),
+        NoSecondOutcomeAfterCredit(),
+        WithdrawalClaimed(),
+        ManipulationFlagged(),
+        LowConfidenceConsequential(),
+        GuardrailBlockedRule(),
+        ApprovalFresh(),
+    )
+
+
 __all__ = [
     "MANDATORY_RULES",
     "ActionOnMenu",
@@ -89,4 +131,5 @@ __all__ = [
     "RecipientAllowlisted",
     "phase_1_rules",
     "phase_3_rules",
+    "phase_5_rules",
 ]
