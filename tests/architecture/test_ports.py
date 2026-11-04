@@ -48,10 +48,12 @@ def test_the_card_list_is_complete() -> None:
     where needed, so the next person counting ports gets the real number.
 
     `ModelUsageLedger` was added in Phase 4P: ADR 0017 names it as the spending guard's
-    source of truth, and no card listed it.
+    source of truth, and no card listed it. `ProposalStore` was added in Phase 5 over the
+    schema's `proposals` table, which no card wrote to (the audit gap in BACKLOG.md).
     """
     expected = {
         "ModelUsageLedger",
+        "ProposalStore",
         "ApprovalService",
         "ApprovalStore",
         "AssessmentStore",

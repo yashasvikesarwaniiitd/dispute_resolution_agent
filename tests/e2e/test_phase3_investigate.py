@@ -296,14 +296,14 @@ class TestCasesTheRulesCannotDecide:
         assert case.review_reason.code is ReviewCode.PROPOSAL_ESCALATED
         assert approvals == []
 
-    def test_a_provable_overcharge_goes_to_a_person_until_credits_exist(self, engine) -> None:
-        """Credits are Phase 5. Taking the raw discrepancy as the amount would pay the wrong
-        figure on a second dispute, so the honest answer today is a person."""
+    def test_a_provable_overcharge_without_a_readable_ledger_goes_to_a_person(self, engine) -> None:
+        """Phase 5: the credit amount is netted against earlier credits on the shipment. This
+        line wires no action store or ledger, so those cannot be counted - and an amount that
+        cannot be netted is never guessed (money-rules.md section 5)."""
         case, approvals, _, _ = run(engine, "calc_error_wrong_slab")
         assert case.state is CaseState.NEEDS_HUMAN_REVIEW
         assert case.review_reason is not None
-        assert case.review_reason.code is ReviewCode.POLICY_ESCALATED
-        assert "Phase 5" in (case.review_reason.detail or "")
+        assert case.review_reason.code is ReviewCode.LEDGER_STATE_UNKNOWN
         assert approvals == []
 
 

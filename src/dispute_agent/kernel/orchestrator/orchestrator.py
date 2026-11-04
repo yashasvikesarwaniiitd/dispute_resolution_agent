@@ -25,6 +25,7 @@ review caught the overstatement.)
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.case import CaseFacts
     from dispute_agent.kernel.domain.enums import CauseKind
     from dispute_agent.kernel.domain.events import Event
-    from dispute_agent.kernel.domain.ids import EventId
+    from dispute_agent.kernel.domain.ids import EventId, IntentId
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.domain.patterns import CaseOutcome, PatternRecord
     from dispute_agent.kernel.ports import Clock, IdGenerator, Tracer
@@ -69,6 +70,11 @@ class StepOutcome:
     review_reason: ReviewReason | None = None
     guards: dict[str, bool] = field(default_factory=dict)
     detail: str = ""
+    #: The plan now waiting on this case (set with the transition into AWAITING_APPROVAL or
+    #: EXECUTING). The only case fields a step may set, and only through the loop, so they
+    #: land in the same save as the transition and its event (I8).
+    pending_intent_id: IntentId | None = None
+    action_seq: int | None = None
 
     @property
     def rests(self) -> bool:
@@ -279,6 +285,13 @@ class Orchestrator:
                 guards=outcome.guards,
                 review_reason=outcome.review_reason,
             )
+            if outcome.pending_intent_id is not None or outcome.action_seq is not None:
+                updates: dict[str, object] = {}
+                if outcome.pending_intent_id is not None:
+                    updates["pending_intent_id"] = outcome.pending_intent_id
+                if outcome.action_seq is not None:
+                    updates["action_seq"] = outcome.action_seq
+                applied = dataclasses.replace(applied, case=applied.case.model_copy(update=updates))
             events.append(applied.event)
             current = landed(applied)
 

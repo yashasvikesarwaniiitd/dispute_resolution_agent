@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Protocol
 from dispute_agent.kernel.domain.actions import (
     ActionIntent,
     ApprovalRequest,
+    CreditPayload,
     IssuePayload,
     MessagePayload,
 )
@@ -54,13 +55,16 @@ from dispute_agent.kernel.domain.errors import (
     DomainValidationError,
     GuardrailBlocked,
     InvalidModelOutput,
+    KillSwitchEngaged,
     ModuleUnavailable,
     NotFound,
     PermanentPortError,
+    PolicyRefused,
+    PortError,
     TransientPortError,
 )
 from dispute_agent.kernel.domain.hashing import payload_hash
-from dispute_agent.kernel.domain.ids import ApprovalId, IntentId
+from dispute_agent.kernel.domain.ids import ActionId, ApprovalId, IntentId
 from dispute_agent.kernel.domain.models import ReviewReason
 from dispute_agent.kernel.domain.reasoning import (
     CaseBriefing,
@@ -68,15 +72,17 @@ from dispute_agent.kernel.domain.reasoning import (
     DraftContext,
     ScreenResult,
 )
+from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
 from dispute_agent.kernel.policy.config import PolicyConfig
+from dispute_agent.kernel.policy.credit import credit_amount
 from dispute_agent.kernel.policy.verdicts import PolicyContext
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from datetime import datetime
 
-    from dispute_agent.kernel.domain.actions import ActionPayload, PolicyVerdict
+    from dispute_agent.kernel.domain.actions import Action, ActionPayload, PolicyVerdict
     from dispute_agent.kernel.domain.evidence import ChargeAssessment
     from dispute_agent.kernel.domain.ids import EvidenceItemId
     from dispute_agent.kernel.domain.models import Case
@@ -89,6 +95,8 @@ if TYPE_CHECKING:
         IdGenerator,
         InputScreen,
         IntentStore,
+        Ledger,
+        ProposalStore,
         Reasoner,
     )
 
@@ -103,6 +111,23 @@ class MenuPack(Protocol):
     def allowed_actions(
         self, state: object, assessment: ChargeAssessment
     ) -> Sequence[ProposalAction]: ...
+
+
+class CreditedOnShipment(Protocol):
+    def credited_on_shipment(self, shipment_ref: str) -> tuple[Money, Money]: ...
+
+
+class Planner(Protocol):
+    """The executor's planning half: re-check policy at EXECUTION, write the PLANNED row."""
+
+    def plan(
+        self,
+        case: Case,
+        intent: ActionIntent,
+        ctx: PolicyContext,
+        now: datetime,
+        action_id: ActionId,
+    ) -> tuple[Action, PolicyVerdict]: ...
 
 
 class Drafter(Protocol):
@@ -140,6 +165,14 @@ class InvestigateStep:
     screen: InputScreen | None = None
     #: The reply readings of this round, when a reply round is running (R20, R21).
     readings: Callable[[Case], tuple[ReplyReading, ...]] | None = None
+    #: Every proposal is kept, with its prompt and model, before anything acts on it (I8).
+    proposals: ProposalStore | None = None
+    #: Where credits already planned or posted are counted from (R15/R16 netting).
+    actions: CreditedOnShipment | None = None
+    #: The ledger, read for what was charged (R16). None: the limit is unknown, so refused.
+    ledger: Ledger | None = None
+    #: Plans an ALLOWed action (T06). None: an ALLOW is escalated, as before Phase 5.
+    executor: Planner | None = None
     name: str = "investigate"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -159,6 +192,10 @@ class InvestigateStep:
         if isinstance(decided, StepOutcome):
             return decided
         proposal = decided
+        if self.proposals is not None:
+            # Kept before anything is checked or done with it, so a refused proposal is on
+            # the record too - "why did the case go to a person" needs it most.
+            self.proposals.add(proposal)
 
         # The menu is code's decision, not the reasoner's (I1). Before this check the menu
         # was built, put on the briefing and then ignored, so an off-menu proposal - the
@@ -300,11 +337,50 @@ class InvestigateStep:
                 "the proposal was to wait, and nothing is outstanding to wait for",
             )
 
+        credited: tuple[Money, Money] | None = None
+        debited: Money | None = None
         if action is ProposalAction.PROPOSE_CREDIT:
-            return _escalate(
-                ReviewCode.POLICY_ESCALATED,
-                f"a credit was proposed for {proposal.action_parameters.reason_code}; "
-                "credits are Phase 5 and the netted amount has no caller yet",
+            credited, debited = self._credit_inputs(case)
+            amount = (
+                None
+                if credited is None
+                else credit_amount(
+                    assessment,
+                    proposal.action_parameters.reason_code or "",
+                    credited[0],
+                    credited[1],
+                )
+            )
+            if amount is None:
+                if len(assessment.definite_errors) > 1:
+                    return _escalate(
+                        ReviewCode.MULTIPLE_DEFINITE_ERRORS,
+                        "the assessment proves more than one error; one credit per case",
+                    )
+                if credited is None:
+                    return _escalate(
+                        ReviewCode.LEDGER_STATE_UNKNOWN,
+                        "earlier credits on this shipment could not be counted",
+                    )
+                return _escalate(
+                    ReviewCode.POLICY_DENIED,
+                    f"credit_reason_unproven: {proposal.action_parameters.reason_code!r} "
+                    "is not a code-proven error with an amount still owed",
+                )
+            payload: ActionPayload = CreditPayload(
+                shipment_ref=case.facts.shipment_ref,
+                # Derived by code from the assessment (money-rules.md section 3), never from
+                # the proposal: the model chose to credit, code decided how much (I9).
+                amount=amount,
+                reason_code=proposal.action_parameters.reason_code or "",
+                fact_ids=tuple(
+                    f.fact_id
+                    for f in assessment.facts
+                    if f.fact_id in ("f_charged", "f_recalculated", "f_discrepancy")
+                ),
+            )
+            return self._plan(
+                case, proposal, assessment, now, menu, screens, payload, credited, debited
             )
 
         try:
@@ -314,9 +390,25 @@ class InvestigateStep:
             # template yet - is a draft that must not go out (orchestrator.md 3.6).
             return _escalate(ReviewCode.POLICY_ESCALATED, f"draft_blocked: {blocked}")
 
+        return self._plan(case, proposal, assessment, now, menu, screens, payload, None, None)
+
+    def _plan(
+        self,
+        case: Case,
+        proposal: Proposal,
+        assessment: ChargeAssessment,
+        now: datetime,
+        menu: tuple[ProposalAction, ...],
+        screens: tuple[ScreenResult, ...],
+        payload: ActionPayload,
+        credited: tuple[Money, Money] | None,
+        debited: Money | None,
+    ) -> StepOutcome:
         action_type = (
             ActionType.SEND_MESSAGE
             if isinstance(payload, MessagePayload)
+            else ActionType.POST_CREDIT
+            if isinstance(payload, CreditPayload)
             else ActionType.UPSERT_ISSUE
         )
         intent = ActionIntent(
@@ -332,23 +424,45 @@ class InvestigateStep:
             created_at=now,
         )
 
-        verdict = self.policy.evaluate(
-            PolicyContext(
-                case=case,
-                stage=PolicyStage.PLANNING,
-                intent=intent,
-                proposal=proposal,
-                assessment=assessment,
-                modules=self.modules,
-                policy=self.config,
-                now=now,
-                # So R01 checks it too - belt and braces with the check in `run`.
-                allowed_actions=menu,
-                screen_results=screens,
-                reply_readings=self.readings(case) if self.readings else (),
-            )
+        ctx = PolicyContext(
+            case=case,
+            stage=PolicyStage.PLANNING,
+            intent=intent,
+            proposal=proposal,
+            assessment=assessment,
+            modules=self.modules,
+            policy=self.config,
+            now=now,
+            # So R01 checks it too - belt and braces with the check in `run`.
+            allowed_actions=menu,
+            screen_results=screens,
+            reply_readings=self.readings(case) if self.readings else (),
+            credited_on_shipment=None if credited is None else credited[0],
+            credited_duplicate_on_shipment=None if credited is None else credited[1],
+            debited_on_shipment=debited,
         )
-        return self._by_verdict(case, intent, verdict, now)
+        return self._by_verdict(case, intent, self.policy.evaluate(ctx), now, ctx)
+
+    def _credit_inputs(self, case: Case) -> tuple[tuple[Money, Money] | None, Money | None]:
+        """(already credited on the shipment, the duplicate part), and what was debited.
+
+        Unknown stays unknown: a store or ledger that cannot be read gives None, and R15/R16
+        refuse rather than treat it as zero (money-rules.md section 5).
+        """
+        shipment = case.facts.shipment_ref
+        credited = None if self.actions is None else self.actions.credited_on_shipment(shipment)
+        debited: Money | None = None
+        if self.ledger is not None:
+            try:
+                paise = sum(
+                    e.amount.to_paise()
+                    for e in self.ledger.get_entries(shipment)
+                    if e.type == "DEBIT"
+                )
+                debited = Money.from_paise(paise)
+            except (PortError, ModuleUnavailable):
+                debited = None
+        return credited, debited
 
     def _payload(
         self, case: Case, proposal: Proposal, assessment: ChargeAssessment
@@ -393,7 +507,12 @@ class InvestigateStep:
         )
 
     def _by_verdict(
-        self, case: Case, intent: ActionIntent, verdict: PolicyVerdict, now: datetime
+        self,
+        case: Case,
+        intent: ActionIntent,
+        verdict: PolicyVerdict,
+        now: datetime,
+        ctx: PolicyContext,
     ) -> StepOutcome:
         kind = verdict.verdict
         if kind is VerdictKind.DENY:
@@ -403,29 +522,52 @@ class InvestigateStep:
             reason = _first_reason(verdict)
             return _escalate(_review_code_for(reason, ReviewCode.POLICY_ESCALATED), reason)
         if kind is VerdictKind.ALLOW:
-            return _escalate(
-                ReviewCode.POLICY_ESCALATED,
-                f"{intent.action_type.value} was allowed without review, and planning it "
-                "needs the action store, which is not wired yet",
+            if self.executor is None or intent.action_type is ActionType.POST_CREDIT:
+                # A credit can never be ALLOWed (R13); if one were, stop (I3).
+                return _escalate(
+                    ReviewCode.POLICY_ESCALATED,
+                    f"{intent.action_type.value} was allowed but cannot be planned here",
+                )
+            planned_intent = intent.model_copy(update={"status": IntentStatus.PLANNED})
+            self.intents.add(planned_intent)
+            try:
+                action, _ = self.executor.plan(
+                    case, planned_intent, ctx, now, ActionId(self.ids.new_id("act"))
+                )
+            except (PolicyRefused, KillSwitchEngaged) as refused:
+                return _escalate(ReviewCode.POLICY_DENIED, f"execution re-check: {refused}")
+            return StepOutcome(
+                trigger=Trigger.VERDICT_ALLOW,
+                guards={"intent_is_not_credit": True, "action_planned": True},
+                detail="action planned",
+                pending_intent_id=planned_intent.id,
+                action_seq=action.action_seq,
             )
 
         # REQUIRE_APPROVAL: write the plan, then the request that points at it. The approval
         # binds to this hash, so the text cannot change between here and your yes (I13).
         self.intents.add(intent)
-        message_kind = getattr(intent.payload, "kind", None)
+        is_credit = intent.action_type is ActionType.POST_CREDIT
         self.approvals.add(
             ApprovalRequest(
                 approval_id=ApprovalId(self.ids.new_id("apr")),
                 case_id=case.id,
                 intent_id=intent.id,
-                subject=ApprovalSubject.MESSAGE,
+                subject=ApprovalSubject.CREDIT if is_credit else ApprovalSubject.MESSAGE,
                 payload_hash=intent.payload_hash,
-                message_kind=message_kind,
+                # A credit approval names its amount: the reviewer approves *this* figure,
+                # and the executor refuses any other (I3).
+                amount=getattr(intent.payload, "amount", None) if is_credit else None,
+                message_kind=None if is_credit else getattr(intent.payload, "kind", None),
                 requested_at=now,
                 expires_at=now + timedelta(hours=self.config.approvals.expire_after_hours),
             )
         )
-        return StepOutcome(trigger=Trigger.VERDICT_REQUIRE_APPROVAL, detail="approval requested")
+        return StepOutcome(
+            trigger=Trigger.VERDICT_REQUIRE_APPROVAL,
+            detail="approval requested",
+            pending_intent_id=intent.id,
+        )
 
 
 #: A rule's reason prefix -> the review code a person sees (policy-rules.md section 8).

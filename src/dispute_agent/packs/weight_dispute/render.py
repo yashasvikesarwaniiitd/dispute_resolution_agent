@@ -38,14 +38,17 @@ if TYPE_CHECKING:
 
 TEMPLATES = Path(__file__).parent / "templates"
 
-#: One template per message kind this pack can send today. Upheld-charge and
-#: credit-confirmation arrive in Phase 5; a kind with no template is refused rather than
-#: falling back to something generic, because a generic message about money is worse than
-#: no message.
+#: One template per message kind this pack can send. A kind with no template is refused
+#: rather than falling back to something generic, because a generic message about money is
+#: worse than no message.
 TEMPLATE_FOR_KIND = {
     "evidence_request": "evidence_request.md.j2",
     "clarification_request": "evidence_request.md.j2",
     "reminder": "reminder.md.j2",
+    "upheld_explanation": "upheld_explanation.md.j2",
+    # Cites `credited_amount`, the kernel fact taken from the verified ledger transaction;
+    # without it the render stops, so a confirmation can never go out with no amount (MD-F6).
+    "credit_confirmation": "credit_confirmation.md.j2",
 }
 
 
@@ -75,7 +78,7 @@ class FactCiter:
         fact = self._facts.get(fact_id)
         if fact is None:
             raise DomainValidationError(
-                f"the template asked for fact {fact_id!r}, which this case does not have; "
+                f"missing_fact: {fact_id} - the template asked for a fact this case does not have; "
                 "refusing to render rather than leaving a blank where a number goes (I9)"
             )
         text = render_fact(fact.value)
@@ -94,7 +97,7 @@ def render(ctx: DraftContext, *, shipment_ref: str) -> DraftedMessage:
     if name is None:
         raise DomainValidationError(
             f"no template for message kind {ctx.kind.value!r}; this pack sends only "
-            f"{sorted(TEMPLATE_FOR_KIND)} until Phase 5"
+            f"{sorted(TEMPLATE_FOR_KIND)}"
         )
 
     facts = {fact.fact_id: fact for fact in ctx.facts}

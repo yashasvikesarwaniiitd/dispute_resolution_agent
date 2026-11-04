@@ -184,10 +184,38 @@ class TestItRefusesRatherThanLeavingABlank:
             render(a_context(facts=()), shipment_ref=SHIPMENT)
 
     def test_a_kind_with_no_template_refuses(self) -> None:
-        """Upheld-charge arrives in Phase 5. Falling back to something generic would be a
-        generic message about money, which is worse than no message."""
+        """Falling back to something generic would be a generic message about a case, which
+        is worse than no message."""
         with pytest.raises(DomainValidationError, match="no template"):
-            render(a_context(MessageKind.UPHELD_EXPLANATION), shipment_ref=SHIPMENT)
+            render(a_context(MessageKind.HANDED_TO_HUMAN_NOTICE), shipment_ref=SHIPMENT)
+
+
+class TestPhaseFiveTemplates:
+    """P5-08: the uphold and credit-confirmation messages."""
+
+    def test_a_credit_confirmation_without_credited_amount_is_blocked_not_blank(self) -> None:
+        """MD-F6: a confirmation with no amount is a blocked draft, never a vague message."""
+        from dispute_agent.packs.weight_dispute.render import TemplateDrafter
+
+        drafted = TemplateDrafter().draft(
+            a_context(MessageKind.CREDIT_CONFIRMATION), shipment_ref=SHIPMENT
+        )
+        assert drafted.blocked_reason is not None
+        assert drafted.blocked_reason.startswith("missing_fact: credited_amount")
+
+    def test_a_credit_confirmation_cites_the_credited_amount(self) -> None:
+        credited = Fact(fact_id="credited_amount", label="credited", value=Money.of("40.00"))
+        message = render(
+            a_context(MessageKind.CREDIT_CONFIRMATION, facts=(*FACTS, credited)),
+            shipment_ref=SHIPMENT,
+        )
+        assert "₹40.00" in message.body
+        assert [n.fact_id for n in message.numbers_used] == ["credited_amount"]
+
+    def test_an_uphold_cites_every_figure_it_shows(self) -> None:
+        message = render(a_context(MessageKind.UPHELD_EXPLANATION), shipment_ref=SHIPMENT)
+        assert {n.fact_id for n in message.numbers_used} == {"f_chargeable_grams", "f_charged"}
+        assert "charge stands" in message.body
 
     def test_the_error_names_what_was_missing(self) -> None:
         """So the failure is actionable rather than "a template broke"."""

@@ -31,6 +31,7 @@ from dispute_agent.kernel.ports.model_usage import ModelUsageLedger
 from dispute_agent.kernel.ports.module_status import ModuleStatus
 from dispute_agent.kernel.ports.pattern_context_provider import PatternContextProvider
 from dispute_agent.kernel.ports.prompt_registry import PromptRegistry
+from dispute_agent.kernel.ports.proposal_store import ProposalStore
 from dispute_agent.kernel.ports.reasoner import Reasoner
 from dispute_agent.kernel.ports.reply_interpreter import ReplyInterpreter
 from dispute_agent.kernel.ports.ticketing_system import TicketingSystem
@@ -58,6 +59,7 @@ __all__ = [
     "ModuleStatus",
     "PatternContextProvider",
     "PromptRegistry",
+    "ProposalStore",
     "Reasoner",
     "ReplyInterpreter",
     "TicketingSystem",
