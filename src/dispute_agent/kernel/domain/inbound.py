@@ -34,6 +34,9 @@ class SellerReplyReceived(InboundPayload):
     body: UntrustedText
     attachments: tuple[str, ...] = ()
     received_at: datetime
+    #: SPF/DKIM/DMARC as the mail adapter read it (integrations.md 1.5). "fail" is a caution
+    #: signal that escalates (T03); "none" means not checked, never a pass.
+    sender_auth: Literal["pass", "fail", "none"] = "none"
 
     @field_validator("received_at")
     @classmethod

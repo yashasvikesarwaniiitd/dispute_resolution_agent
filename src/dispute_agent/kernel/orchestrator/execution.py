@@ -156,6 +156,11 @@ class ApplyApprovalStep:
             if now >= approval.request.expires_at:
                 return _escalate(ReviewCode.APPROVAL_EXPIRED, "nobody decided before it expired")
             return StepOutcome()  # rest: waiting for a person
+        decider = approval.decided_by.id if approval.decided_by is not None else ""
+        if decider not in self.config.approvals.approver_ids:
+            # T09: a decision by anyone not on the approver list is not a decision. The
+            # store only proves a *person* decided (human:*); the list says *which* (D27).
+            return _escalate(ReviewCode.POLICY_DENIED, "decided by someone who is not an approver")
         if decision is ApprovalDecision.REJECTED:
             return self._rejected(case, intent, approval)
         if decision is not ApprovalDecision.APPROVED:

@@ -88,7 +88,10 @@ def scenarios() -> int:
 
 
 def run_api() -> int:
-    return uv("uvicorn", "dispute_agent.app:create_app", "--factory", "--reload")
+    # Loopback only (threat T09): the API has no sign-in, so it must not listen elsewhere.
+    return uv(
+        "uvicorn", "dispute_agent.app:create_app", "--factory", "--reload", "--host", "127.0.0.1"
+    )
 
 
 def run_approvals() -> int:

@@ -55,6 +55,8 @@ if TYPE_CHECKING:
 #: The requirement key every reply item carries. Not in the pack's evidence plan: a reply is
 #: not something we fetch, it is something that arrived.
 SELLER_REPLY = "seller_reply"
+#: A reply whose sender failed SPF/DKIM/DMARC (T03). Its own key, so readings ignore it.
+SENDER_AUTH = "seller_reply_sender_auth"
 SOURCE = "seller_email"
 
 
@@ -92,6 +94,8 @@ class ReplyReader:
             if not isinstance(reply, SellerReplyReceived):
                 continue
             self.evidence.add(self._item(case, reply, now))
+            if reply.sender_auth == "fail":
+                self.evidence.add(self._auth_failed(case, reply, now))
             self.messages.mark_interpreted(message.id, case.gather_round)  # type: ignore[attr-defined]
             count += 1
         return count
@@ -112,6 +116,24 @@ class ReplyReader:
             case_id=case.id,
             gather_round=case.gather_round,
             provenance=Provenance.SELLER,
+            result=result,
+            content_hash=payload_hash(result.model_dump(mode="json")),
+        )
+
+    def _auth_failed(self, case: Case, reply: SellerReplyReceived, now: datetime) -> EvidenceItem:
+        """The sender did not authenticate (T03): recorded, and read as caution."""
+        result = EvidenceResult(
+            requirement_key=SENDER_AUTH,
+            source=SOURCE,
+            status=EvidenceStatus.FOUND,
+            value={"result": "fail", "message": reply.external_message_id},
+            retrieved_at=now,
+        )
+        return EvidenceItem(
+            id=EvidenceItemId(self.ids.new_id("evi")),
+            case_id=case.id,
+            gather_round=case.gather_round,
+            provenance=Provenance.SYSTEM,
             result=result,
             content_hash=payload_hash(result.model_dump(mode="json")),
         )
@@ -162,6 +184,10 @@ def readings_in(bundle: EvidenceBundle) -> tuple[ReplyReading, ...]:
         except ValidationError:
             continue  # stored by us; a bad row is a bug, and R21/B2 still see the FAILED ones
     return tuple(found)
+
+
+def sender_unauthenticated(bundle: EvidenceBundle) -> bool:
+    return any(item.result.requirement_key == SENDER_AUTH for item in bundle.items)
 
 
 def reply_in(bundle: EvidenceBundle) -> bool:

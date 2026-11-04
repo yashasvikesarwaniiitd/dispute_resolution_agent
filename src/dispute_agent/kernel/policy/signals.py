@@ -55,6 +55,17 @@ def repeat_dispute_signal(prior_case_id: str, already_credited: bool) -> Caution
     )
 
 
+def sender_unauthenticated_signal(source_ref: str) -> CautionSignal:
+    """T03: a reply whose sender failed SPF/DKIM/DMARC. It escalates; it never blocks
+    reading the reply as evidence, and a pass never relaxes anything (I15)."""
+    return CautionSignal(
+        kind="screen_flag",
+        min_verdict=VerdictKind.ESCALATE,
+        reason="sender_unauthenticated: a reply failed sender authentication",
+        source_ref=source_ref,
+    )
+
+
 def screen_flag_signal(reason: str, source_ref: str) -> CautionSignal:
     """The screen is unavailable or flagged something (I15).
 

@@ -75,9 +75,13 @@ from dispute_agent.kernel.domain.reasoning import (
 from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.executor.executor import _start_of_day
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
+from dispute_agent.kernel.orchestrator.replies import sender_unauthenticated
 from dispute_agent.kernel.policy.config import PolicyConfig
 from dispute_agent.kernel.policy.credit import credit_amount
-from dispute_agent.kernel.policy.signals import repeat_dispute_signal
+from dispute_agent.kernel.policy.signals import (
+    repeat_dispute_signal,
+    sender_unauthenticated_signal,
+)
 from dispute_agent.kernel.policy.verdicts import PolicyContext
 
 if TYPE_CHECKING:
@@ -293,8 +297,9 @@ class InvestigateStep:
             if code is not ReviewCode.PROPOSAL_ESCALATED:
                 return _escalate(code, reason)
             if verdict.signals and verdict.review_reason is not None:
-                # The floor came from a caution signal (R24): say so, with its reason.
-                return _escalate(verdict.review_reason.code, verdict.review_reason.detail or reason)
+                # The floor came from a caution signal (R24, T03): say so, with its reason.
+                signal = verdict.signals[0].reason
+                return _escalate(_review_code_for(signal, verdict.review_reason.code), signal)
         return _escalate(ReviewCode.PROPOSAL_ESCALATED, proposal.rationale[:200])
 
     # -- asking the reasoner -------------------------------------------------------------------
@@ -408,7 +413,14 @@ class InvestigateStep:
         return self.contact(case, bundle or self.evidence.bundle(case.id, case.gather_round))
 
     def _signals(self, case: Case) -> tuple[CautionSignal, ...]:
-        """Caution the case carries into every verdict (I7): R24 for a repeat dispute."""
+        """Caution the case carries into every verdict (I7): R24, and T03's failed sender."""
+        found: list[CautionSignal] = []
+        bundle = self.evidence.bundle(case.id, case.gather_round)
+        if sender_unauthenticated(bundle):
+            found.append(sender_unauthenticated_signal(str(case.id)))
+        return (*found, *self._repeat(case))
+
+    def _repeat(self, case: Case) -> tuple[CautionSignal, ...]:
         if case.prior_case_id is None:
             return ()
         credited = (
@@ -779,6 +791,7 @@ _CODE_FOR_REASON = {
     "multiple_definite_errors": ReviewCode.MULTIPLE_DEFINITE_ERRORS,
     "ledger_state_unknown": ReviewCode.LEDGER_STATE_UNKNOWN,
     "reply_unresolved": ReviewCode.REPLY_UNRESOLVED,
+    "sender_unauthenticated": ReviewCode.SENDER_UNAUTHENTICATED,
     "contact_limit": ReviewCode.POLICY_DENIED,
 }
 
@@ -840,9 +853,17 @@ def _escalate(code: ReviewCode, detail: str) -> StepOutcome:
 
 
 def _first_reason(verdict: PolicyVerdict) -> str:
+    """The rule that set the verdict - or, when a caution signal set it, the signal's reason.
+
+    A verdict raised by a signal floor (R24 repeat dispute, T03 unauthenticated sender) has no
+    rule at that level; without this the reviewer saw only "ESCALATE".
+    """
     for result in verdict.results:
         if result.verdict is verdict.verdict:
             return f"{result.rule_id}: {result.reason}"
+    for signal in verdict.signals:
+        if signal.min_verdict is verdict.verdict:
+            return f"{signal.kind}: {signal.reason}"
     return verdict.verdict.name
 
 
