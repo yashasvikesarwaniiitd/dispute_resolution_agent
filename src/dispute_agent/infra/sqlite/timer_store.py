@@ -139,6 +139,54 @@ class SqliteTimerStore:
         )
         return int(result.rowcount)
 
+    def void_fired(self, case_id: CaseId, kinds: Sequence[TimerKind], now: datetime) -> int:
+        """Void timers of these kinds that fired but whose event is not yet handled.
+
+        A cancel effect has to reach these too: the TIMER_FIRED may be sitting deferred in the
+        inbox, and redelivering it after the case moved on would act on a dead deadline.
+        Voided, it is recognised as stale by pre-dispatch rule P1.
+        """
+        if not kinds:
+            return 0
+        result = self._conn.execute(
+            update(timers_table)
+            .where(
+                and_(
+                    timers_table.c.case_id == str(case_id),
+                    timers_table.c.kind.in_([k.value for k in kinds]),
+                    timers_table.c.fired_at.is_not(None),
+                    timers_table.c.consumed_at.is_(None),
+                    timers_table.c.voided_at.is_(None),
+                )
+            )
+            .values(voided_at=to_iso(now))
+        )
+        return int(result.rowcount)
+
+    def consume(self, timer_id: TimerId, now: datetime) -> None:
+        """The orchestrator acted on this fired timer (any reaction except defer)."""
+        self._conn.execute(
+            update(timers_table)
+            .where(
+                and_(
+                    timers_table.c.id == str(timer_id),
+                    timers_table.c.fired_at.is_not(None),
+                    timers_table.c.consumed_at.is_(None),
+                    # A voided timer is stale, not handled (P1); it stays voided.
+                    timers_table.c.voided_at.is_(None),
+                )
+            )
+            .values(consumed_at=to_iso(now))
+        )
+
+    def get(self, timer_id: TimerId) -> Timer:
+        row = self._conn.execute(
+            select(timers_table).where(timers_table.c.id == str(timer_id))
+        ).first()
+        if row is None:
+            raise NotFound(f"timer {timer_id}")
+        return _to_timer(row)
+
     def cancel_all(self, case_id: CaseId, now: datetime, reason: str) -> int:
         return self.cancel_kinds(case_id, list(TimerKind), now, reason)
 

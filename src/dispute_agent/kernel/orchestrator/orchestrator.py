@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Protocol
 from dispute_agent.kernel.domain.enums import TERMINAL_STATES as _TERMINAL
 from dispute_agent.kernel.domain.enums import (
     CaseState,
+    InternalEventType,
     ReviewCode,
     Trigger,
 )
@@ -46,10 +47,13 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.enums import CauseKind
     from dispute_agent.kernel.domain.events import Event
     from dispute_agent.kernel.domain.ids import EventId, IntentId
-    from dispute_agent.kernel.domain.models import Case
+    from dispute_agent.kernel.domain.models import Actor, Case
     from dispute_agent.kernel.domain.patterns import CaseOutcome, PatternRecord
     from dispute_agent.kernel.ports import Clock, IdGenerator, Tracer
     from dispute_agent.kernel.statemachine.machine import Applied, StateMachine
+
+#: Marks the escalation `_decide` makes from ModuleUnavailable, so the loop can stop there.
+MODULE_UNAVAILABLE_DETAIL = "module_unavailable"
 
 #: States the loop will keep working through. Anything else rests or is finished.
 AUTO_STATES = (
@@ -79,6 +83,11 @@ class StepOutcome:
     #: land in the same save as the transition and its event (I8).
     pending_intent_id: IntentId | None = None
     action_seq: int | None = None
+    #: Audit events the step asks the loop to write, as (type, staff-facing detail):
+    #: PROPOSAL_RECORDED, INTENT_CREATED, APPROVAL_REQUESTED, REMINDER_SKIPPED and the
+    #: like. Written even when the step rests, so a skipped reminder is still on record.
+    #: Never untrusted text (I5) - the detail is the system's own words.
+    notes: tuple[tuple[InternalEventType, str], ...] = ()
 
     @property
     def rests(self) -> bool:
@@ -140,6 +149,7 @@ class Orchestrator:
         outcomes: object | None = None,
         max_steps: int = 12,
         tracer: Tracer | None = None,
+        effects: Callable[[Case, Case, Applied], Sequence[Event]] | None = None,
     ) -> None:
         self._machine = machine
         self._steps = steps
@@ -149,6 +159,9 @@ class Orchestrator:
         self._outcomes = outcomes
         self._max_steps = max_steps
         self._tracer = tracer
+        #: Carries out each transition's effects (timers, supersede, in-flight -> UNKNOWN,
+        #: outcome) in the same unit of work. None only in tests of the bare loop.
+        self._effects = effects
 
     def _run_traced(self, step: Step, case: Case, now: datetime) -> StepOutcome:
         """One span per step, carrying ids and states only (observability.md section 3)."""
@@ -219,7 +232,7 @@ class Orchestrator:
         steps_run = 0
 
         def landed(applied: Applied) -> Case:
-            return commit(current, applied.case) if commit is not None else applied.case
+            return self.land(current, applied, events, commit)
 
         while True:
             if current.state in _TERMINAL:
@@ -238,7 +251,6 @@ class Orchestrator:
                     ),
                     causation_id,
                 )
-                events.append(applied.event)
                 return AdvanceResult(landed(applied), tuple(events), steps_run, "step_limit")
 
             step = self.step_for(current.state)
@@ -253,53 +265,172 @@ class Orchestrator:
                     ),
                     causation_id,
                 )
-                events.append(applied.event)
                 return AdvanceResult(landed(applied), tuple(events), steps_run, "no_step")
 
             now = self._clock.now()
-            try:
-                outcome = self._run_traced(step, current, now)
-            except ModuleUnavailable as unavailable:
-                # The one conversion point (I6). Nine steps each handling this would
-                # eventually be eight handling it and one forgetting.
-                applied = self._escalate(
-                    current,
-                    ReviewReason(
-                        code=ReviewCode.MODULE_UNAVAILABLE,
-                        module=unavailable.module,
-                        detail=f"{step.name} needed {unavailable.module}",
-                    ),
-                    causation_id,
-                )
-                events.append(applied.event)
-                return AdvanceResult(
-                    landed(applied), tuple(events), steps_run + 1, "module_unavailable"
-                )
-
+            outcome = self._decide(step, current, now)
+            events.extend(self._notes(current, outcome, step.name, now, causation_id))
             steps_run += 1
 
             if outcome.rests:
                 return AdvanceResult(current, tuple(events), steps_run, "rest")
 
-            applied = self._machine.apply(
-                current,
-                outcome.trigger,  # type: ignore[arg-type]
-                Cause(kind=_step_cause(), ref=step.name),
-                now,
-                self._new_event_id(),
+            current = landed(self._applied(current, outcome, step.name, now, causation_id))
+            if outcome.detail == MODULE_UNAVAILABLE_DETAIL:
+                return AdvanceResult(current, tuple(events), steps_run, "module_unavailable")
+
+    def land(
+        self,
+        before: Case,
+        applied: Applied,
+        events: list[Event],
+        commit: Callable[[Case, Case], Case] | None,
+    ) -> Case:
+        """Record one transition: its event, the saved case, then its effects' events.
+
+        The one path every move takes - a step's, an escalation's, an inbound event's - so no
+        caller can save a move and forget what it was meant to cancel, supersede or mark.
+        """
+        events.append(applied.event)
+        saved = commit(before, applied.case) if commit is not None else applied.case
+        if self._effects is not None:
+            events.extend(self._effects(before, saved, applied))
+        return saved
+
+    def apply_trigger(
+        self,
+        case: Case,
+        trigger: Trigger,
+        cause: Cause,
+        causation_id: EventId,
+        *,
+        guards: dict[str, bool] | None = None,
+        review_reason: ReviewReason | None = None,
+        actor: Actor | None = None,
+        commit: Callable[[Case, Case], Case] | None = None,
+    ) -> tuple[Case, tuple[Event, ...]]:
+        """Apply one trigger from outside the step loop (an inbound event's reaction)."""
+        events: list[Event] = []
+        extra = {"actor": actor} if actor is not None else {}
+        applied = self._machine.apply(
+            case,
+            trigger,
+            cause,
+            self._clock.now(),
+            self._new_event_id(),
+            causation_id,
+            guards=guards or {},
+            review_reason=review_reason,
+            **extra,  # type: ignore[arg-type]
+        )
+        return self.land(case, applied, events, commit), tuple(events)
+
+    def run_named(
+        self,
+        case: Case,
+        name: str,
+        causation_id: EventId,
+        *,
+        commit: Callable[[Case, Case], Case] | None = None,
+    ) -> tuple[Case, tuple[Event, ...]]:
+        """Run one named step once - an event step such as `reminder` (accept matrix).
+
+        The same conversions as the loop: ModuleUnavailable becomes a named escalation (I6),
+        a rest is no transition, and the outcome lands through `land` with its effects.
+        """
+        events: list[Event] = []
+        step = self._steps.get(name)
+        if step is None:
+            applied = self._escalate(
+                case,
+                ReviewReason(code=ReviewCode.INTERNAL_ERROR, detail=f"no step named {name}"),
                 causation_id,
-                guards=outcome.guards,
-                review_reason=outcome.review_reason,
             )
-            if outcome.pending_intent_id is not None or outcome.action_seq is not None:
-                updates: dict[str, object] = {}
-                if outcome.pending_intent_id is not None:
-                    updates["pending_intent_id"] = outcome.pending_intent_id
-                if outcome.action_seq is not None:
-                    updates["action_seq"] = outcome.action_seq
-                applied = dataclasses.replace(applied, case=applied.case.model_copy(update=updates))
-            events.append(applied.event)
-            current = landed(applied)
+            return self.land(case, applied, events, commit), tuple(events)
+        now = self._clock.now()
+        outcome = self._decide(step, case, now)
+        events.extend(self._notes(case, outcome, name, now, causation_id))
+        if outcome.rests:
+            return case, tuple(events)
+        applied = self._applied(case, outcome, name, now, causation_id)
+        return self.land(case, applied, events, commit), tuple(events)
+
+    def _decide(self, step: Step, case: Case, now: datetime) -> StepOutcome:
+        """Run a step. The one place ModuleUnavailable becomes an escalation (I6).
+
+        Nine steps each handling this would eventually be eight handling it and one
+        forgetting; the loop and `run_named` both come through here.
+        """
+        try:
+            return self._run_traced(step, case, now)
+        except ModuleUnavailable as unavailable:
+            return StepOutcome(
+                trigger=Trigger.ESCALATE,
+                review_reason=ReviewReason(
+                    code=ReviewCode.MODULE_UNAVAILABLE,
+                    module=unavailable.module,
+                    detail=f"{step.name} needed {unavailable.module}",
+                ),
+                detail=MODULE_UNAVAILABLE_DETAIL,
+            )
+
+    def _notes(
+        self, case: Case, outcome: StepOutcome, ref: str, now: datetime, causation_id: EventId
+    ) -> list[Event]:
+        from dispute_agent.kernel.domain.events import Event as _Event
+        from dispute_agent.kernel.domain.events import StepPayload
+
+        return [
+            _Event(
+                id=self._new_event_id(),
+                case_id=case.id,
+                type=kind,
+                occurred_at=now,
+                recorded_at=now,
+                actor=_system(),
+                cause=Cause(kind=_step_cause(), ref=ref),
+                correlation_id=case.correlation_id,
+                causation_id=causation_id,
+                payload=StepPayload(step=ref, detail=detail[:500]),
+            )
+            for kind, detail in outcome.notes
+        ]
+
+    def _applied(
+        self, case: Case, outcome: StepOutcome, ref: str, now: datetime, causation_id: EventId
+    ) -> Applied:
+        """A step's outcome as a move, with the case fields only a step may set (I8)."""
+        applied = self._machine.apply(
+            case,
+            outcome.trigger,  # type: ignore[arg-type]
+            Cause(kind=_step_cause(), ref=ref),
+            now,
+            self._new_event_id(),
+            causation_id,
+            guards={} if outcome.trigger is Trigger.ESCALATE else outcome.guards,
+            review_reason=outcome.review_reason,
+        )
+        updates: dict[str, object] = {}
+        if outcome.pending_intent_id is not None:
+            updates["pending_intent_id"] = outcome.pending_intent_id
+        if outcome.action_seq is not None:
+            updates["action_seq"] = outcome.action_seq
+        if updates:
+            applied = dataclasses.replace(applied, case=applied.case.model_copy(update=updates))
+        return applied
+
+    def escalate(
+        self,
+        case: Case,
+        reason: ReviewReason,
+        causation_id: EventId,
+        *,
+        commit: Callable[[Case, Case], Case] | None = None,
+    ) -> tuple[Case, tuple[Event, ...]]:
+        """Send a case to a person from outside the loop (T90, with its effects)."""
+        events: list[Event] = []
+        applied = self._escalate(case, reason, causation_id)
+        return self.land(case, applied, events, commit), tuple(events)
 
     # -- helpers ---------------------------------------------------------------------------
 
@@ -325,6 +456,12 @@ class Orchestrator:
         from dispute_agent.kernel.domain.ids import EventId as _EventId
 
         return _EventId(self._ids.new_id("evt"))
+
+
+def _system() -> Actor:
+    from dispute_agent.kernel.statemachine.machine import SYSTEM
+
+    return SYSTEM
 
 
 def _step_cause() -> CauseKind:

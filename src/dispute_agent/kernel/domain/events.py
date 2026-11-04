@@ -16,7 +16,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializeAsAny,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from dispute_agent.kernel.domain.enums import CaseState, EventType, InboundEventType, Trigger
 from dispute_agent.kernel.domain.errors import DomainValidationError
@@ -111,7 +119,9 @@ class InboundEvent(BaseModel):
     actor: Actor
     case_id: CaseId | None = None
     correlation_id: CorrelationId | None = None
-    payload: InboundPayload
+    #: SerializeAsAny: serialised as the concrete payload, not the root. Without it the
+    #: inbox stored `{}` for every payload and a reply lost its body on the way in.
+    payload: SerializeAsAny[InboundPayload]
 
     @field_validator("occurred_at")
     @classmethod

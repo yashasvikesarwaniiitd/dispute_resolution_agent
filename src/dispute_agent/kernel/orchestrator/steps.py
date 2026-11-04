@@ -63,6 +63,10 @@ if TYPE_CHECKING:
     )
 
 
+class ReplyRound(Protocol):
+    def read(self, case: Case, now: datetime) -> int: ...
+
+
 class RetryTimers(Protocol):
     """Counting the EVIDENCE_RETRY timers of a gather round, and arming the next one.
 
@@ -146,6 +150,9 @@ class GatherEvidenceStep:
     ids: IdGenerator
     timers_store: RetryTimers | None = None
     timers: TimersConfig | None = None
+    #: Reads the seller's replies into this round (the reply round). None: no replies can
+    #: arrive in this assembly, as before the dispatcher existed.
+    replies: ReplyRound | None = None
     name: str = "gather_evidence"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -174,6 +181,10 @@ class GatherEvidenceStep:
 
         for result in outcome.results:
             self.store.add(self._item(case, result))
+        # Replies are read once the round is complete, never on a rest: a reply read into a
+        # round that then retries would be read again into the next one.
+        if self.replies is not None:
+            self.replies.read(case, now)
         return StepOutcome(trigger=Trigger.EVIDENCE_RECORDED)
 
     def _arm_retry(self, case: Case, due_at: datetime, now: datetime) -> None:

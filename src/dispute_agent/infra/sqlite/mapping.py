@@ -71,6 +71,17 @@ PAYLOAD_TYPES: dict[str, type[EventPayload]] = {
     "EVENT_IGNORED": EventRejectedPayload,
     "EVENT_DEFERRED": EventRejectedPayload,
     "CASE_OPENED": StepPayload,
+    # Written by transition effects and the dispatcher (kernel/orchestrator/effects.py).
+    "TIMER_SCHEDULED": StepPayload,
+    "TIMER_CANCELLED": StepPayload,
+    "APPROVAL_SUPERSEDED": StepPayload,
+    "ACTION_UNKNOWN": StepPayload,
+    "CASE_OUTCOME_RECORDED": StepPayload,
+    "REMINDER_SKIPPED": StepPayload,
+    "PROPOSAL_RECORDED": StepPayload,
+    "INTENT_CREATED": StepPayload,
+    "APPROVAL_REQUESTED": StepPayload,
+    "MODEL_ROUTE_FAILOVER": StepPayload,
 }
 
 

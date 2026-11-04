@@ -26,7 +26,10 @@ from dispute_agent.infra.sqlite.evidence_store import (
     SqliteAssessmentStore,
     SqliteEvidenceStore,
 )
+from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
 from dispute_agent.infra.sqlite.intent_store import SqliteIntentStore
+from dispute_agent.infra.sqlite.message_store import SqliteMessageStore
+from dispute_agent.infra.sqlite.outcome_outbox import SqliteOutcomeOutbox
 from dispute_agent.infra.sqlite.proposal_store import SqliteProposalStore
 from dispute_agent.infra.sqlite.timer_store import SqliteTimerStore
 from dispute_agent.kernel.domain.errors import ConcurrencyConflict
@@ -86,6 +89,9 @@ class SqliteUnitOfWork:
         self.intents = SqliteIntentStore(self._connection)
         self.actions = SqliteActionStore(self._connection)
         self.proposals = SqliteProposalStore(self._connection)
+        self.outcomes = SqliteOutcomeOutbox(self._connection)
+        self.messages = SqliteMessageStore(self._connection)
+        self.inbox = SqliteInboxStore(self._connection)
         return self
 
     def __exit__(

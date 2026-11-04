@@ -83,7 +83,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from dispute_agent.kernel.domain.actions import Action, ActionPayload, PolicyVerdict
-    from dispute_agent.kernel.domain.evidence import ChargeAssessment
+    from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle
     from dispute_agent.kernel.domain.ids import EvidenceItemId
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal, ReplyReading
@@ -173,6 +173,9 @@ class InvestigateStep:
     ledger: Ledger | None = None
     #: Plans an ALLOWed action (T06). None: an ALLOW is escalated, as before Phase 5.
     executor: Planner | None = None
+    #: The contact counters for this round (reply in round, clarifications sent, ops still
+    #: remeasuring). None: a first round with nothing outstanding, as before the reply round.
+    contact: Callable[[Case, EvidenceBundle], ContactStatus] | None = None
     name: str = "investigate"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -302,9 +305,7 @@ class InvestigateStep:
             # No message or ops store is wired yet, so nothing can have arrived in this
             # round. These are accurate for a first round, which is the only round this
             # step can currently be reached in.
-            contact=ContactStatus(
-                reply_in_round=False, clarifications_sent=0, remeasurement_outstanding=False
-            ),
+            contact=self._contact(case, bundle),
             briefing_hash=payload_hash(
                 {
                     "case": str(case.id),
@@ -313,6 +314,30 @@ class InvestigateStep:
                 }
             ),
         )
+
+    def _contact(self, case: Case, bundle: EvidenceBundle | None = None) -> ContactStatus:
+        """The same counters for the briefing and for policy (agent-design.md section 1)."""
+        if self.contact is None:
+            return ContactStatus(
+                reply_in_round=False, clarifications_sent=0, remeasurement_outstanding=False
+            )
+        return self.contact(case, bundle or self.evidence.bundle(case.id, case.gather_round))
+
+    def _message_counts(self, case: Case, now: datetime) -> dict[str, int]:
+        """Messages already sent, so R04/R05 judge at planning what the executor re-checks.
+
+        Without these the counts were zero at planning: an over-limit message reached the
+        review queue, was approved, and only then refused at execution.
+        """
+        count = getattr(self.actions, "outbound_message_count", None)
+        if count is None:
+            return {}
+        return {
+            "messages_sent_total": count(case.id),
+            "messages_sent_today": count(
+                case.id, since=now.replace(hour=0, minute=0, second=0, microsecond=0)
+            ),
+        }
 
     # -- acting on the proposal ----------------------------------------------------------------
 
@@ -331,11 +356,7 @@ class InvestigateStep:
             return _escalate(ReviewCode.PROPOSAL_ESCALATED, proposal.rationale[:200])
 
         if action is ProposalAction.WAIT:
-            # T09's guard. Waiting is only honest when something we asked for is coming.
-            return _escalate(
-                ReviewCode.WAIT_WITHOUT_EXPECTATION,
-                "the proposal was to wait, and nothing is outstanding to wait for",
-            )
+            return self._wait(case)
 
         credited: tuple[Money, Money] | None = None
         debited: Money | None = None
@@ -437,11 +458,37 @@ class InvestigateStep:
             allowed_actions=menu,
             screen_results=screens,
             reply_readings=self.readings(case) if self.readings else (),
+            clarifications_sent=self._contact(case).clarifications_sent,
+            **self._message_counts(case, now),
             credited_on_shipment=None if credited is None else credited[0],
             credited_duplicate_on_shipment=None if credited is None else credited[1],
             debited_on_shipment=debited,
         )
         return self._by_verdict(case, intent, self.policy.evaluate(ctx), now, ctx)
+
+    def _wait(self, case: Case) -> StepOutcome:
+        """R19 and T09: waiting is honest only while operations is still remeasuring.
+
+        A reply in the round is a reason to decide, not to wait (D19) - unless every reading
+        is an acknowledgement with nothing new while ops is still out (policy-rules.md R19).
+        """
+        contact = self._contact(case)
+        readings = self.readings(case) if self.readings else ()
+        benign = all(r.intent in ("irrelevant", "disputes_again_no_new_info") for r in readings)
+        if contact.remeasurement_outstanding and (not contact.reply_in_round or benign):
+            return StepOutcome(
+                trigger=Trigger.PROPOSAL_WAIT,
+                guards={"has_open_ops_expectation": True},
+                detail="waiting for operations",
+            )
+        if contact.reply_in_round:
+            return _escalate(
+                ReviewCode.REPLY_UNRESOLVED, "the seller replied; waiting would not answer them"
+            )
+        return _escalate(
+            ReviewCode.WAIT_WITHOUT_EXPECTATION,
+            "the proposal was to wait, and nothing is outstanding to wait for",
+        )
 
     def _credit_inputs(self, case: Case) -> tuple[tuple[Money, Money] | None, Money | None]:
         """(already credited on the shipment, the duplicate part), and what was debited.
@@ -481,6 +528,9 @@ class InvestigateStep:
         kind = (
             MessageKind.UPHELD_EXPLANATION
             if action is ProposalAction.UPHOLD_CHARGE
+            # After a reply, a second ask is a clarification: one, then a person (D19, R12).
+            else MessageKind.CLARIFICATION_REQUEST
+            if self._contact(case).reply_in_round
             else MessageKind.EVIDENCE_REQUEST
         )
         drafted = self.drafter.draft(
@@ -590,6 +640,8 @@ _CODE_FOR_REASON = {
     "guardrail_blocked": ReviewCode.GUARDRAIL_BLOCKED,
     "multiple_definite_errors": ReviewCode.MULTIPLE_DEFINITE_ERRORS,
     "ledger_state_unknown": ReviewCode.LEDGER_STATE_UNKNOWN,
+    "reply_unresolved": ReviewCode.REPLY_UNRESOLVED,
+    "contact_limit": ReviewCode.POLICY_DENIED,
 }
 
 

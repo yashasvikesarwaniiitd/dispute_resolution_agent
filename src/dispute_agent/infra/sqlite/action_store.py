@@ -165,6 +165,17 @@ class SqliteActionStore:
         ).mappings()
         return [_to_action(row) for row in rows]
 
+    def find_by_external_ref(self, external_ref: str) -> Action | None:
+        """The action that produced this message id or issue key (dispatch routing)."""
+        row = (
+            self._conn.execute(
+                select(actions).where(actions.c.external_ref == external_ref).limit(1)
+            )
+            .mappings()
+            .first()
+        )
+        return None if row is None else _to_action(row)
+
     def find_approval_for(self, intent_id: object) -> Approval | None:
         from dispute_agent.infra.sqlite.approval_store import SqliteApprovalStore
 

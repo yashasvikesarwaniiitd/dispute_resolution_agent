@@ -168,8 +168,11 @@ class SqliteApprovalStore:
             .where(approvals_table.c.decision == ApprovalDecision.PENDING.value)
             .values(
                 decision=decision.value,
-                decided_by=by.id if by else None,
-                decided_at=to_iso(at),
+                # A person's decision names them and when. The system's (EXPIRED, SUPERSEDED)
+                # carries neither - the model refuses a decider on them - and its moment is
+                # on the APPROVAL_SUPERSEDED event written with it.
+                decided_by=by.id if by and decision in HUMAN_DECISIONS else None,
+                decided_at=to_iso(at) if decision in HUMAN_DECISIONS else None,
                 note=note[:500],
             )
         )

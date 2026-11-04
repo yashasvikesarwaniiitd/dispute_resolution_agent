@@ -37,6 +37,7 @@ from dispute_agent.kernel.policy.rules.r09_message_numbers_verified import (
     MessageNumbersVerified,
 )
 from dispute_agent.kernel.policy.rules.r10_message_approval_bound import MessageApprovalBound
+from dispute_agent.kernel.policy.rules.r12_clarification_limit import ClarificationLimit
 from dispute_agent.kernel.policy.rules.r13_credit_requires_approval import CreditRequiresApproval
 from dispute_agent.kernel.policy.rules.r17_credit_not_duplicate import CreditNotDuplicate
 
@@ -90,7 +91,7 @@ def phase_3_rules() -> tuple[object, ...]:
 def phase_5_rules() -> tuple[object, ...]:
     """Every rule the line runs from Phase 4+/5 on: money (R14-R18, R25) and the model and
     screen signals (R20-R23), in catalogue order. R11 and R19 are carried by the investigate
-    step (a blocked draft and a wait both escalate there); R12 arrives with the reply round.
+    step (a blocked draft and a wait both escalate there); R12 is the reply round's (one clarification, then a person).
     """
     return (
         ActionOnMenu(),
@@ -102,6 +103,7 @@ def phase_5_rules() -> tuple[object, ...]:
         MessageReviewRequired(),
         MessageNumbersVerified(),
         MessageApprovalBound(),
+        ClarificationLimit(),
         CreditRequiresApproval(),
         CreditReasonProven(),
         CreditAmountDeterministic(),

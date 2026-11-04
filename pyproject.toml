@@ -84,7 +84,11 @@ ignore = [
 # pydantic resolves field annotations at runtime, so imports used only in a model's field
 # types must stay real imports. Without this, TC rules would move them into a
 # TYPE_CHECKING block and every model with a NewType field would fail to build.
-runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    # Inbound payloads subclass this root; ruff cannot see that it is a BaseModel.
+    "dispute_agent.kernel.domain.events.InboundPayload",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests may shadow builtins in fixtures and use assert freely.

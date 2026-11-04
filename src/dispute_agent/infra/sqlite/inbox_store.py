@@ -103,6 +103,17 @@ class SqliteInboxStore:
             )
         )
 
+    def pending(self, limit: int = 100) -> list[str]:
+        """PENDING rows, oldest first: what the runner dispatches on each tick."""
+        rows = self._conn.execute(
+            select(inbox_table.c.id)
+            .where(inbox_table.c.status == InboxStatus.PENDING.value)
+            .where(inbox_table.c.event_type != "DISPUTE_RAISED")  # intake's, not dispatch's
+            .order_by(inbox_table.c.received_at.asc())
+            .limit(limit)
+        ).all()
+        return [str(row[0]) for row in rows]
+
     def deferred_for_case(self, case_id: CaseId) -> list[dict[str, object]]:
         """Held events, oldest first, for redelivery when the case moves on."""
         rows = self._conn.execute(
