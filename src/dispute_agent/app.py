@@ -219,6 +219,24 @@ def _build_cross_case(
     )
 
 
+def _pattern_analyst(
+    registry: Registry,
+    modules: Mapping[str, bool],
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+) -> Any:
+    """The analyst when the model route is on (D57); None otherwise - patterns then keep
+    their code-written summary, and nothing else changes."""
+    if not modules.get("model_gateway"):
+        return None
+    route = registry.adapter_name("model_gateway")
+    if route == "foundry_agent_service":
+        route = "foundry_openai"  # the analyst calls the deployment; it has no Foundry agent
+    return build_pattern_analyst(settings, policy, clock, ids, route=route)
+
+
 def build_cross_case_job(
     *,
     engine: Any,
@@ -655,6 +673,7 @@ def _build_runtime(
                 ids=ids,
                 modules=modules,
                 kill_switch=line.kill_switch,
+                analyst=_pattern_analyst(registry, modules, settings, policy, clock, ids),
             )
         )
     runner = Runner(engine, line, observer=adapters.outcomes, jobs=jobs)

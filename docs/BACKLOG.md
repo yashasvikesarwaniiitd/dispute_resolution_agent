@@ -291,7 +291,7 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 
 ## Phase 7 - open items (2026-11-04)
 
-- **pattern_analyst activation (D52).** The recorded eval suite passes (`tests/evals/pattern_analyst`). Activation needs a live run on the real model, which is paid; until then patterns keep their code-written summary. The live call is also not yet wired into the running app (`build_cross_case_job(analyst=...)` is passed None); wire it together with the paid run.
+- **pattern_analyst activation - DONE 2026-11-04 (D57): live run 5 passed 6 of 6; active, used when model_gateway is on.** Was (D52): The recorded eval suite passes (`tests/evals/pattern_analyst`). Activation needs a live run on the real model, which is paid; until then patterns keep their code-written summary. The live call is also not yet wired into the running app (`build_cross_case_job(analyst=...)` is passed None); wire it together with the paid run.
 - **A case-less action socket.** The investigation borrows an in-memory subject case and a module-owned ActionStore (ADR 0036). A later kernel version could add a first-class "action without a case", which is cleaner; it is a kernel change and needs an ADR.
 - **`CaseOutcome.used_pattern_ids` is never filled.** The observer over-approximates which cases could have seen a pattern (ADR 0037). Filling the field in the kernel would make the exclusion exact; it is a kernel change.
 - **Investigation text is fixed at first detection.** Later members are linked in our tables, not added to the Jira issue: the TicketingSystem port has no update operation.

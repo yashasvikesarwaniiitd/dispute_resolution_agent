@@ -192,6 +192,11 @@ class TestThePromptItself:
                     in schema["properties"]["hypotheses"]["items"]["properties"]["kind"]["enum"]
                 )
 
-    def test_it_stays_inactive_until_a_live_run_passes(self) -> None:
+    def test_it_is_active_only_with_a_passing_live_run_on_record(self) -> None:
+        """prompts/README: active only after its eval suite passes. The record must exist and
+        say PASS for the run that activated it (D57)."""
         meta = yaml.safe_load((PROMPTS / "pattern_analyst" / "v1" / "meta.yaml").read_text())
-        assert str(meta["status"]).split()[0] == "inactive"
+        assert str(meta["status"]).split()[0] == "active"
+        record = ROOT / "docs" / "evals" / "2026-11-04-pattern-analyst-live.md"
+        text = record.read_text(encoding="utf-8")
+        assert "| 5 |" in text and "6 of 6" in text and "PASS" in text

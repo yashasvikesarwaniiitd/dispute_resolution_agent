@@ -1,9 +1,9 @@
 name: pattern_analyst
 version: v1
-status: inactive
+status: active  # live eval passed 6 of 6, 2026-11-04 (D57)
 owner: product
 purpose: Turn code-produced cluster statistics into competing hypotheses and one investigation request. Hypotheses only; never actions.
-activation: Phase 7. Set status to active only after its eval suite passes.
+activation: Phase 7. Activated 2026-11-04 after the live eval passed under its pre-set rule (docs/evals/2026-11-04-pattern-analyst-live.md, run 5).
 output_schema: schema.json
 model_requirements:
   structured_output: true
@@ -18,3 +18,5 @@ changelog:
   - v1 (pre-release edit, 2026-11-04, Phase 7 P7-04): the two examples now match schema.json (kind vocabulary, confirm_with / refute_with / owner_team, the required limits, an investigation_request object in both) and use only numbers from cluster_stats. As written they could not validate, so a model copying them would always fail the output checks.
   - v1 (pre-release edit, 2026-11-04, first live run): max_output_tokens 1200 -> 4000. A reasoning model spends most of the budget thinking; at 1200 all 12 answers were cut off mid-JSON (0 of 6 passed, $0.064). The instructions are unchanged.
   - v1 (pre-release edit, 2026-11-04, second live run): the rules now list the five allowed hypothesis kinds. The schema enforced them but the instructions never named them, and most refused answers used another word (enum failed at hypotheses/2/kind). Output budget for this prompt set to 8000 in app.py.
+  - v1 (pre-release edit, 2026-11-04, owner decision D57): the identifier rule now matches the code check - no identifier of any kind in a hypothesis statement, confirm_with or refute_with; generic words instead. The fourth live run's main refusal was an identifier in a statement.
+  - v1 activated, 2026-11-04 (D57): live run 5 passed 6 of 6, each on the first try, $0.032. No text changed in activation.
