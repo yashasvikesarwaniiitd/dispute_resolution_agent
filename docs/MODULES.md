@@ -16,7 +16,7 @@ that is off is never skipped silently: a case that needs it goes to a person wit
 | ticketing | on | `fake`, `jira_cloud` | `jira_cloud` needs the owner's test project |
 | ledger | on | `simulated` | its own SQLite file; depends on approvals (I3) |
 | approvals | on | `store_backed` | the approvals table and the review console |
-| cross_case | **off** | `null`, `sql_context` | Phase 7 |
+| cross_case | on | `sql_context`, `null` | patterns as caution only (I7); needs ticketing; an hourly job on the runner (ADR 0036) |
 | evals | on | `default` | |
 
 ## Switching

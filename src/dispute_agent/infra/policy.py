@@ -36,6 +36,10 @@ def load_policy(config_dir: Path, *, allowed_recipients: tuple[str, ...] = ()) -
         raise ConfigError(f"no policy.yaml at {path}")
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    # Read by `pattern_call_limit`, not by the kernel's LlmConfig (config.md section 3).
+    llm = dict(raw.get("llm") or {})
+    llm.pop("max_calls_per_case_with_patterns", None)
+    raw["llm"] = llm
     messages = dict(raw.get("messages") or {})
     merged = {*(messages.get("allowed_recipients") or []), *allowed_recipients}
     messages["allowed_recipients"] = sorted(entry for entry in merged if entry.strip())
@@ -79,3 +83,34 @@ def with_llm_overrides(
         except ValueError as bad:
             raise ConfigError(f"LLM_SECONDARY_SPEND_CAP_USD is invalid: {bad}") from None
     return policy.model_copy(update={"llm_primary": primary, "llm_secondary": secondary})
+
+
+#: config.md section 3: two-pass reasoning doubles the investigator calls of a patterned round.
+DEFAULT_PATTERN_CALL_LIMIT = 10
+
+
+def pattern_call_limit(config_dir: Path) -> int:
+    """`llm.max_calls_per_case_with_patterns` from policy.yaml (default 10)."""
+    raw = yaml.safe_load((config_dir / "policy.yaml").read_text(encoding="utf-8")) or {}
+    value = (raw.get("llm") or {}).get(
+        "max_calls_per_case_with_patterns", DEFAULT_PATTERN_CALL_LIMIT
+    )
+    if not isinstance(value, int) or value <= 0:
+        raise ConfigError(
+            f"llm.max_calls_per_case_with_patterns must be a positive int, not {value!r}"
+        )
+    return value
+
+
+def with_pattern_budget(policy: PolicyConfig, *, cross_case_on: bool, limit: int) -> PolicyConfig:
+    """Start-up picks the larger per-case call limit when cross_case is on (P7-06).
+
+    Without it every patterned case would run out of calls and escalate llm_budget_exceeded.
+    Never lowers a limit that is already higher.
+    """
+    if not cross_case_on:
+        return policy
+    llm = policy.llm.model_copy(
+        update={"max_calls_per_case": max(policy.llm.max_calls_per_case, limit)}
+    )
+    return policy.model_copy(update={"llm": llm})

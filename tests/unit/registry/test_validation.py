@@ -56,10 +56,11 @@ class TestTheShippedFile:
         """If this fails, the app does not start."""
         raw = yaml.safe_load(SHIPPED.read_text(encoding="utf-8"))
         registry = validate_modules(ModulesFile.model_validate(raw))
-        # Phase 6 ships the whole line offline (fakes, synthetic data, simulated ledger);
-        # the model route and cross_case stay off until the owner / Phase 7 turn them on.
+        # Phase 7 ships the whole line offline (fakes, synthetic data, simulated ledger)
+        # with cross_case on (P7-12); the model route stays off until the owner turns it on.
         assert set(registry.enabled_names()) == {
             "approvals",
+            "cross_case",
             "email",
             "evals",
             "evidence",

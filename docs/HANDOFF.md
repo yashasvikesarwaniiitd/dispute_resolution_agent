@@ -1,12 +1,21 @@
 # Handoff
 
-Read this first in every session. It is the single source for current state, decisions already made, and the next action. Last updated: 2026-11-02.
+Read this first in every session. It is the single source for current state, decisions already made, and the next action. Last updated: 2026-11-04.
 
 ## 1. Status
 
-No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4 (D44) and A5 (D45) are approved; ADRs 0004-0025 are accepted. `docs/spec/INDEX.md` lists every specification document with its status and the invariants it covers. Stage A5 added **109 task cards** across nine phases (`docs/spec/task-cards/`), an escalation guide, a risk register and milestone plan, and a task-card reference in every phase prompt. 44 cards are marked for an Opus review because they implement an invariant's enforcement point. The repository is tagged **`arch-v1`** and `docs/spec/` is **frozen**: any change now needs an ADR and the owner's approval (`docs/spec/escalation-guide.md` section 3).
+All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The design was frozen at `arch-v1`; Phase 6 ended at the tag `phase-6-complete`, which includes the one disclosed kernel change that connected the cross-case socket (ADR 0035). Phase 7 changed no kernel line after it, and a test checks that on every run.
 
-**Next action: Phase 0 (foundations and sockets).** Run `./scripts/stage-b-build.sh`, press Shift+Tab for plan mode, then `/phase-start 0`. Build from `docs/spec/task-cards/phase-0.md`.
+- `make verify` is green with `cross_case` on. The module is optional: the same disputes end the same way with it off (`tests/e2e/test_cross_case_optional.py`).
+- `make eval` passes all 57 recorded scenarios and all 12 gates. The report now includes recurrence after confirmed fixes.
+- The one live eval of the Foundry agent (gpt-5-mini) is in `docs/evals/`. It scored 62% of 45, below the approved 90% bar (D47); the fix is better instructions (BACKLOG).
+- Foundry spend so far: about $0.38 of the $150 cap.
+
+**Waiting on the owner:**
+1. Sign off Phase 7 (and earlier phases still marked "awaiting owner sign-off" in PROGRESS).
+2. Push the branch `phase-7` and the tag `phase-6-complete`.
+3. P6-12: create Application Insights and put its connection string in `.env` (before the credit window ends on 27 Nov).
+4. Optional, paid: a live run of `pattern_analyst` to decide its activation (D52), and `make agents-sync` for the reply-reader agent so the third red-team route can run.
 
 ## 2. The project in five lines
 
@@ -77,6 +86,9 @@ No code yet, and the design is complete. Stages A1 (D27), A2 (D34), A3 (D37), A4
 | D47 | (2026-11-04) O6 resolved: the release-gate thresholds stay as drafted in Stage A4. The live model gates (correct action 0.90, no regression 0) are kept although gpt-5-mini scores 62% of 45 with 7 regressions today: the answer is better instructions (case_investigator v2), not lower bars. |
 | D48 | (2026-11-04) O3 resolved: Foundry's built-in evaluators are not used now; the local gates are the authority. The red-team scan (P6-11) and the tracing check (P6-12) go ahead with the owner's setup and spend approval. |
 | D49 | (2026-11-04) Phase 7 planning found the cross-case socket unconnected: nothing in the kernel called `PatternContextProvider`. The owner approved one disclosed kernel change to connect it (HOOK A, ADR 0035), tagged `phase-6-complete`; Phase 7 then makes zero kernel changes. |
+| D50 | (2026-11-04) Phase 7 built under the owner's "complete the project, don't wait" instruction. The parent Jira investigation goes through the kernel's PolicyEngine and ActionExecutor with an in-memory subject case and a module-owned ActionStore, because the executor takes a case and a pattern is not one (ADR 0036). Zero kernel changes; the owner may prefer a case-less action socket in a later kernel version. |
+| D51 | (2026-11-04) A pattern's status moves only on a structured ops finding on its investigation; outcomes never count, and cases that could have seen a pattern are excluded from its support (ADR 0037). |
+| D52 | (2026-11-04) `pattern_analyst` stays `inactive`: its recorded eval suite passes, but activation needs a live run, which is paid and needs the owner's approval. Until then patterns keep their code-written summary. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

@@ -30,8 +30,9 @@ Read this before any number below.
   it can enter; money and messages also need code-proven facts and a person's approval. That
   is what was tested - not a guarantee against every possible attack.
 - **No productivity claim.** Nothing here measures real operator time.
-- **Cross-case patterns** (Phase 7) are hypotheses that can only add caution. They never prove
-  fault.
+- **Cross-case patterns** are hypotheses that can only add caution. They never prove fault,
+  and only a structured finding from operations confirms or dismisses one. The clustering
+  thresholds are illustrative: they were set for synthetic data, not tuned on real disputes.
 
 ## How it works
 
@@ -106,6 +107,6 @@ first one is recorded in `docs/evals/2026-11-04-live-gpt-5-mini.md`, with its sa
 
 ## Status
 
-Phases 0 to 5 are complete; Phase 6 (evaluation and hardening) is in progress; Phase 7
-(cross-case intelligence) is next. Progress and history: `docs/PROGRESS.md`. Open items:
+Phases 0 to 7 are built. Phase 6's tracing check (P6-12) waits on the owner's Application
+Insights resource, and Phase 7 awaits the owner's sign-off. Progress and history: `docs/PROGRESS.md`. Open items:
 `docs/BACKLOG.md`. How the project was built with Claude Code: `docs/BUILD_PACK.md`.

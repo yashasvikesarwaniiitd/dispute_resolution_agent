@@ -47,7 +47,7 @@ from dispute_agent.modules.ticketing.disabled import DisabledTicketingSystem
 from dispute_agent.modules.tracing.noop import NoopTracer
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Callable
+    from collections.abc import AsyncIterator, Callable, Mapping
 
     from dispute_agent.api.scenario_runner import ScenarioModels
     from dispute_agent.kernel.domain.reasoning import ModelRequest
@@ -156,12 +156,136 @@ def _not_built(module: str, adapter: str) -> ConfigError:
     )
 
 
+def shipment_keys(evidence: Any) -> Callable[[str], Mapping[str, str]]:
+    """A shipment's cluster keys (scanner, hub, SKU), from the evidence adapter (P7-02).
+
+    Modules never import each other, so the bridge is built here. An evidence adapter that
+    cannot name a shipment's keys raises LookupError for every shipment: the pattern provider
+    turns that into caution, never into "no patterns".
+    """
+    keys_for = getattr(evidence, "keys_for", None)
+    if callable(keys_for):
+        return keys_for  # type: ignore[no-any-return]
+
+    def unknown(shipment_ref: str) -> Mapping[str, str]:
+        raise LookupError("the evidence adapter gives no shipment keys")
+
+    return unknown
+
+
+def pattern_engine(database: Path | None, *, reader: bool = False) -> Any:
+    """The case database, with the cross-case tables (migration 0002, idempotent).
+
+    `reader=True`: a second engine whose transactions take no write lock, for the pattern
+    lookup that runs inside a case's open transaction (see `create_sqlite_engine`).
+    """
+    import tempfile
+
+    from dispute_agent.infra.sqlite.engine import (
+        apply_schema,
+        create_sqlite_engine,
+        schema_sql_path,
+    )
+    from dispute_agent.infra.sqlite.patterns import apply_pattern_schema
+
+    if database is None:
+        # A configuration check: a throwaway database, never data/.
+        path = Path(tempfile.mkdtemp(prefix="patterns-")) / "cases.sqlite3"
+        engine = create_sqlite_engine(path)
+        apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))
+    else:
+        engine = create_sqlite_engine(database)
+    apply_pattern_schema(engine)
+    if reader:
+        return create_sqlite_engine(str(engine.url.database), deferred=True)
+    return engine
+
+
+def _build_cross_case(
+    evidence: Any, database: Path | None, clock: Clock, *, min_related_cases: int
+) -> tuple[PatternContextProvider, CaseOutcomeObserver]:
+    from dispute_agent.modules.cross_case.analyzer.observer import SqlOutcomeObserver
+    from dispute_agent.modules.cross_case.sql_context import (
+        PatternRepository,
+        SqlPatternContextProvider,
+    )
+
+    keys = shipment_keys(evidence)
+    reads = PatternRepository(pattern_engine(database, reader=True))
+    writes = PatternRepository(pattern_engine(database))
+    return (
+        SqlPatternContextProvider(reads, keys, min_related_cases=min_related_cases),
+        SqlOutcomeObserver(writes, keys, clock),
+    )
+
+
+def build_cross_case_job(
+    *,
+    engine: Any,
+    adapters: Adapters,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    modules: Mapping[str, bool],
+    kill_switch: Any,
+    analyst: Any = None,
+) -> Any:
+    """The scheduled cross-case analysis (P7-03 to P7-09). The analyzer holds no write port;
+    the investigation goes through the kernel's PolicyEngine and ActionExecutor (I2)."""
+    from dispute_agent.kernel.executor.executor import ActionExecutor
+    from dispute_agent.kernel.policy.engine import PolicyEngine
+    from dispute_agent.kernel.policy.rules import phase_5_rules
+    from dispute_agent.modules.cross_case.analyzer import PatternAnalyzer, Thresholds
+    from dispute_agent.modules.cross_case.analyzer.confirmation import (
+        ConfirmationRule,
+        FindingsReader,
+    )
+    from dispute_agent.modules.cross_case.analyzer.investigations import (
+        Investigations,
+        PatternActionStore,
+    )
+    from dispute_agent.modules.cross_case.analyzer.job import CrossCaseJob
+    from dispute_agent.modules.cross_case.analyzer.recurrence import RecurrenceMonitor
+    from dispute_agent.modules.cross_case.sql_context import PatternRepository
+    from dispute_agent.modules.ticketing.write_port import IssueWritePort
+
+    repository = PatternRepository(engine)
+    keys = shipment_keys(adapters.evidence)
+    thresholds = Thresholds(
+        min_related_cases=policy.patterns.min_related_cases,
+        window_days=policy.patterns.window_days,
+    )
+    store = PatternActionStore(engine)
+    project = getattr(adapters.ticketing, "project_key", "WD")
+    investigations = Investigations(
+        engine=engine,
+        repository=repository,
+        executor=ActionExecutor(PolicyEngine(phase_5_rules(), clock, ids), store, kill_switch),
+        actions=store,
+        port=lambda subject: IssueWritePort(adapters.ticketing, subject, project),
+        ids=ids,
+        policy=policy,
+        modules=modules,
+    )
+    rule = ConfirmationRule(repository)
+    return CrossCaseJob(
+        analyzer=PatternAnalyzer(repository, keys, ids, thresholds),
+        investigations=investigations,
+        confirmation=rule,
+        findings=FindingsReader(rule, adapters.ticketing.fetch_findings, investigations.issue_key),
+        recurrence=RecurrenceMonitor(repository, keys, thresholds),
+        analyst=analyst,
+    )
+
+
 def build_adapters(
     registry: Registry,
     *,
     clock: Clock | None = None,
     ids: IdGenerator | None = None,
     data_dir: Path | None = None,
+    database: Path | None = None,
+    min_related_cases: int = 3,
 ) -> Adapters:
     """Resolve each module's chosen adapter into an object.
 
@@ -270,6 +394,10 @@ def build_adapters(
     if cross_case_adapter == "null":
         patterns: PatternContextProvider = NullPatternContextProvider()
         outcomes: CaseOutcomeObserver = NullOutcomeObserver()
+    elif cross_case_adapter == "sql_context":
+        patterns, outcomes = _build_cross_case(
+            evidence, database, clock, min_related_cases=min_related_cases
+        )
     else:
         raise _not_built("cross_case", cross_case_adapter)
 
@@ -312,7 +440,22 @@ def build_application(
     clock = SystemClock()
     ids = UlidIdGenerator()
     data_dir = database.parent if database else None
-    adapters = build_adapters(registry, clock=clock, ids=ids, data_dir=data_dir)
+    min_related = 3
+    if (
+        registry.adapter_name("cross_case") == "sql_context"
+        and (directory / "policy.yaml").is_file()
+    ):
+        from dispute_agent.infra.policy import load_policy
+
+        min_related = load_policy(directory).patterns.min_related_cases
+    adapters = build_adapters(
+        registry,
+        clock=clock,
+        ids=ids,
+        data_dir=data_dir,
+        database=database,
+        min_related_cases=min_related,
+    )
     runtime = (
         _build_runtime(directory, database, loaded, clock, ids, adapters, registry)
         if database
@@ -445,7 +588,7 @@ def _build_runtime(
 
     from dispute_agent.api.line import Line
     from dispute_agent.api.runner import Runner
-    from dispute_agent.infra.policy import load_policy
+    from dispute_agent.infra.policy import load_policy, pattern_call_limit, with_pattern_budget
     from dispute_agent.infra.sqlite.control_flags import SqliteKillSwitch
     from dispute_agent.infra.sqlite.engine import create_sqlite_engine, verify_pragmas
     from dispute_agent.infra.sqlite.unit_of_work import unit_of_work_factory
@@ -465,6 +608,10 @@ def _build_runtime(
     # name a mailbox (I11), and are merged into the policy here.
     from_env = tuple(settings.test_seller_email.split(",")) if settings.test_seller_email else ()
     policy = load_policy(config_dir, allowed_recipients=from_env)
+    cross_case_on = registry.adapter_name("cross_case") == "sql_context"
+    policy = with_pattern_budget(
+        policy, cross_case_on=cross_case_on, limit=pattern_call_limit(config_dir)
+    )
 
     intake = Intake(
         allowed_recipients=tuple(policy.messages.allowed_recipients),
@@ -491,8 +638,26 @@ def _build_runtime(
         ledger=adapters.ledger if modules.get("ledger") else None,
         modules=modules,
         kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
+        # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
+        patterns=adapters.patterns if cross_case_on else None,
     )
-    runner = Runner(engine, line, observer=adapters.outcomes)
+    jobs: list[Any] = []
+    if cross_case_on:
+        from dispute_agent.infra.sqlite.patterns import apply_pattern_schema
+
+        apply_pattern_schema(engine)
+        jobs.append(
+            build_cross_case_job(
+                engine=engine,
+                adapters=adapters,
+                policy=policy,
+                clock=clock,
+                ids=ids,
+                modules=modules,
+                kill_switch=line.kill_switch,
+            )
+        )
+    runner = Runner(engine, line, observer=adapters.outcomes, jobs=jobs)
     return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)
 
 
@@ -731,6 +896,7 @@ def build_llm_reasoner(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
+    two_pass: bool = False,
 ) -> Reasoner:
     from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
@@ -743,10 +909,15 @@ def build_llm_reasoner(
             f"prompt {PROMPT}/v1 is {status}: set PROMPTS_ALLOW_INACTIVE=true only to "
             "knowingly test an un-evaluated prompt (docs/SETUP_FOUNDRY.md)"
         )
-    return LlmReasoner(
+    reasoner = LlmReasoner(
         prompts=registry,
         gateway=gateway,
         ids=ids,
         clock=clock,
         max_output_tokens=policy.llm.max_output_tokens,
     )
+    if not two_pass:
+        return reasoner
+    from dispute_agent.modules.reasoning.llm.two_pass import TwoPassReasoner
+
+    return TwoPassReasoner(reasoner)  # P7-06: the anchoring control (ADR 0025)

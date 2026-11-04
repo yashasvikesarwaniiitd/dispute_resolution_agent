@@ -114,9 +114,10 @@ class TestTheAppFactory:
     def test_the_shipped_config_builds(self) -> None:
         """If this fails, `make run-api` fails."""
         application = build_application(config_dir=SHIPPED_CONFIG, app_env="local")
-        # Phase 6: the whole line runs offline; model_gateway and cross_case stay off.
+        # Phase 7: the whole line runs offline with cross_case on; model_gateway stays off.
         assert set(application.registry.enabled_names()) == {
             "approvals",
+            "cross_case",
             "email",
             "evals",
             "evidence",

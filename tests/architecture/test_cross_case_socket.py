@@ -95,7 +95,14 @@ class TestTheSocketIsConnectable:
         )
         application = build_application(config_dir=tmp_path, app_env="test")
 
-        assert application.adapters.patterns.patterns_for(FACTS) == ()
+        # Phase 7 ships the real adapter (P7-12). A known shipment with no pattern has none;
+        # a shipment it cannot place is "we do not know" - caution, never a silent "none".
+        from dispute_agent.kernel.domain.errors import TransientPortError
+
+        known = FACTS.model_copy(update={"shipment_ref": "SHP-000001", "claim_ref": "CLM-000001"})
+        assert application.adapters.patterns.patterns_for(known) == ()
+        with pytest.raises(TransientPortError):
+            application.adapters.patterns.patterns_for(FACTS)
         connected = dataclasses.replace(application.adapters, patterns=StubPatternContextProvider())
         assert connected.patterns.patterns_for(FACTS) == (PATTERN,)
         # Every other port is the same object: connecting cross-case rewires one field.

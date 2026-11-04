@@ -30,3 +30,12 @@ Relying on the model's self-report was the third problem: `changed_recommendatio
 - The adapter records `pattern_relaxation_blocked` whenever it returns P1, which is an observable signal that a pattern tried to relax a case.
 - Two passes cost two calls, so `max_calls_per_case` becomes 10 when `cross_case` is enabled (`config.md`). Without that change every patterned case would exhaust the budget and escalate `llm_budget_exceeded`.
 - Scenarios S15 and S16 exercise the Phase 7 path; neither may credit or uphold because of a pattern.
+
+## Implementation notes (Phase 7, P7-06)
+
+- `app.py` wraps the LLM reasoner in `TwoPassReasoner` when `cross_case` is on (`build_llm_reasoner(two_pass=True)`). The rules-only baseline is not wrapped: it does not read patterns.
+- `changed_recommendation` is now decided by the adapter, by comparison: it is true exactly when pass 2's action ranks above pass 1's. The model's own claim is overwritten either way.
+- The kernel turns `changed_recommendation` into a `pattern_changed_recommendation` signal with a REQUIRE_APPROVAL floor (ADR 0035).
+- Start-up raises `max_calls_per_case` to `llm.max_calls_per_case_with_patterns` (10) when the module is on, and never lowers a higher value (`infra/policy.py` `with_pattern_budget`).
+- The caution-only property test (`tests/unit/modules/cross_case/test_caution_only.py`) checks every action pair.
+

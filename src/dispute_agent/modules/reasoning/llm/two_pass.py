@@ -13,8 +13,9 @@ Either way the result's `pattern_influence.note` starts with `pattern_relaxation
 so an attempt to relax a case is visible on the stored proposal. The model's own
 `changed_recommendation` is never the control: the comparison is made here, in code.
 
-Nothing fills `pattern_context` until Phase 7; with no patterns this is a single pass, and
-the mechanism is proven now with a synthetic second pass.
+With no patterns this is a single pass. Phase 7 (P7-06) connects it: app.py wraps the LLM
+reasoner in this class when `cross_case` is on, and raises the per-case call limit to
+`llm.max_calls_per_case_with_patterns` (10), since a patterned round costs two calls.
 """
 
 from __future__ import annotations
@@ -68,7 +69,21 @@ class TwoPassReasoner:
                 }
             )
             return self._blocked(kept, "confidence or parameters raised by a pattern")
-        return second
+        return self._accepted(first, second)
+
+    def _accepted(self, first: Proposal, second: Proposal) -> Proposal:
+        """Pass 2 stands. Whether the pattern changed it is decided here, by comparison
+        (P7-06): a more cautious action is a change, which the kernel turns into a
+        `pattern_changed_recommendation` signal (approval at least). The model's own claim
+        about its influence is not trusted either way."""
+        changed = rank(second.action) > rank(first.action)
+        note = (
+            f"pattern_changed: {first.action.value} -> {second.action.value}"
+            if changed
+            else "pattern_considered: same action as the independent view"
+        )
+        influence = PatternInfluence(considered=True, changed_recommendation=changed, note=note)
+        return second.model_copy(update={"pattern_influence": influence})
 
     def _blocked(self, proposal: Proposal, why: str) -> Proposal:
         self.blocked.append(why)

@@ -111,8 +111,13 @@ CREATE TABLE IF NOT EXISTS pattern_actions (
   action_type     TEXT NOT NULL CHECK (action_type = 'UPSERT_ISSUE'),
   status          TEXT NOT NULL CHECK (status IN ('PLANNED','SENT','VERIFIED','FAILED','UNKNOWN')),
   action_json     TEXT NOT NULL CHECK (json_valid(action_json)),
-  updated_at      TEXT NOT NULL CHECK (updated_at {_TS})
+  extra_json      TEXT NOT NULL DEFAULT '{{}}' CHECK (json_valid(extra_json)),
+  claimed_by      TEXT,
+  claim_expires_at TEXT CHECK (claim_expires_at {_TS}),
+  updated_at      TEXT NOT NULL CHECK (updated_at {_TS}),
+  CHECK ((claimed_by IS NULL) = (claim_expires_at IS NULL))
 ) STRICT;
+CREATE INDEX IF NOT EXISTS ix_pattern_actions_pattern ON pattern_actions (pattern_id);
 """
 
 #: Dropped in reverse dependency order by the migration's downgrade.
@@ -217,5 +222,8 @@ pattern_actions = Table(
     Column("action_type", Text, nullable=False),
     Column("status", Text, nullable=False),
     Column("action_json", Text, nullable=False),
+    Column("extra_json", Text, nullable=False),
+    Column("claimed_by", Text),
+    Column("claim_expires_at", Text),
     Column("updated_at", Text, nullable=False),
 )

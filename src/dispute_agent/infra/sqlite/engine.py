@@ -46,17 +46,28 @@ def _apply_pragmas(dbapi_connection: Any, _record: Any) -> None:
         cursor.close()
 
 
+def _begin_deferred(conn: Any) -> None:
+    """A reader's transaction: takes no lock until it reads, and never the write lock."""
+    conn.exec_driver_sql("BEGIN")
+
+
 def _begin_immediate(conn: Any) -> None:
     """ADR 0008: take the write lock up front, not at the first write."""
     conn.exec_driver_sql("BEGIN IMMEDIATE")
 
 
-def create_sqlite_engine(path: Path | str, *, echo: bool = False) -> Engine:
+def create_sqlite_engine(path: Path | str, *, echo: bool = False, deferred: bool = False) -> Engine:
     """Build an engine with the pragmas applied to every connection.
 
     In-memory databases get a shared cache so a test can hold more than one connection to the
     same database — without it, each connection would get its own empty one and the
     concurrency tests would pass while testing nothing.
+
+    `deferred=True` is for a reader that runs while a case's write transaction is open on
+    another connection - the cross-case pattern lookup, called from inside the investigate
+    step (P7-02). BEGIN IMMEDIATE there would wait for the very transaction that is asking,
+    then time out, and every patterned case would see "pattern store unavailable". In WAL
+    mode a deferred reader never waits for the writer. Never use it for writes (ADR 0008).
     """
     if sqlite3.sqlite_version_info < MINIMUM_SQLITE:
         raise ConfigError(
@@ -72,8 +83,8 @@ def create_sqlite_engine(path: Path | str, *, echo: bool = False) -> Engine:
         engine = create_engine(f"sqlite+pysqlite:///{path}", echo=echo)
 
     event.listen(engine, "connect", _apply_pragmas)
-    # Replace SQLAlchemy's implicit BEGIN with BEGIN IMMEDIATE.
-    event.listen(engine, "begin", _begin_immediate)
+    # Replace SQLAlchemy's implicit BEGIN with BEGIN IMMEDIATE - except for a reader.
+    event.listen(engine, "begin", _begin_deferred if deferred else _begin_immediate)
     return engine
 
 

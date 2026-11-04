@@ -7,7 +7,7 @@
 # Phase 6 state: the whole line runs offline - synthetic shipments, the rules-only investigator,
 # fake email and Jira, the simulated ledger and the review queue. Real Outlook and Jira need the
 # owner's test accounts (docs/SETUP_CHANNELS.md); the model route costs money and stays off
-# until the owner turns it on (docs/SETUP_FOUNDRY.md). cross_case is Phase 7.
+# until the owner turns it on (docs/SETUP_FOUNDRY.md). cross_case is on (Phase 7).
 
 modules:
   evidence:
@@ -71,8 +71,8 @@ modules:
     adapter: store_backed                         # message review from Phase 3; credits from Phase 5
 
   cross_case:
-    enabled: false                                # the empty box; on in Phase 7
-    adapter: "null"                               # quoted: an unquoted null is YAML's None
+    enabled: true                                 # Phase 7 (P7-12): patterns as caution only (I7)
+    adapter: sql_context                          # off again: enabled false, adapter "null"
 
   evals:
     enabled: true

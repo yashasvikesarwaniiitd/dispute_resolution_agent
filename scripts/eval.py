@@ -97,6 +97,90 @@ def main() -> int:
     return 0
 
 
+def recurrence_section() -> str:
+    """P7-09: disputes per cause before and after a confirmed fix, on a seeded synthetic world.
+
+    Two fixed causes on the cluster fixtures' parcels: the scanner fix held (one dispute
+    after it), the hub fix did not (three after it, so the pattern is reopened). Counts are
+    by code, from the cases table; nothing here is a model's opinion.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text as sql
+
+    from dispute_agent.app import pattern_engine
+    from dispute_agent.infra.sqlite.mapping import to_iso
+    from dispute_agent.kernel.domain.case import CaseFacts
+    from dispute_agent.modules.cross_case.analyzer import Thresholds
+    from dispute_agent.modules.cross_case.analyzer.recurrence import RecurrenceMonitor, render
+    from dispute_agent.modules.cross_case.sql_context import PatternRepository
+
+    day = timedelta(days=1)
+    fix = datetime(2026, 11, 15, 9, 0, tzinfo=UTC)
+    engine = pattern_engine(None)
+    keys = {"SCAN": {"scanner": "SCN-03-2"}, "HUB": {"hub": "HUB-05"}}
+
+    def add(case_id: str, kind: str, opened: datetime) -> None:
+        facts = CaseFacts(
+            shipment_ref=f"SHP-{kind}-{case_id}",
+            claim_ref=f"CLM-{case_id}",
+            seller_ref="SELL-0001",
+            seller_contact="seller@example.invalid",
+            raised_at=opened,
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                sql(
+                    "INSERT INTO cases (id, pack, shipment_ref, claim_ref, seller_ref, "
+                    "seller_contact, facts_json, state, version, correlation_id, opened_at, "
+                    "updated_at, state_entered_at) VALUES (:id, 'weight_dispute', :s, :c, "
+                    "'SELL-0001', 'seller@example.invalid', :f, 'RECEIVED', 1, :corr, :t, :t, :t)"
+                ),
+                {
+                    "id": case_id,
+                    "s": facts.shipment_ref,
+                    "c": facts.claim_ref,
+                    "f": facts.model_dump_json(),
+                    "corr": f"corr_{case_id}",
+                    "t": to_iso(opened),
+                },
+            )
+
+    repo = PatternRepository(engine)
+    for kind, before, after in (("SCAN", 5, 1), ("HUB", 4, 3)):
+        members = [f"case_{kind.lower()}_b{n}" for n in range(before)]
+        for n, case_id in enumerate(members):
+            add(case_id, kind, fix - (n + 1) * day)
+        for n in range(after):
+            add(f"case_{kind.lower()}_a{n}", kind, fix + (n + 1) * day)
+        dimension, value = next(iter(keys[kind].items()))
+        pattern_id = f"pat_{kind}"
+        repo.create(
+            pattern_id,
+            dimension=dimension,
+            value=value,
+            summary=f"{before} disputes share {dimension} {value}.",
+            thresholds=Thresholds().as_dict(),
+            first_seen_at=fix - before * day,
+            last_seen_at=fix - day,
+            now=fix - day,
+        )
+        repo.link(pattern_id, members, "member", fix - day)
+        repo.set_status(pattern_id, "FIXED_MONITORING", "ops:fix_deployed", fix, fixed_at=fix)
+
+    def shipment_keys(shipment_ref: str) -> dict[str, str]:
+        return dict(keys[shipment_ref.split("-")[1]])
+
+    monitor = RecurrenceMonitor(repo, shipment_keys, Thresholds())
+    rows = monitor.run(fix + 14 * day)
+    note = (
+        "\nSeeded synthetic world: two causes fixed on the same day. Windows are "
+        f"{Thresholds().window_days} days each side of the fix; a fix that sees "
+        f"{Thresholds().min_related_cases} or more disputes after it is reopened.\n"
+    )
+    return render(rows) + note
+
+
 def suite() -> int:
     """The recorded suite, its gates and its report. 0 when every recorded gate holds."""
     import logging
@@ -130,6 +214,7 @@ def suite() -> int:
         gates=judged,
         config_status=str(config.get("status", "")),
     )
+    text += "\n" + recurrence_section()
     out = PROJECT_ROOT / "data" / "eval" / "suite-report.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

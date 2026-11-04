@@ -12,7 +12,7 @@ redo, because external writes carry idempotency keys and dispatch appends an inp
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy.exc import OperationalError
@@ -61,6 +61,7 @@ class TickReport:
     dispatched: list[DispatchResult] = field(default_factory=list)
     advanced: int = 0
     outcomes_delivered: int = 0
+    jobs_run: list[str] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
 
 
@@ -70,6 +71,9 @@ class Runner:
     line: Line
     #: HOOK C: who outcomes are delivered to. The Null observer until Phase 7.
     observer: object | None = None
+    #: Scheduled jobs (the cross-case analysis, P7-03): `due(now)` and `run(now)`. Run after
+    #: outcomes are delivered, so a job sees every case that has closed.
+    jobs: list[Any] = field(default_factory=list)
 
     def _work(self) -> SqliteUnitOfWork:
         return SqliteUnitOfWork(self.engine, clock=self.line.clock)
@@ -102,6 +106,7 @@ class Runner:
         self.dispatch_pending(report)
         self.advance_stuck(report)
         self.deliver_outcomes(report)
+        self.run_jobs(report)
         return report
 
     def fire_due(self, report: TickReport | None = None) -> TickReport:
@@ -184,13 +189,37 @@ class Runner:
         if self.observer is None:
             return report
         with self._work() as work:
-            for outcome in work.outcomes.undelivered():
-                try:
-                    self.observer.on_outcome(outcome)  # type: ignore[attr-defined]
+            pending = list(work.outcomes.undelivered())
+        # The observer is called with no transaction open here. Holding the write lock while
+        # it writes its own rows (P7-07) would make it wait on this runner and time out, so
+        # every outcome would fail and none would ever be learned from.
+        for outcome in pending:
+            failure: str | None = None
+            try:
+                self.observer.on_outcome(outcome)  # type: ignore[attr-defined]
+            except Exception as failed:  # the observer's failure never affects a case
+                failure = type(failed).__name__
+            with self._work() as work:
+                if failure is None:
                     work.outcomes.mark_delivered(str(outcome.id), self.line.clock.now())
                     report.outcomes_delivered += 1
-                except Exception as failed:  # the observer's failure never affects a case
-                    work.outcomes.mark_failed(str(outcome.id), type(failed).__name__)
+                else:
+                    work.outcomes.mark_failed(str(outcome.id), failure)
+        return report
+
+    def run_jobs(self, report: TickReport | None = None) -> TickReport:
+        """Run every due job. A failing job is recorded and never reaches a case."""
+        report = report or TickReport()
+        now = self.line.clock.now()
+        for job in self.jobs:
+            if not job.due(now):
+                continue
+            try:
+                job.run(now)
+                report.jobs_run.append(str(job.name))
+            except Exception as failed:  # downstream of every decision; the next tick retries
+                log.error("job_failed", job=str(job.name), error=type(failed).__name__)
+                report.failures.append(f"job:{job.name}:{type(failed).__name__}")
         return report
 
     # -- recovery ------------------------------------------------------------------------------

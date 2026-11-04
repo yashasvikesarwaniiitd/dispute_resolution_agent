@@ -25,7 +25,7 @@ from dispute_agent.infra.sqlite.patterns import (
 from dispute_agent.infra.sqlite.tables import cases
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from datetime import datetime
 
     from sqlalchemy import Engine
@@ -221,23 +221,59 @@ class PatternRepository:
     def refresh(
         self, pattern_id: str, *, summary: str, last_seen_at: datetime, now: datetime
     ) -> None:
-        """A re-run saw the cluster again. The status is never touched here."""
+        """A re-run saw the cluster again. The status is never touched here, and a summary
+        the analyst wrote is kept (only a code summary is re-counted)."""
         with self._engine.begin() as conn:
             conn.execute(
                 update(pattern_records)
                 .where(pattern_records.c.id == pattern_id)
-                .values(summary=summary, last_seen_at=to_iso(last_seen_at), updated_at=to_iso(now))
+                .values(last_seen_at=to_iso(last_seen_at), updated_at=to_iso(now))
+            )
+            conn.execute(
+                update(pattern_records)
+                .where(
+                    pattern_records.c.id == pattern_id, pattern_records.c.summary_source == "code"
+                )
+                .values(summary=summary)
             )
 
+    def set_summary(self, pattern_id: str, summary: str, source: str, now: datetime) -> None:
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(pattern_records)
+                .where(pattern_records.c.id == pattern_id)
+                .values(summary=summary[:400], summary_source=source, updated_at=to_iso(now))
+            )
+
+    def case_notes(self, case_ids: Iterable[str], limit: int = 5) -> list[dict[str, str]]:
+        """Sellers' statements on member cases: untrusted text for the analyst (I5)."""
+        from dispute_agent.kernel.domain.case import CaseFacts
+
+        notes: list[dict[str, str]] = []
+        with self._engine.connect() as conn:
+            rows = conn.execute(
+                select(cases.c.id, cases.c.facts_json).where(cases.c.id.in_(list(case_ids)))
+            )
+            for case_id, facts_json in rows:
+                statement = CaseFacts.model_validate_json(facts_json).statement
+                if statement is not None:
+                    notes.append({"case_ref": str(case_id), "text": str(statement.text)[:300]})
+                if len(notes) == limit:
+                    break
+        return notes
+
     def set_hypotheses(
-        self, pattern_id: str, hypotheses: Sequence[dict[str, object]], now: datetime
+        self, pattern_id: str, hypotheses: Sequence[Mapping[str, object]], now: datetime
     ) -> None:
         """The pattern_analyst's competing hypotheses (P7-04). Untrusted text, stored as data."""
         with self._engine.begin() as conn:
             conn.execute(
                 update(pattern_records)
                 .where(pattern_records.c.id == pattern_id)
-                .values(hypotheses_json=json.dumps(list(hypotheses)), updated_at=to_iso(now))
+                .values(
+                    hypotheses_json=json.dumps([dict(h) for h in hypotheses], default=str),
+                    updated_at=to_iso(now),
+                )
             )
 
     def set_status(

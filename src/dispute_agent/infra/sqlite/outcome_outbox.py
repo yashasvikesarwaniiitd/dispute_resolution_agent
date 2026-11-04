@@ -49,7 +49,10 @@ class SqliteOutcomeOutbox:
             .order_by(outcome_outbox.c.created_at.asc())
             .limit(limit)
         ).all()
-        return [CaseOutcome.model_validate(json.loads(row[0])) for row in rows]
+        # JSON mode: the model is strict, and strict Python validation refuses the strings a
+        # stored enum or datetime comes back as. It used to, so the first closed case made
+        # every runner tick raise (found by the Phase 7 on/off drill).
+        return [CaseOutcome.model_validate_json(row[0]) for row in rows]
 
     def mark_delivered(self, outcome_id: str, now: datetime) -> None:
         self._conn.execute(
