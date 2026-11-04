@@ -9,6 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history and tags: tests/architecture/test_kernel_untouched.py diffs the
+          # kernel against the phase-6-complete tag (D3), and fails rather than skips
+          # when the tag is missing. A shallow clone has no tags.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
