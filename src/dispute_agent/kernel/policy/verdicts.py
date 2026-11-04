@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict
 
 from dispute_agent.kernel.domain.actions import ActionIntent, Approval, RuleResult
 from dispute_agent.kernel.domain.enums import PolicyStage, ProposalAction, VerdictKind
-from dispute_agent.kernel.domain.evidence import ChargeAssessment
+from dispute_agent.kernel.domain.evidence import ChargeAssessment, Fact
 from dispute_agent.kernel.domain.models import Case
 from dispute_agent.kernel.domain.patterns import CautionSignal
 from dispute_agent.kernel.domain.reasoning import Proposal, ReplyReading, ScreenResult
@@ -75,6 +75,9 @@ class PolicyContext(BaseModel):
     #: True at execution, when this intent's own action row is already in the store and so
     #: already inside `credited_on_shipment`; R15/R16 subtract it rather than count it twice.
     intent_counted_in_store: bool = False
+    #: Facts code established after the assessment - `credited_amount`, read from the
+    #: verified ledger transaction (policy-rules.md section 7 rule 1). Never model output.
+    kernel_facts: tuple[Fact, ...] = ()
     #: The case's menu at this step. R01 compares the proposal against it. None means no
     #: menu was supplied, and R01 says so rather than inventing one - but the investigate
     #: step always supplies it (second Phase 3 review, finding 3).

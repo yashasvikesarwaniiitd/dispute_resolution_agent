@@ -121,6 +121,15 @@ class SqliteApprovalStore:
         rows = self._conn.execute(query.order_by(approvals_table.c.requested_at)).mappings()
         return [_to_approval(row) for row in rows]
 
+    def for_case(self, case_id: CaseId) -> Sequence[Approval]:
+        """Every approval on the case, oldest first - for the timeline and the demo."""
+        rows = self._conn.execute(
+            select(approvals_table)
+            .where(approvals_table.c.case_id == str(case_id))
+            .order_by(approvals_table.c.requested_at, approvals_table.c.id)
+        ).mappings()
+        return [_to_approval(row) for row in rows]
+
     def unnotified(self) -> Sequence[Approval]:
         rows = (
             self._conn.execute(

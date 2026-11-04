@@ -65,14 +65,15 @@ class MessageNumbersVerified:
         return allow(self.rule_id)
 
     def _facts(self, ctx: PolicyContext) -> dict[str, Fact]:
-        """Only this case's assessment facts.
+        """This case's assessment facts, plus the kernel facts code established later.
 
         Not the proposal's, and not anything a model produced: a number is justified by
-        what code computed, or it is not justified (I9).
+        what code computed, or it is not justified (I9). `credited_amount` arrives as a
+        kernel fact, read from the verified ledger transaction (section 7 rule 1).
         """
-        if ctx.assessment is None:
-            return {}
-        return {fact.fact_id: fact for fact in ctx.assessment.facts}
+        facts = {} if ctx.assessment is None else {f.fact_id: f for f in ctx.assessment.facts}
+        facts.update({fact.fact_id: fact for fact in ctx.kernel_facts})
+        return facts
 
     def _masks(self, ctx: PolicyContext) -> tuple[str, ...]:
         """Whole strings the system itself rendered, removed before tokenising.

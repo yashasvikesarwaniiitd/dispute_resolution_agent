@@ -59,6 +59,10 @@ AUTO_STATES = (
     CaseState.INVESTIGATING,
     CaseState.EXECUTING,
     CaseState.VERIFYING,
+    # So a decided approval is applied when the case is next advanced; the apply_approval
+    # step rests while the approval is still pending. Without that step wired, the case
+    # simply waits (below), as it did before Phase 5.
+    CaseState.AWAITING_APPROVAL,
 )
 
 
@@ -238,6 +242,8 @@ class Orchestrator:
                 return AdvanceResult(landed(applied), tuple(events), steps_run, "step_limit")
 
             step = self.step_for(current.state)
+            if step is None and current.state is CaseState.AWAITING_APPROVAL:
+                return AdvanceResult(current, tuple(events), steps_run, "waiting")
             if step is None:
                 applied = self._escalate(
                     current,
