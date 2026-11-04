@@ -48,7 +48,7 @@ from dispute_agent.kernel.domain.reasoning import ModelUsage
 if TYPE_CHECKING:
     from dispute_agent.kernel.domain.reasoning import ModelRequest, ModelResponse
     from dispute_agent.kernel.policy.config import LlmConfig, LlmPrimaryConfig
-    from dispute_agent.kernel.ports import Clock, IdGenerator, ModelGateway
+    from dispute_agent.kernel.ports import Clock, IdGenerator, ModelGateway, Tracer
     from dispute_agent.kernel.ports.model_usage import ModelUsageLedger
 
 _NO_USAGE = ModelUsage(input_tokens=0, output_tokens=0, latency_ms=0, cost_usd=Decimal(0))
@@ -69,6 +69,7 @@ class BudgetedModelGateway:
     secondary_route: str = "anthropic_direct"
     secondary_cap_usd: Decimal = Decimal("10.00")
     failovers: list[str] = field(default_factory=list)
+    tracer: Tracer | None = None
 
     def complete(self, req: ModelRequest) -> ModelResponse:
         # M01, before anything else: it binds every route.
@@ -161,6 +162,23 @@ class BudgetedModelGateway:
         *,
         model_id: str = "unknown",
     ) -> None:
+        if self.tracer is not None:
+            # Ids, counts and outcomes only - the allow-list drops anything else (I14).
+            with self.tracer.span(
+                "model.call",
+                purpose=req.purpose,
+                route=route,
+                model_id=model_id,
+                prompt_name=req.prompt.name,
+                prompt_version=req.prompt.version,
+                prompt_hash=str(req.prompt.hash),
+                input_tokens=str(usage.input_tokens),
+                output_tokens=str(usage.output_tokens),
+                latency_ms=str(usage.latency_ms),
+                outcome=status,
+                failover_from=failover_from or "",
+            ):
+                pass
         self.ledger.record(
             ModelCallRecord(
                 id=self.ids.new_id("mcl"),

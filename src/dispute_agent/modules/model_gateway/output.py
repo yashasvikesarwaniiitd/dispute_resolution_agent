@@ -52,6 +52,8 @@ class RawReply:
     #: Set when the provider says the answer is unusable before we read it (cut short at
     #: the token limit, for example). Treated as invalid, with this as the reason.
     unusable: str | None = None
+    #: Provider screening notes on this call, e.g. "prompt_shield:indirect_attack" (I15).
+    annotations: tuple[str, ...] = ()
 
 
 def parse(text: str, schema: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -113,8 +115,13 @@ def complete_with_one_retry(
         except InvalidModelOutput as invalid:
             last_error = invalid
             continue
+        notes = tuple(sorted({a for r in spent for a in r.annotations}))
         return ModelResponse(
-            output=output, model_id=reply.model_id, route=route, usage=_total(spent)
+            output=output,
+            model_id=reply.model_id,
+            route=route,
+            usage=_total(spent),
+            screen_annotations=notes,
         )
     assert last_error is not None
     raise InvalidModelOutput(

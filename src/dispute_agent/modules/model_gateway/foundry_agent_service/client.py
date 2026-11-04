@@ -56,6 +56,8 @@ class ProviderReply:
     model: str
     #: Every keyword the request was sent with, for the "no sampling parameters" check.
     sent: dict[str, Any]
+    #: Prompt Shields detections on this response ("prompt_shield:<kind>"), advisory (I15).
+    annotations: tuple[str, ...] = ()
 
 
 class AgentServiceClient(Protocol):
@@ -132,6 +134,7 @@ class AzureAgentServiceClient:
             output_tokens=_int_or_none(getattr(usage, "output_tokens", None)),
             model=str(getattr(response, "model", "") or agent.deployment),
             sent={k: v for k, v in sent.items() if k != "input"},
+            annotations=shield_annotations(response),
         )
 
     def create_version(self, agent_name: str, model: str, instructions: str) -> str:
@@ -143,6 +146,25 @@ class AzureAgentServiceClient:
                 definition=PromptAgentDefinition(model=model, instructions=instructions),
             )
         return str(created.version)
+
+
+#: Prompt Shields' two detections (foundry.md section 8): user prompt attacks and document
+#: (indirect) attacks. Read defensively: the annotation shape is not on the pages read in
+#: Stage A3, so anything unrecognised is ignored rather than guessed at.
+SHIELDS = ("jailbreak", "indirect_attack")
+
+
+def shield_annotations(response: Any) -> tuple[str, ...]:
+    extra: Any = getattr(response, "model_extra", None) or {}
+    filters: Any = getattr(response, "content_filters", None) or extra.get("content_filters")
+    found: set[str] = set()
+    for entry in filters if isinstance(filters, list) else []:
+        results: Any = entry.get("content_filter_results") if isinstance(entry, dict) else None
+        for shield in SHIELDS:
+            result: Any = (results or {}).get(shield) if isinstance(results, dict) else None
+            if isinstance(result, dict) and result.get("detected"):
+                found.add(f"prompt_shield:{shield}")
+    return tuple(sorted(found))
 
 
 def _int_or_none(value: object) -> int | None:

@@ -115,7 +115,12 @@ class LlmReasoner:
                     "findings": out["findings"],
                     "action_parameters": out["action_parameters"],
                     "pattern_influence": out["pattern_influence"],
-                    "manipulation_flags": out["manipulation_flags"],
+                    # The provider's screening notes join the model's own flags, so R21
+                    # sees them even when the model noticed nothing (I15: caution only).
+                    "manipulation_flags": [
+                        *out["manipulation_flags"],
+                        *response.screen_annotations,
+                    ],
                     "reasoner": "llm",
                     "prompt_name": PROMPT,
                     "prompt_version": self.version,

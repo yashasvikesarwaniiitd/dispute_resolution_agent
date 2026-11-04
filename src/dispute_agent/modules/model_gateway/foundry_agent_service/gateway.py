@@ -162,6 +162,7 @@ class FoundryAgentServiceGateway:
             cost_usd=self.price.cost(tokens_in, tokens_out) + failed_cost.cost_usd,
             model_id=reply.model or agent.deployment,
             unusable=unusable,
+            annotations=reply.annotations,
         )
 
     def _with_retries(

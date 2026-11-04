@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.ids import EventId
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.domain.patterns import CaseOutcome, PatternRecord
-    from dispute_agent.kernel.ports import Clock, IdGenerator
+    from dispute_agent.kernel.ports import Clock, IdGenerator, Tracer
     from dispute_agent.kernel.statemachine.machine import Applied, StateMachine
 
 #: States the loop will keep working through. Anything else rests or is finished.
@@ -129,6 +129,7 @@ class Orchestrator:
         patterns: object | None = None,
         outcomes: object | None = None,
         max_steps: int = 12,
+        tracer: Tracer | None = None,
     ) -> None:
         self._machine = machine
         self._steps = steps
@@ -137,6 +138,16 @@ class Orchestrator:
         self._patterns = patterns
         self._outcomes = outcomes
         self._max_steps = max_steps
+        self._tracer = tracer
+
+    def _run_traced(self, step: Step, case: Case, now: datetime) -> StepOutcome:
+        """One span per step, carrying ids and states only (observability.md section 3)."""
+        if self._tracer is None:
+            return step.run(case, now)
+        with self._tracer.span(
+            f"step.{step.name}", case_id=str(case.id), state_from=case.state.value
+        ):
+            return step.run(case, now)
 
     def step_for(self, state: CaseState) -> Step | None:
         """Which step runs in this state, from the table's `steps` block."""
@@ -235,7 +246,7 @@ class Orchestrator:
 
             now = self._clock.now()
             try:
-                outcome = step.run(current, now)
+                outcome = self._run_traced(step, current, now)
             except ModuleUnavailable as unavailable:
                 # The one conversion point (I6). Nine steps each handling this would
                 # eventually be eight handling it and one forgetting.

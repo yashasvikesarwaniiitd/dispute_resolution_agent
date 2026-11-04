@@ -128,6 +128,16 @@ def foundry_login(*args: str) -> int:
     return uv("python", "scripts/foundry_login.py", *args)
 
 
+def foundry_spend() -> int:
+    """Estimated spend per route against its cap, and the credit window."""
+    return uv("python", "scripts/foundry_spend.py")
+
+
+def llm_check() -> int:
+    """One tiny Haiku call; prints ids and counts only. Spends a fraction of a cent."""
+    return uv("python", "scripts/llm_check.py")
+
+
 def foundry_check() -> int:
     """Is everything in place to call the agent? No model call, no cost."""
     return uv("python", "scripts/foundry_check.py")
@@ -151,6 +161,8 @@ TARGETS = {
     "verify": verify,
     "agents-sync": agents_sync,
     "foundry-check": foundry_check,
+    "foundry-spend": foundry_spend,
+    "llm-check": llm_check,
     "foundry-login": foundry_login,
     "try-agent": try_agent,
     "test": test,

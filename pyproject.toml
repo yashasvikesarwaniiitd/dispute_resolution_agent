@@ -24,6 +24,7 @@ dependencies = [
     "azure-identity>=1.19",
     "openai>=1.60",
     "anthropic>=1.0",
+    "opentelemetry-sdk>=1.27",
 ]
 
 [dependency-groups]
