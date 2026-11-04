@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from dispute_agent.kernel.domain.errors import (
     AgentDrift,
     AuthPortError,
+    ConfigError,
     GuardrailBlocked,
     KernelError,
     PermanentPortError,
@@ -79,6 +80,13 @@ class AzureAgentServiceClient:
     def __init__(self, endpoint: str, *, timeout_s: float, credential: Any) -> None:
         from azure.ai.projects import AIProjectClient
 
+        if "/api/projects/" not in endpoint:
+            # The model's own endpoint (/openai/v1/...) answers chat only; agent calls
+            # against it fail as a misleading "not found" (seen in the first live setup).
+            raise ConfigError(
+                "FOUNDRY_PROJECT_ENDPOINT must be the project endpoint, containing "
+                "/api/projects/<name> (docs/SETUP_FOUNDRY.md, step 5)"
+            )
         # No key, no connection string: an Entra ID credential from `signin.py`.
         self._project = AIProjectClient(endpoint=endpoint, credential=credential)
         self._timeout_s = timeout_s

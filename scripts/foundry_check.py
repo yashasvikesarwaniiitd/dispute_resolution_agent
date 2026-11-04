@@ -52,10 +52,14 @@ def main() -> int:
         return stop(
             "FOUNDRY_PROJECT_ENDPOINT", "copy the project endpoint into .env (setup step 5)"
         )
-    if not settings.foundry_project_endpoint.startswith("https://"):
+    endpoint = settings.foundry_project_endpoint.rstrip("/")
+    if not endpoint.startswith("https://") or "/api/projects/" not in endpoint:
+        # The portal shows several endpoints; the model's own (/openai/v1/...) answers chat
+        # requests only, so agent calls against it fail as a confusing "not found".
         return stop(
-            "FOUNDRY_PROJECT_ENDPOINT looks wrong",
-            "it starts with https:// and ends /api/projects/<name>",
+            "FOUNDRY_PROJECT_ENDPOINT is not the project endpoint",
+            "copy the 'Foundry project endpoint' (it contains /api/projects/<name>) from "
+            "the project's Overview page in ai.azure.com",
         )
     ok("project endpoint is set")
     if not settings.foundry_model_deployment:
