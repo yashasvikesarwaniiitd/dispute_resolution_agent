@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+import structlog
+
 from dispute_agent.modules.cross_case.analyzer.hypotheses import ClusterStats
 
 if TYPE_CHECKING:
@@ -40,6 +42,8 @@ if TYPE_CHECKING:
         RecurrenceRow,
     )
 
+log = structlog.get_logger(__name__)
+
 #: Patterns described per run: the analyst is a paid call, so it is bounded.
 MAX_DESCRIBED_PER_RUN = 5
 
@@ -51,6 +55,7 @@ class JobReport:
     investigations: list[InvestigationResult] = field(default_factory=list)
     confirmations: list[tuple[str, str, str]] = field(default_factory=list)
     recurrence: list[RecurrenceRow] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -78,14 +83,25 @@ class CrossCaseJob:
         repository = self.analyzer.repository
         for pattern in repository.all():
             if pattern.status != "DISMISSED":
-                report.investigations.append(self.investigations.open(pattern.id, now))
+                try:
+                    report.investigations.append(self.investigations.open(pattern.id, now))
+                except Exception as failed:  # one pattern's trouble never stops the next
+                    report.errors.append(f"investigate:{pattern.id}:{type(failed).__name__}")
         # Overlap the last read by a day: a finding stamped at the instant of the last run
         # would otherwise fall between two reads. Applying one twice is a no-op.
         since = (self._findings_since or now - timedelta(days=365)) - timedelta(days=1)
-        report.confirmations = self.findings.run(since, now)
-        self._findings_since = now
-        report.recurrence = self.recurrence.run(now)
+        try:
+            report.confirmations = self.findings.run(since, now)
+            self._findings_since = now
+        except Exception as failed:  # e.g. a ticketing adapter that cannot list findings
+            report.errors.append(f"findings:{type(failed).__name__}")
+        try:
+            report.recurrence = self.recurrence.run(now)
+        except Exception as failed:
+            report.errors.append(f"recurrence:{type(failed).__name__}")
         self._last_run = now
+        if report.errors:
+            log.error("cross_case_job_partial", errors=report.errors)
         return report
 
     def _describe(self, pattern_id: str, now: datetime) -> bool:

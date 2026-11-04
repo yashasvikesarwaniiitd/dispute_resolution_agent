@@ -20,8 +20,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sqlalchemy.exc import SQLAlchemyError
-
 from dispute_agent.infra.sqlite.mapping import to_iso
 from dispute_agent.kernel.domain.errors import TransientPortError
 
@@ -54,16 +52,24 @@ class SqlOutcomeObserver:
                 now,
             )
             self._mark_informed(outcome)
-        except (SQLAlchemyError, LookupError, ValueError, OSError) as failed:
+        except Exception as failed:  # any failure: the runner records it and retries
             raise TransientPortError(
                 f"outcome could not be recorded: {type(failed).__name__}"
             ) from failed
 
     def _mark_informed(self, outcome: CaseOutcome) -> None:
-        keys = dict(self.keys(outcome.facts.shipment_ref))
-        keys.setdefault("seller", outcome.facts.seller_ref)
         closed = to_iso(outcome.closed_at)
-        for pattern in self.repository.matching(keys.items()):
+        try:
+            keys = dict(self.keys(outcome.facts.shipment_ref))
+        except (LookupError, ValueError, OSError):
+            # Which patterns this case could have seen is unknown, so assume all of them: an
+            # over-approximation only removes support, never adds it (ADR 0037). Failing here
+            # instead would retry forever and hold up every later outcome (review MED-3).
+            candidates = [p for p in self.repository.all() if p.status != "DISMISSED"]
+        else:
+            keys.setdefault("seller", outcome.facts.seller_ref)
+            candidates = self.repository.matching(keys.items())
+        for pattern in candidates:
             if to_iso(pattern.first_seen_at) <= closed:
                 self.repository.link(
                     pattern.id, [str(outcome.case_id)], "informed", outcome.closed_at

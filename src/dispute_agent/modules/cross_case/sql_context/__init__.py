@@ -23,8 +23,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from sqlalchemy.exc import SQLAlchemyError
-
 from dispute_agent.kernel.domain.errors import TransientPortError
 from dispute_agent.kernel.domain.ids import CaseId, PatternId
 from dispute_agent.kernel.domain.patterns import MAX_PATTERN_SUMMARY_CHARS, PatternRecord
@@ -79,7 +77,7 @@ class SqlPatternContextProvider:
             return tuple(found)
         except TransientPortError:
             raise
-        except (SQLAlchemyError, LookupError, ValueError, OSError) as failed:
+        except Exception as failed:  # unknown is caution, whatever the cause (I7)
             raise TransientPortError(
                 f"pattern context unavailable: {type(failed).__name__}"
             ) from failed

@@ -837,6 +837,7 @@ def build_scenario_models(
     from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
     from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
     from dispute_agent.modules.reasoning.llm.reasoner import LlmReasoner
+    from dispute_agent.modules.reasoning.llm.two_pass import TwoPassReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
     down = getattr(answer, "fault", None) == "unavailable"
@@ -859,7 +860,11 @@ def build_scenario_models(
 
     return ScenarioModels(
         gateway=gateway,
-        reasoner=LlmReasoner(prompts=registry, gateway=gateway, ids=ids, clock=clock),
+        # Always behind the anchoring control (ADR 0025): one pass when a briefing has no
+        # patterns, two when it has (safety review, Phase 7, MED-1).
+        reasoner=TwoPassReasoner(
+            LlmReasoner(prompts=registry, gateway=gateway, ids=ids, clock=clock)
+        ),
         interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
         secondary=secondary,
     )
@@ -896,7 +901,6 @@ def build_llm_reasoner(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
-    two_pass: bool = False,
 ) -> Reasoner:
     from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
@@ -916,8 +920,8 @@ def build_llm_reasoner(
         clock=clock,
         max_output_tokens=policy.llm.max_output_tokens,
     )
-    if not two_pass:
-        return reasoner
     from dispute_agent.modules.reasoning.llm.two_pass import TwoPassReasoner
 
-    return TwoPassReasoner(reasoner)  # P7-06: the anchoring control (ADR 0025)
+    # P7-06, always: with no patterns in the briefing this is the single pass it wraps, so
+    # no route can reach a patterned case without the anchoring control (MED-1).
+    return TwoPassReasoner(reasoner)

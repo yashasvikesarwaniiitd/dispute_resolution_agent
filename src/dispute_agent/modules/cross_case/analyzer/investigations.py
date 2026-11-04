@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
+import structlog
 from sqlalchemy import func, insert, or_, select, update
 
 from dispute_agent.infra.sqlite.mapping import from_iso, to_iso
@@ -67,6 +68,13 @@ if TYPE_CHECKING:
     )
 
 LABEL = "cross_case_investigation"
+
+#: A FAILED write is planned again on the next run, at most this many times in all.
+MAX_FAILED_WRITES = 3
+#: An issue not readable back this long after it was sent is UNKNOWN (ADR 0010).
+VERIFY_DEADLINE = timedelta(hours=24)
+
+log = structlog.get_logger(__name__)
 
 #: Action fields the executor may set that the Action model carries.
 _MODEL_FIELDS = {
@@ -229,6 +237,11 @@ class Investigations:
         port = self.port(subject.id)
 
         action = self._live_action(pattern_id)
+        if action is not None and action.status is ActionStatus.UNKNOWN:
+            return self._needs_person(pattern_id, action, now)
+        if action is None and self._failures(pattern_id) >= MAX_FAILED_WRITES:
+            log.error("pattern_investigation_gave_up", pattern_id=pattern_id)
+            return self._set(pattern_id, "FAILED", now, reason="retries_exhausted:needs_person")
         if action is None:
             try:
                 ctx = PolicyContext(
@@ -249,6 +262,8 @@ class Investigations:
         if action.status is ActionStatus.PLANNED:
             result = self.executor.execute(action.id, port, intent.payload, now)
             action = self.actions.get(action.id)
+            if action.status is ActionStatus.UNKNOWN:
+                return self._needs_person(pattern_id, action, now)
             if result.outcome is not Outcome.SENT:
                 return self._set(
                     pattern_id,
@@ -262,6 +277,14 @@ class Investigations:
             ref = action.external_ref or ""
             self.executor.verify(action.id, port, IssueRef(key=ref, id=ref), intent.payload, now)
             action = self.actions.get(action.id)
+            sent = action.sent_at or action.planned_at
+            if action.status is ActionStatus.SENT and now - sent >= VERIFY_DEADLINE:
+                # ADR 0010: not visible by the deadline is UNKNOWN, never success.
+                action = self.actions.set_status(
+                    action.id, ActionStatus.UNKNOWN, now, last_error_code="verify_deadline_passed"
+                )
+        if action.status is ActionStatus.UNKNOWN:
+            return self._needs_person(pattern_id, action, now)
 
         return self._set(
             pattern_id,
@@ -344,6 +367,39 @@ class Investigations:
             return None
         return found[-1]
 
+    def _failures(self, pattern_id: str) -> int:
+        return sum(
+            1 for a in self.actions.for_pattern(pattern_id) if a.status is ActionStatus.FAILED
+        )
+
+    def _needs_person(self, pattern_id: str, action: Action, now: datetime) -> InvestigationResult:
+        """UNKNOWN: the issue may or may not exist. Never retried, never treated as open (I4):
+        logged loudly for a person, and the investigation stays out of the findings loop."""
+        log.error(
+            "pattern_investigation_needs_person",
+            pattern_id=pattern_id,
+            action_id=str(action.id),
+            reason=action.last_error_code or "unknown",
+        )
+        return self._set(
+            pattern_id,
+            "UNKNOWN",
+            now,
+            action_id=str(action.id),
+            external_ref=action.external_ref,
+            reason=f"needs_person:{action.last_error_code or 'unknown'}"[:200],
+        )
+
+    def needs_person(self) -> list[str]:
+        """Patterns whose investigation outcome is unknown (for a person to check Jira)."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(pattern_investigations.c.pattern_id).where(
+                    pattern_investigations.c.status == "UNKNOWN"
+                )
+            )
+            return [r[0] for r in rows]
+
     def _record(self, pattern_id: str) -> Any:
         with self.engine.connect() as conn:
             row = conn.execute(
@@ -389,8 +445,15 @@ class Investigations:
 
 def _description(pattern: StoredPattern, members: list[str]) -> str:
     thresholds = pattern.thresholds
+    # Only a code-written summary goes to Jira: a model-written one is untrusted text built
+    # partly from sellers' statements (safety review LOW-5).
+    summary = (
+        pattern.summary
+        if pattern.summary_source == "code"
+        else f"{len(members)} disputes share {pattern.dimension} {pattern.match_value}."
+    )
     lines = [
-        f"Cross-case pattern {pattern.id}: {pattern.summary}",
+        f"Cross-case pattern {pattern.id}: {summary}",
         "",
         f"Grouped on {pattern.dimension} {pattern.match_value}: at least "
         f"{thresholds.get('min_related_cases')} disputes within {thresholds.get('window_days')} days.",

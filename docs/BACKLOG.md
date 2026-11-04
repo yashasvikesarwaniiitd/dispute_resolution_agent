@@ -297,3 +297,6 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **Investigation text is fixed at first detection.** Later members are linked in our tables, not added to the Jira issue: the TicketingSystem port has no update operation.
 - **Clustering limit.** A narrow cause inside a broader group is reported as the broad group (ADR 0036). Only real data would show whether that matters.
 - **Reply interpreter and drafter prompts** are still `inactive` (no live eval run yet), like the investigator's v1.
+- **A dismissed key never comes back.** One pattern per (dimension, value), and DISMISSED is permanent (ADR 0037). A new problem on the same scanner later needs a person to reopen it; consider a "re-detect after N days" rule with its own ADR.
+- **UNKNOWN investigations reach a person through the logs only** (`pattern_investigation_needs_person`, `Investigations.needs_person()`). The review console has no view for them yet.
+

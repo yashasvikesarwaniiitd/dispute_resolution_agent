@@ -71,3 +71,17 @@ Every engine here starts its transactions with `BEGIN IMMEDIATE` (ADR 0008). The
 - Patterns can only add caution. The proof is a property test over random inputs (`test_caution_only.py`) and scenarios S15 and S16.
 - The module is optional. With it off, the same disputes end the same way (`tests/e2e/test_cross_case_optional.py`), and `make eval` runs on a line with no patterns at all.
 - A Phase 5 defect surfaced on the way: the outcome outbox could not read back what it stored. The first closed case made every runner tick raise. It is now fixed and tested.
+
+## Safety review (2026-11-04): 0 HIGH, 3 MED, 5 LOW, all fixed or recorded
+
+Each fix has a test in `tests/unit/modules/cross_case/test_review_fixes.py`.
+
+- **MED-1: the anchoring control was never switched on.** `TwoPassReasoner` was built but no route used it. Every LLM reasoner is now built inside it (`build_llm_reasoner`, `build_scenario_models`). With no patterns it is the single pass it wraps.
+- **MED-2: an UNKNOWN investigation was silent.** An ambiguous write, or an issue still not readable 24 hours after sending (ADR 0010's deadline), is now UNKNOWN. It is never written again and never enters the findings loop. It is logged at error level as `pattern_investigation_needs_person` and listed by `Investigations.needs_person()`.
+- **MED-3: one failing outcome could block the outbox.** A shipment the observer cannot place no longer fails: the case is assumed to have seen every open pattern, which removes support and never adds it. The outbox reads rows with the fewest failed attempts first.
+- **LOW-1: one failing step stopped the job.** A failing step (for example a ticketing adapter that cannot list findings) no longer stops the others, and the run still counts as done.
+- **LOW-4: failed writes were retried forever.** A FAILED write is now planned again at most 3 times in all, then left for a person.
+- **LOW-5: model text could reach Jira.** Only a code-written summary goes into the Jira description.
+- **Provider errors.** Any provider error, including an unexpected one, is now "we do not know" (caution), never a step crash.
+- **LOW-2 (documented in ADR 0025's notes and in `two_pass.py`).** Credit in pass 1 then uphold in pass 2 is accepted as more cautious, and is marked changed, so a person approves. The pattern is never the reason the charge stands.
+- **LOW-3 (documented in ADR 0037).** A recurrence after a fix moves FIXED_MONITORING back to CONFIRMED; that step raises caution only. A DISMISSED pattern stays dismissed for its key.

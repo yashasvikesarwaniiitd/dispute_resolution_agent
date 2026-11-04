@@ -13,9 +13,14 @@ Either way the result's `pattern_influence.note` starts with `pattern_relaxation
 so an attempt to relax a case is visible on the stored proposal. The model's own
 `changed_recommendation` is never the control: the comparison is made here, in code.
 
-With no patterns this is a single pass. Phase 7 (P7-06) connects it: app.py wraps the LLM
-reasoner in this class when `cross_case` is on, and raises the per-case call limit to
-`llm.max_calls_per_case_with_patterns` (10), since a patterned round costs two calls.
+With no patterns this is a single pass. Phase 7 (P7-06) connects it: app.py builds every LLM
+reasoner inside this class, and start-up raises the per-case call limit to
+`llm.max_calls_per_case_with_patterns` (10) when `cross_case` is on, since a patterned round
+costs two calls.
+
+Credit in pass 1 and uphold in pass 2 is accepted as more cautious by the order (ADR 0025),
+and is marked changed - so the kernel floors it at REQUIRE_APPROVAL: a person, not the
+pattern, decides whether the charge stands (I7, safety review LOW-2).
 """
 
 from __future__ import annotations

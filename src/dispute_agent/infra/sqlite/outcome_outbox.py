@@ -46,7 +46,9 @@ class SqliteOutcomeOutbox:
         rows = self._conn.execute(
             select(outcome_outbox.c.outcome_json)
             .where(outcome_outbox.c.delivered_at.is_(None))
-            .order_by(outcome_outbox.c.created_at.asc())
+            # Fewest failed attempts first, so one outcome that keeps failing cannot hold
+            # up every later one (Phase 7 safety review, MED-3).
+            .order_by(outcome_outbox.c.attempts.asc(), outcome_outbox.c.created_at.asc())
             .limit(limit)
         ).all()
         # JSON mode: the model is strict, and strict Python validation refuses the strings a

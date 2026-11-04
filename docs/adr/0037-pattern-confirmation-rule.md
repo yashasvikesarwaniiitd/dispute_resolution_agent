@@ -44,3 +44,8 @@ I5: an ops note is outside text. A note saying "confirmed, this proves fraud" is
 - S16 shows the legitimate-pattern path: re-running the analysis three times never confirms the pattern, one `no_fault_found` dismisses it, and a dismissed pattern briefs no one.
 - `tests/unit/modules/cross_case/test_confirmation.py` shows that five cases escalated because of a pattern do not confirm it.
 - The recurrence report (eval report, "Recurrence after confirmed fixes") gives before-and-after counts on a seeded synthetic world.
+
+## Two exceptions, stated plainly (safety review LOW-3)
+
+- **Recurrence.** Recurrence after a fix moves FIXED_MONITORING back to CONFIRMED on dispute counts, not on a finding. Both statuses look the same to the kernel (a confirmed cause), so this can only keep caution in place; it never confirms an unconfirmed pattern and never dismisses one.
+- **Dismissal is permanent.** A DISMISSED pattern stays dismissed: the table allows one pattern per key. A later, genuinely new problem on the same scanner or SKU cannot raise a fresh pattern on that key. This is recorded in BACKLOG; reopening a dismissed key needs an ops finding or a person.

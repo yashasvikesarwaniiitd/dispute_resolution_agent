@@ -86,11 +86,16 @@ def _sql_observer(*, broken: bool = False) -> Any:
     add_case(engine, CASE_NOW, claim="CHG-now")
 
     def keys(shipment_ref: str) -> dict[str, str]:
-        if broken:
-            raise LookupError("the shipment attributes could not be read")
         return {"hub": "HUB-01"}
 
-    observer = SqlOutcomeObserver(PatternRepository(engine), keys, FakeClock(T0))
+    class BrokenStore(PatternRepository):
+        def record_outcome(self, *args: Any, **kwargs: Any) -> bool:
+            from sqlalchemy.exc import OperationalError
+
+            raise OperationalError("INSERT", {}, Exception("disk I/O error"))
+
+    repository = BrokenStore(engine) if broken else PatternRepository(engine)
+    observer = SqlOutcomeObserver(repository, keys, FakeClock(T0))
     observer.engine = engine  # type: ignore[attr-defined]  # for the assertions below
     return observer
 
