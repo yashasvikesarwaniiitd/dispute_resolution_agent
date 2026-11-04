@@ -20,7 +20,6 @@ template writing words would be a hole in the number check rather than a style c
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,7 +28,7 @@ from jinja2 import UndefinedError as JinjaUndefinedError
 
 from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.reasoning import DraftedMessage, NumberUse
-from dispute_agent.kernel.policy.numbers import render_fact
+from dispute_agent.kernel.policy.numbers import NUMBER_WORDS, render_fact
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -49,13 +48,6 @@ TEMPLATE_FOR_KIND = {
     "reminder": "reminder.md.j2",
 }
 
-#: Number words R09 cannot see. Checked after rendering, so a template that ever starts
-#: spelling a figure out fails here rather than at a seller's inbox (MD-F1, residual RR1).
-NUMBER_WORDS = re.compile(
-    r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|"
-    r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|lakh|crore)\b",
-    re.IGNORECASE,
-)
 
 _ENV = Environment(
     loader=FileSystemLoader(TEMPLATES),

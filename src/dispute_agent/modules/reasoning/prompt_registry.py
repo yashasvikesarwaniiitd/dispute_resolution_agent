@@ -132,6 +132,25 @@ def _attach_untrusted(
             raise DomainValidationError(f"untrusted[{key!r}] is not UntrustedText")
 
     out: dict[str, Any] = dict(variables)
+
+    # The `ctx` prompts (reply interpreter, drafter): outside text addressed as
+    # "ctx.<field>" is placed at that field, and the trusted `ctx` may not already hold it.
+    slotted = {key: value for key, value in untrusted.items() if key.startswith("ctx.")}
+    if slotted:
+        ctx = out.get("ctx")
+        if not isinstance(ctx, dict):
+            raise DomainValidationError("outside text names ctx, but there is no ctx")
+        ctx = dict(ctx)
+        for key, slot_text in slotted.items():
+            field = key.removeprefix("ctx.")
+            if field in ctx:
+                raise DomainValidationError(
+                    f"ctx.{field} must arrive through the untrusted argument only (I5)"
+                )
+            ctx[field] = slot_text.text
+        out["ctx"] = ctx
+        untrusted = {k: v for k, v in untrusted.items() if k not in slotted}
+
     briefing = out.get("b")
     if not isinstance(briefing, dict):
         if untrusted:

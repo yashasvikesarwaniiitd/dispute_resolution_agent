@@ -69,6 +69,27 @@ class NumberToken(NamedTuple):
             return None
 
 
+#: Number words the tokeniser cannot see. A figure written as a word cannot be checked
+#: against a fact, so R09 refuses any message containing one, whoever drafted it (MD-F1,
+#: residual RR1). Kept here, in the kernel, so the template path and the model path share
+#: one list.
+NUMBER_WORDS = re.compile(
+    r"\b(zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|"
+    r"fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
+    r"sixty|seventy|eighty|ninety|hundred|thousand|million|lakh|lakhs|crore|crores)\b",
+    re.IGNORECASE,
+)
+#: "one" is left out on purpose: "one more detail" and "one point is unclear" are ordinary
+#: English the drafter's own examples use, and blocking them would send good messages to a
+#: person. No charge, weight or size is ever stated as "one" - those are digits with units.
+
+
+def number_word_in(text: str) -> str | None:
+    """The first number word in `text`, or None."""
+    found = NUMBER_WORDS.search(text)
+    return found.group(0) if found else None
+
+
 def render_fact(value: object) -> str:
     """The one place a stored value becomes text a message may carry.
 

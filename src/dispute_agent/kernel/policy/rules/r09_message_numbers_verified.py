@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.enums import ActionType
-from dispute_agent.kernel.policy.numbers import extract_numbers, justify
+from dispute_agent.kernel.policy.numbers import extract_numbers, justify, number_word_in
 from dispute_agent.kernel.policy.verdicts import allow, deny
 
 if TYPE_CHECKING:
@@ -51,6 +51,10 @@ class MessageNumbersVerified:
         masks = self._masks(ctx)
 
         for text in (subject, body):
+            word = number_word_in(text)
+            if word is not None:
+                # Invisible to the tokeniser, so uncheckable: refused, never waved through.
+                return deny(self.rule_id, f"number_word: {word!r} - figures are written in digits")
             for token in extract_numbers(text, masks=masks):
                 problem = justify(token, claims, facts)
                 if problem is not None:
