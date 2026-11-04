@@ -253,5 +253,17 @@ upheld and credit-confirmation templates; module-unavailable is named on the cas
 - **Events from steps**: proposals are kept in their own table; PROPOSAL_RECORDED,
   INTENT_CREATED, APPROVAL_REQUESTED and MODEL_ROUTE_FAILOVER are not yet written as events.
 - **Eval harness plays first rounds only** and ignores scenario faults and config overrides; the
-  Phase 6 runner plays full scripts. Live evals (P4b-11) and the model-choice ADR await the
-  owner's spend decision.
+  Phase 6 runner plays full scripts. The gpt-5-mini live baseline is done
+  (`docs/evals/2026-11-04-live-gpt-5-mini.md`); the model-choice ADR (O1) still needs the same run
+  against a gpt-5.4-mini deployment, which the owner creates.
+
+## From the first live eval (2026-11-04, gpt-5-mini, $0.07)
+
+Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_investigator/v2`
+(a released prompt is never edited), each change followed by the same live eval:
+- **When to hand to a person.** Seven escalation scenarios got "ask the seller" (S05a, S14a,
+  S18b, S21, S29b, S43b) or a remeasurement (S40). Make the escalation triggers explicit.
+- **When to ask ops to remeasure** instead of the seller: 0 of 5 (S03, S04, S12c, S31, S44).
+- **When to uphold**: S09a never upheld.
+- **Credits a person should decide** (S24, S43a; the baseline does the same): check which rule
+  should catch them in the full flow, and add a scenario test if none does.
