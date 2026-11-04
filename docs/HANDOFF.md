@@ -9,13 +9,13 @@ All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The d
 - `make verify` is green with `cross_case` on. The module is optional: the same disputes end the same way with it off (`tests/e2e/test_cross_case_optional.py`).
 - `make eval` passes all 57 recorded scenarios and all 12 gates. The report now includes recurrence after confirmed fixes.
 - The one live eval of the Foundry agent (gpt-5-mini) is in `docs/evals/`. It scored 62% of 45, below the approved 90% bar (D47); the fix is better instructions (BACKLOG).
-- Foundry spend so far: about $0.38 of the $150 cap.
 
 **Waiting on the owner:**
-1. Sign off Phase 7 (and earlier phases still marked "awaiting owner sign-off" in PROGRESS).
-2. Push the branch `phase-7` and the tag `phase-6-complete`.
-3. P6-12: create Application Insights and put its connection string in `.env` (before the credit window ends on 27 Nov).
-4. Optional, paid: a live run of `pattern_analyst` to decide its activation (D52), and `make agents-sync` for the reply-reader agent so the third red-team route can run.
+1. P6-12: create Application Insights and put its connection string in `.env` (before the credit window ends on 27 Nov). Then: `uv sync --group telemetry` and `pytest tests/integration/test_observability.py -m integration`.
+2. Real channels: the test mailbox and Jira project settings in `.env` are empty, so Outlook and Jira have only run against fakes (`docs/SETUP_CHANNELS.md`).
+3. Optional, paid: decide how strict PA-E1 should be, then one more pattern_analyst run (D53); `make agents-sync` for the reply-reader agent so the third red-team route can run.
+
+Foundry spend so far: about $0.66 of the $150 cap.
 
 ## 2. The project in five lines
 
@@ -89,6 +89,8 @@ All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The d
 | D50 | (2026-11-04) Phase 7 built under the owner's "complete the project, don't wait" instruction. The parent Jira investigation goes through the kernel's PolicyEngine and ActionExecutor with an in-memory subject case and a module-owned ActionStore, because the executor takes a case and a pattern is not one (ADR 0036). Zero kernel changes; the owner may prefer a case-less action socket in a later kernel version. |
 | D51 | (2026-11-04) A pattern's status moves only on a structured ops finding on its investigation; outcomes never count, and cases that could have seen a pattern are excluded from its support (ADR 0037). |
 | D52 | (2026-11-04) `pattern_analyst` stays `inactive`: its recorded eval suite passes, but activation needs a live run, which is paid and needs the owner's approval. Until then patterns keep their code-written summary. |
+| D53 | (2026-11-04) pattern_analyst live eval (foundry_openai, $0.28 of a $0.50 owner cap): FAIL, 3 of 6 under the all-must-pass rule fixed beforehand; it stays `inactive`. Two prompt defects fixed (output budget, unnamed hypothesis kinds); the model still writes identifiers into hypothesis statements, which the PA-E1 check refuses. Injection held in all 24 answers. `docs/evals/2026-11-04-pattern-analyst-live.md`. |
+| D54 | (2026-11-04) The owner approved every phase (0 to 7, 4P, 4+; 4b covered by them) and asked for Phase 7 to be merged into main and pushed. P6-12 stays open until Application Insights exists. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

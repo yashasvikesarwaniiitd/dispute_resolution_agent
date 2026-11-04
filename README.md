@@ -107,6 +107,8 @@ first one is recorded in `docs/evals/2026-11-04-live-gpt-5-mini.md`, with its sa
 
 ## Status
 
-Phases 0 to 7 are built. Phase 6's tracing check (P6-12) waits on the owner's Application
-Insights resource, and Phase 7 awaits the owner's sign-off. Progress and history: `docs/PROGRESS.md`. Open items:
+Phases 0 to 7 are built and approved. Open: Phase 6's tracing check (P6-12) waits on an
+Application Insights resource, Outlook and Jira have run only against fakes, and the
+pattern analyst prompt stays inactive after its first live eval (3 of 6,
+`docs/evals/2026-11-04-pattern-analyst-live.md`). Progress and history: `docs/PROGRESS.md`. Open items:
 `docs/BACKLOG.md`. How the project was built with Claude Code: `docs/BUILD_PACK.md`.

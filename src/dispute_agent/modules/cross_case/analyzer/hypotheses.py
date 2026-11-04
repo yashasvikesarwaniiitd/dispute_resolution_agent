@@ -26,7 +26,7 @@ and every caution floor applies exactly as before. Code found the cluster; code 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.errors import (
@@ -113,7 +113,8 @@ class PatternAnalyst:
     prompts: PromptRegistry
     gateway: ModelGateway
     version: str = "v1"
-    max_output_tokens: int = 1200
+    max_output_tokens: int = 4000  # reasoning tokens count too (foundry.md section 6)
+    refusals: list[str] = field(default_factory=list)
 
     def describe(
         self,
@@ -142,13 +143,17 @@ class PatternAnalyst:
         for _ in range(ATTEMPTS):
             try:
                 response = self.gateway.complete(request)
-            except InvalidModelOutput:
-                continue  # the gateway's own schema check refused it (after its own retry)
+            except InvalidModelOutput as refused:
+                # The gateway's own schema check (after its own retry), e.g. a cut-off answer.
+                self.refusals.append(f"gateway: {str(refused.args[0])[:100]}")
+                continue
             except (TransientPortError, ModuleUnavailable, BudgetExceeded):
                 return None
             try:
                 return _checked(response.output, stats, response.model_id, rendered.hash)
-            except InvalidModelOutput:
+            except InvalidModelOutput as refused:
+                # The check's own words, never the model's text (I12): which rule refused it.
+                self.refusals.append(str(refused.args[0])[:120])
                 continue
         return None
 

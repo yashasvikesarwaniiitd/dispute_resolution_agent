@@ -894,6 +894,39 @@ def build_live_models(
     )
 
 
+#: The analyst summarises up to 12 cases into 2-4 hypotheses; at 4,000 the reasoning model
+#: still ran out mid-answer on the larger clusters (second live run).
+ANALYST_OUTPUT_TOKENS = 8000
+
+
+def build_pattern_analyst(
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    *,
+    route: str = "foundry_openai",
+) -> Any:
+    """The pattern analyst behind the spending guard (P7-04, I14).
+
+    `foundry_openai` calls the same gpt-5-mini deployment directly, so no Foundry agent has to
+    exist for this prompt (creating one is the owner's step, `make agents-sync`). Inactive
+    prompts load only when PROMPTS_ALLOW_INACTIVE is set - the eval run, not the app.
+    """
+    from dispute_agent.modules.cross_case.analyzer.hypotheses import PatternAnalyst
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    gateway = build_model_gateway(route, settings=settings, policy=policy, clock=clock, ids=ids)
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    # The policy's output budget, not the prompt's 1,200: a reasoning model spends most of
+    # the budget thinking, and 1,200 cut every answer off mid-JSON (first live run, 0 of 6).
+    return PatternAnalyst(
+        registry,
+        gateway,
+        max_output_tokens=max(policy.llm.max_output_tokens, ANALYST_OUTPUT_TOKENS),
+    )
+
+
 def build_llm_reasoner(
     gateway: ModelGateway,
     *,
