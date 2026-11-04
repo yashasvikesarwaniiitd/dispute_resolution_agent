@@ -36,6 +36,8 @@ not mind the project sending from. It will send real email.
 
 ### 1b. Register the app
 
+> **Found on 2026-11-04:** a brand-new personal Microsoft account has no directory of its own, and entra.microsoft.com then fails with `AADSTS16000 ... does not exist in tenant 'Microsoft Services'`. The account needs a directory first; signing up for Azure with it creates one (a "Default Directory"). Do not register this app in an employer's directory.
+
 1. Sign in to the [Microsoft Entra admin centre](https://entra.microsoft.com) with that
    account and go to **Applications → App registrations → New registration**.
 2. Name it anything (`dispute-agent-local` reads well in the consent screen).
@@ -128,6 +130,8 @@ sending, so it is a secret like any other.
 ---
 
 ## 5. Check it
+
+> To use a real channel in the running app on your machine only, copy `config/modules.yaml` to `config/modules.local.yaml` (git-ignored) and change the adapter, e.g. `ticketing` to `jira_cloud`. The shared file and CI keep the fakes.
 
 ```bash
 make test-integration

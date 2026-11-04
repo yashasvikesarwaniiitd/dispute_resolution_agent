@@ -110,8 +110,15 @@ class Application:
     runtime: Runtime | None = None
 
 
+#: An owner-only override of modules.yaml, git-ignored: lets one machine run a real channel
+#: (for example `ticketing: jira_cloud`) while the shared file - and CI, which has no
+#: accounts - keeps the fakes. docs/MODULES.md.
+LOCAL_MODULES = "modules.local.yaml"
+
+
 def load_modules_file(config_dir: Path) -> ModulesFile:
-    path = config_dir / "modules.yaml"
+    local = config_dir / LOCAL_MODULES
+    path = local if local.is_file() else config_dir / "modules.yaml"
     if not path.is_file():
         raise ConfigError(f"no modules.yaml at {path}")
     return ModulesFile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
@@ -153,6 +160,24 @@ def _not_built(module: str, adapter: str) -> ConfigError:
     """
     return ConfigError(
         f"module {module!r} is enabled with adapter {adapter!r}, which is not built yet"
+    )
+
+
+def _build_jira(settings: Settings | None) -> TicketingSystem:
+    """The owner's real Jira test project (ADR 0020). Refuses without every setting (I11)."""
+    from dispute_agent.modules.ticketing.jira_cloud.ticketing import JiraCloudTicketing
+
+    token = None if settings is None else settings.jira_api_token
+    if settings is None or not (
+        settings.jira_base_url and settings.jira_email and token and settings.jira_project_key
+    ):
+        raise _needs_accounts("ticketing", "jira_cloud")
+    return JiraCloudTicketing(
+        base_url=settings.jira_base_url,
+        email=settings.jira_email,
+        api_token=token.get_secret_value(),
+        project_key=settings.jira_project_key,
+        timeout_s=settings.http_timeout_s,
     )
 
 
@@ -304,6 +329,7 @@ def build_adapters(
     data_dir: Path | None = None,
     database: Path | None = None,
     min_related_cases: int = 3,
+    settings: Settings | None = None,
 ) -> Adapters:
     """Resolve each module's chosen adapter into an object.
 
@@ -385,6 +411,8 @@ def build_adapters(
         from dispute_agent.modules.ticketing.fake.ticketing import FakeTicketingSystem
 
         ticketing = FakeTicketingSystem()
+    elif ticketing_adapter == "jira_cloud":
+        ticketing = _build_jira(settings)
     else:
         raise _needs_accounts("ticketing", ticketing_adapter)
 
@@ -473,6 +501,7 @@ def build_application(
         data_dir=data_dir,
         database=database,
         min_related_cases=min_related,
+        settings=loaded,
     )
     runtime = (
         _build_runtime(directory, database, loaded, clock, ids, adapters, registry)

@@ -34,3 +34,12 @@ Change `enabled` or `adapter`, then restart. Examples:
 A row in the case database (`control_flags`). When it is on, no email, issue or credit leaves
 the system: the executor checks it before planning and again immediately before every write,
 and an unreadable switch counts as on (I10).
+
+## Real channels on your machine only
+
+`config/modules.local.yaml`, if it exists, is read **instead of** `config/modules.yaml`. It is
+git-ignored, so you can switch on a real channel (for example `ticketing: jira_cloud`) without
+changing the shared file - and without breaking CI, which has no accounts. Copy
+`modules.yaml`, change the adapter, and restart. Delete the file to go back to the fakes.
+A real adapter still refuses to start unless every setting it needs is in `.env`.
+

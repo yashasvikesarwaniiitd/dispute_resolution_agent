@@ -13,3 +13,6 @@ __pycache__/
 codebase-map.html
 dist/
 data/
+
+# Owner-only module switches (real channels on one machine; CI keeps the fakes)
+config/modules.local.yaml

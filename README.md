@@ -109,6 +109,6 @@ first one is recorded in `docs/evals/2026-11-04-live-gpt-5-mini.md`, with its sa
 
 Phases 0 to 7 are built and approved, and traces reach Application Insights with no message
 content. The pattern analyst prompt passed its live eval
-(6 of 6, `docs/evals/2026-11-04-pattern-analyst-live.md`). Open: Outlook and Jira have run
-only against fakes. Progress and history: `docs/PROGRESS.md`. Open items:
+(6 of 6, `docs/evals/2026-11-04-pattern-analyst-live.md`). Jira has run live against a real
+test project; Outlook has run only against its fake so far. Progress and history: `docs/PROGRESS.md`. Open items:
 `docs/BACKLOG.md`. How the project was built with Claude Code: `docs/BUILD_PACK.md`.

@@ -231,6 +231,15 @@ class TestLookupIsBestEffort:
         assert ref is not None
         assert ref.key == "WD-1"
 
+    def test_a_hit_without_a_key_is_named_by_its_id(self) -> None:
+        """Found live (2026-11-04): /search/jql returns only the ids asked for. The lookup
+        used to raise KeyError on every real hit, breaking look-before-write."""
+        found = httpx.Response(200, json={"issues": [{"id": "10001"}]})
+        named = httpx.Response(200, json={"id": "10001", "key": "WD-7", "fields": {}})
+        jira = Jira().on("POST", "/search/jql", found).on("GET", "/issue/10001", named)
+        ref = jira.system().find_issue(KEY)
+        assert ref is not None and (ref.key, ref.id) == ("WD-7", "10001")
+
     def test_a_miss_returns_none_and_means_nothing(self) -> None:
         """Indexing lags by "a few seconds to minutes", so a miss and "it does not exist"
         look identical from here. Only a hit is information."""

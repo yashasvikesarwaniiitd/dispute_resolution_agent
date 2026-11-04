@@ -245,7 +245,18 @@ class JiraCloudTicketing:
         if not issues:
             return None
         first = issues[0]
-        return IssueRef(key=str(first["key"]), id=str(first["id"]))
+        issue_id = str(first["id"])
+        issue_key = first.get("key")
+        if not issue_key:
+            # The enhanced search (/search/jql) returns only the ids it was asked for, not
+            # the key. Found live on 2026-11-04: reading first["key"] raised KeyError, which
+            # broke look-before-write on every real hit. Ask for the key by id.
+            issue_key = self._get(f"{API}/issue/{issue_id}", params={"fields": "summary"}).get(
+                "key"
+            )
+        if not issue_key:
+            return None  # a hit we cannot name is not a hit we can act on: settles nothing
+        return IssueRef(key=str(issue_key), id=issue_id)
 
     def get_issue(self, ref: IssueRef) -> IssueSnapshot:
         """Read-back (I2), compared against the stored intent by the executor."""

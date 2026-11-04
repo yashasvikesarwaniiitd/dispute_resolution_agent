@@ -147,8 +147,19 @@ class TestTheAppFactory:
         with pytest.raises(ConfigError, match="approvals"):
             create_app(config_dir=tmp_path, app_env="test")
 
-    def test_a_real_channel_without_the_owner_s_account_fails_fast(self, tmp_path: Path) -> None:
-        """A real channel is never built from defaults (I11): caught at startup, by name."""
+    def test_a_real_channel_without_the_owner_s_account_fails_fast(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A real channel is never built from defaults (I11): caught at startup, by name.
+
+        `.env` is ignored here: on the owner's machine it holds real Jira settings, and then
+        the app rightly starts - which is not the case this test is about.
+        """
+        from dispute_agent.infra.settings import Settings
+
+        monkeypatch.setattr(
+            "dispute_agent.app.Settings", lambda: Settings(_env_file=None, app_env="test")
+        )
         (tmp_path / "modules.yaml").write_text(
             PHASE_0_FILE.replace(
                 "ticketing:     {enabled: false, adapter: fake}",

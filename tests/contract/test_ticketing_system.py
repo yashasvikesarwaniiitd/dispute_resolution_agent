@@ -14,6 +14,7 @@ the one place the lie causes a duplicate.
 
 from __future__ import annotations
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -42,8 +43,12 @@ LATER = NOW + SEARCH_CONSISTENCY_DELAY + timedelta(seconds=1)
 CASE = CaseId("case_contract_ticketing")
 PROJECT = "WD"
 
-KEY = IdempotencyKey("wd1:" + "c" * 64)
-OTHER_KEY = IdempotencyKey("wd1:" + "d" * 64)
+# Fresh on every run: a real Jira keeps issues between runs, so a fixed key would already be
+# "found" the second time the suite ran (found live, 2026-11-04). The fakes do not care.
+KEY = IdempotencyKey("wd1:" + secrets.token_hex(32))
+OTHER_KEY = IdempotencyKey("wd1:" + secrets.token_hex(32))
+#: Never used to create anything, in any test.
+UNUSED_KEY = IdempotencyKey("wd1:" + secrets.token_hex(32))
 
 #: Awkward on purpose: CRLF and a blank-line run, so a round trip that silently reflows the
 #: description is visible rather than assumed away.
@@ -216,6 +221,9 @@ class TestLookup:
         None as "nothing is there, safe to create" will produce a duplicate the moment
         indexing is slow, which is the failure ADR 0020 exists to prevent.
         """
+        # Only an adapter whose clock and index lag can be staged can show this; a real Jira
+        # may index at once (and is skipped here, before anything is created).
+        arrange(harness.at, ticketing, NOW)
         ticketing.upsert_issue(a_spec(), KEY)
         assert ticketing.find_issue(KEY) is None
         assert arrange(harness.issue_count, ticketing) == 1
@@ -226,7 +234,7 @@ class TestLookup:
     def test_an_unused_key_also_misses(self, ticketing: Any) -> None:
         """Which is exactly why a miss settles nothing: it looks identical to the case
         above, and the adapter cannot tell them apart."""
-        assert ticketing.find_issue(OTHER_KEY) is None
+        assert ticketing.find_issue(UNUSED_KEY) is None
 
 
 class TestReadBack:

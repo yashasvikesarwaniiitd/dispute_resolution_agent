@@ -12,7 +12,7 @@ All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The d
 
 **Waiting on the owner:**
 1. Done 2026-11-04: P6-12 passed (traces reach Application Insights with no content).
-2. Real channels: the test mailbox and Jira project settings in `.env` are empty, so Outlook and Jira have only run against fakes (`docs/SETUP_CHANNELS.md`).
+2. Real channels: Jira is connected and tested live (D58). Outlook waits: the personal account needs its own directory (an Azure sign-up the owner is postponing to keep its free credit).
 3. Done 2026-11-04: pattern_analyst passed its live eval and is active (D57). Still optional: `make agents-sync` for the reply-reader agent so the third red-team route can run.
 
 Foundry spend so far: about $0.66 of the $150 cap.
@@ -94,6 +94,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D55 | (2026-11-04) P6-12 closed: the owner created Application Insights and set the connection string locally; the integration check passed with no message content exported. Phase 6 is complete. |
 | D56 | (2026-11-04) End-to-end test of the running app (`tests/e2e/test_running_app_end_to_end.py`): a dispute over HTTP, the review console's own class deciding, the runner ticking, to RESOLVED_CREDITED. It found that the running app could never send or credit: the kill-switch check read the database on the writer engine while the case's own write transaction was open, timed out and failed safe (`kill_switch_active`). Fixed with a deferred reader (`infra/sqlite/control_flags.py`); the scenario suite had not seen it because it uses a different kill switch, and the app-level tests stopped before any write. |
 | D57 | (2026-11-04) Owner: "do these" - the PA-E1 strictness was left to Claude Code. Kept strict (no identifier of any kind in a hypothesis statement) and the prompt aligned to it. Live run 5 passed 6 of 6 ($0.032; $0.31 of the $0.50 cap in all), so `pattern_analyst` v1 is `active`. The running app uses it only when `model_gateway` is on. |
+| D58 | (2026-11-04) Real Jira connected (owner's personal Atlassian site, project WD; settings in `.env`). Live contract suite and a live end-to-end test pass: five disputes over HTTP, the cross-case job opens one investigation (WD-42) through the executor, read back VERIFIED, no duplicate on a second run. Found live and fixed: `/search/jql` returns ids without keys, so look-before-write raised KeyError on every real hit. Outlook deferred by the owner: a personal Microsoft account needs its own directory, which needs an Azure sign-up whose free credit the owner is saving. `config/modules.local.yaml` (git-ignored) switches real channels on one machine; the shared config and CI keep the fakes. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 
