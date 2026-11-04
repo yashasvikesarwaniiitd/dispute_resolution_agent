@@ -152,8 +152,9 @@ def try_agent(*args: str) -> int:
     return uv("python", "scripts/try_agent.py", *args)
 
 
-def evaluate() -> int:
-    return pending("eval", "Phase 4 (card P4-11), enforced in Phase 6 (card P6-03)")
+def evaluate(*args: str) -> int:
+    """Baseline versus model on the scenario catalogue. `--live` uses Foundry (costs)."""
+    return uv("python", "scripts/eval.py", *args)
 
 
 TARGETS = {
@@ -185,6 +186,8 @@ def main(argv: Sequence[str]) -> int:
         return 0
     if argv[0] == "try-agent":
         return try_agent(*argv[1:])
+    if argv[0] == "eval":
+        return evaluate(*argv[1:])
     if argv[0] == "foundry-login":
         return foundry_login(*argv[1:])
     code = 0
