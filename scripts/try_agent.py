@@ -81,6 +81,7 @@ def main() -> int:
             clock=clock,
             ids=ids,
             fake_answer=offline_answer,
+            secondary="anthropic_direct" if args.with_haiku else None,
         )
         reasoner = build_llm_reasoner(
             gateway, settings=settings, policy=policy, clock=clock, ids=ids
