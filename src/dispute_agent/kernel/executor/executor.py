@@ -63,6 +63,10 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.policy.verdicts import PolicyContext
 
 
+#: Extra tries after a TransientPortError, only on ports with idempotent writes.
+TRANSIENT_RETRIES = 2
+
+
 class Outcome(StrEnum):
     """What one call of `execute` or `verify` concluded."""
 
@@ -388,7 +392,7 @@ class ActionExecutor:
             return self._to_unknown(action_id, now, "recovery_unconfirmed")
 
         try:
-            receipt = port.send(payload, key)
+            receipt = self._send_with_retries(port, payload, key)
         except AmbiguousOutcome as exc:
             # May or may not have happened. Retrying could do it twice; calling it failed
             # could lose a credit that was posted. Neither is acceptable (I4).
@@ -410,6 +414,18 @@ class ActionExecutor:
             )
             return ExecutionResult(Outcome.FAILED, action_id, "permanent")
         except TransientPortError as exc:
+            # Look before labelling, as for an ambiguous write: the call says nothing was
+            # written, but a draft carrying our key may exist (S12b, stuck in Drafts). Found
+            # -> SENT; a draft only -> UNKNOWN for a person; nothing -> FAILED below.
+            if port.lookup_supported:
+                try:
+                    found = port.find_sent(key)
+                except AmbiguousOutcome as unclear:
+                    return self._to_unknown(action_id, now, f"lookup_ambiguous:{unclear}")
+                except TransientPortError:
+                    found = None
+                if found is not None:
+                    return self._to_sent(action_id, now, found, "found_by_lookup")
             # Nothing was written: TransientPortError means the call certainly did not take
             # effect, which is precisely why it is a different type from AmbiguousOutcome.
             # That is a contract every adapter must keep - a timeout *after* a write was
@@ -425,6 +441,24 @@ class ActionExecutor:
             return ExecutionResult(Outcome.FAILED, action_id, "transient_exhausted")
 
         return self._to_sent(action_id, now, receipt, "sent")
+
+    def _send_with_retries(self, port: WritePort, payload: object, key: IdempotencyKey) -> object:
+        """Send; retry a certain non-write only where the far end ignores repeats.
+
+        CLAUDE.md section 7: retry only idempotent operations. A TransientPortError promises
+        nothing was written, and a far end with idempotent writes (the ledger: the same key
+        returns the first transaction) makes a repeat harmless, so up to TRANSIENT_RETRIES
+        more tries (scenario S11). Email has no idempotency, so a failed send is never
+        retried blindly - the recovery path's lookup decides instead.
+        """
+        attempts = TRANSIENT_RETRIES + 1 if port.idempotent_writes else 1
+        for attempt in range(attempts):
+            try:
+                return port.send(payload, key)
+            except TransientPortError:
+                if attempt == attempts - 1:
+                    raise
+        raise AssertionError("unreachable")  # pragma: no cover
 
     # -- verify ----------------------------------------------------------------------------
 

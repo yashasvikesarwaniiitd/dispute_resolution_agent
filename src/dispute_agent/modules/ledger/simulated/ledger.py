@@ -95,6 +95,8 @@ class SimulatedLedger:
     def post_credit(self, req: CreditRequest, key: IdempotencyKey) -> TransactionRef:
         mode = self.failure_mode
         if mode == "timeout_before":
+            # A one-off, like a real timeout: the next try reaches the ledger (S11).
+            self.failure_mode = None
             raise TransientPortError("the ledger did not respond (nothing was written)")
         if mode == "error_500_not_applied":
             raise AmbiguousOutcome("the ledger returned 500 (it may or may not have written)")

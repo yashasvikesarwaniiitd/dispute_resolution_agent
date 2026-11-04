@@ -399,26 +399,23 @@ class Dispatcher:
         inbox_id: InboxId,
         choice: HumanTookCase,
     ) -> DispatchResult:
-        """The hand_off step (T33, T36): a person takes the case.
+        """The hand_off step: a person takes the case (T33-T36).
 
-        Without a notice, T33. With one, the spec drafts a handed_to_human_notice through the
-        review queue (T34/T35); that template does not exist yet, so the notice is recorded
-        as not sent (NOTICE_NOT_SENT) and the person still owns the case (T36) - they are
-        told, in the trail, that the seller was not. BACKLOG: the notice template.
+        Without a notice, T33 here. With one, the `hand_off` step drafts the
+        handed_to_human_notice and puts it through policy - in the pilot, your approval
+        (T34) - and a notice that cannot be sent is T36 with NOTICE_NOT_SENT on the trail.
         """
-        trigger = Trigger.HUMAN_TOOK_CASE
         if choice.notify_seller:
-            trigger = Trigger.FOLLOW_UP_BLOCKED
-            self._append(
-                case,
-                InternalEventType.NOTICE_NOT_SENT,
-                event,
-                recorded,
-                "no handed_to_human_notice template yet; the seller was not told",
+            moved, events = self.orchestrator.run_named(
+                case, "hand_off", recorded.id, commit=self._commit
             )
+            self._write(events)
+            final = self._advance(moved, recorded) if moved.state is not case.state else moved
+            self._accepted(case, event, inbox_id, recorded)
+            return DispatchResult(inbox_id, case.id, "step:hand_off", final.state)
         moved, events = self.orchestrator.apply_trigger(
             case,
-            trigger,
+            Trigger.HUMAN_TOOK_CASE,
             Cause(kind=CauseKind.INPUT_EVENT, ref=str(recorded.id)),
             recorded.id,
             guards=self._guards(case, event),
@@ -427,7 +424,7 @@ class Dispatcher:
         )
         self._write(events)
         self._accepted(case, event, inbox_id, recorded)
-        return DispatchResult(inbox_id, case.id, f"step:hand_off:{trigger.value}", moved.state)
+        return DispatchResult(inbox_id, case.id, "step:hand_off:HUMAN_TOOK_CASE", moved.state)
 
     # -- guards an inbound event's transitions read (transitions.yaml `guards`) ----------------
 

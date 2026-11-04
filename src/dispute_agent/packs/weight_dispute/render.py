@@ -49,6 +49,8 @@ TEMPLATE_FOR_KIND = {
     # Cites `credited_amount`, the kernel fact taken from the verified ledger transaction;
     # without it the render stops, so a confirmation can never go out with no amount (MD-F6).
     "credit_confirmation": "credit_confirmation.md.j2",
+    # A person took the case and asked for the seller to be told (T34-T36). No numbers.
+    "handed_to_human_notice": "handed_to_human_notice.md.j2",
 }
 
 

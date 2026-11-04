@@ -17,6 +17,7 @@ from dispute_agent.kernel.executor.executor import ActionExecutor
 from dispute_agent.kernel.orchestrator.dispatch import Dispatcher
 from dispute_agent.kernel.orchestrator.effects import TransitionEffects
 from dispute_agent.kernel.orchestrator.execution import ApplyApprovalStep, ExecuteStep, VerifyStep
+from dispute_agent.kernel.orchestrator.handoff import HandOffStep
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
 from dispute_agent.kernel.orchestrator.reminder import ReminderStep
@@ -26,14 +27,18 @@ from dispute_agent.kernel.policy.engine import PolicyEngine
 from dispute_agent.kernel.policy.rules import phase_5_rules
 from dispute_agent.kernel.statemachine.machine import StateMachine
 from dispute_agent.modules.cross_case.null import NullOutcomeObserver, NullPatternContextProvider
+from dispute_agent.modules.evidence.disabled import DisabledEvidenceSource
 from dispute_agent.modules.input_screen.rules_based import RulesBasedInputScreen
+from dispute_agent.modules.reasoning.disabled import DisabledReasoner
 from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
+from dispute_agent.packs.weight_dispute.eligibility import STATUS_KEY
 from dispute_agent.packs.weight_dispute.render import TemplateDrafter
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
+    from dispute_agent.kernel.domain.case import CaseFacts
     from dispute_agent.kernel.domain.enums import ActionType
     from dispute_agent.kernel.domain.ids import EventId
     from dispute_agent.kernel.domain.models import Case
@@ -80,7 +85,10 @@ class Line:
             PolicyEngine(phase_5_rules(), self.clock, self.ids), work.actions, self.kill_switch
         )
         baseline = RulesOnlyReasoner(pack=self.pack, ids=self.ids, clock=self.clock)
-        reasoner = self.reasoner or baseline
+        reasoning_on = self.modules.get("reasoning", True)
+        # Reasoning switched off: the line has no reasoner, and the baseline decides what it
+        # can; when it cannot, the case goes to a person naming the module (I6, S29a/b).
+        reasoner = (self.reasoner or baseline) if reasoning_on else DisabledReasoner()
         fallback = (
             None
             if reasoner is baseline
@@ -91,10 +99,14 @@ class Line:
         drafter = TemplateDrafter()
         return {
             **phase_1_steps(),
-            "eligibility": EligibilityStep(self.pack),
+            "eligibility": EligibilityStep(self.pack, facts=self._eligibility_facts),
             "gather_evidence": GatherEvidenceStep(
                 pack=self.pack,
-                sources=self.sources(),
+                sources=(
+                    self.sources()
+                    if self.modules.get("evidence", True)
+                    else {"evidence": DisabledEvidenceSource()}
+                ),
                 store=work.evidence,
                 ids=self.ids,
                 timers_store=work.timers,
@@ -105,7 +117,7 @@ class Line:
                     evidence=work.evidence,
                     proposals=work.proposals,
                     ids=self.ids,
-                    interpreter=self.interpreter,
+                    interpreter=self.interpreter if reasoning_on else None,
                 ),
             ),
             "assess": AssessStep(self.pack, work.evidence, work.assessments),
@@ -163,6 +175,17 @@ class Line:
                 modules=self.modules,
                 config=self.policy,
             ),
+            "hand_off": HandOffStep(
+                drafter=drafter,
+                policy=rules,
+                assessments=work.assessments,
+                intents=work.intents,
+                approvals=work.approvals,
+                ids=self.ids,
+                executor=executor,
+                modules=self.modules,
+                config=self.policy,
+            ),
             "reminder": ReminderStep(
                 drafter=drafter,
                 policy=rules,
@@ -176,6 +199,27 @@ class Line:
                 config=self.policy,
             ),
         }
+
+    def _eligibility_facts(self, case: Case) -> CaseFacts:
+        """The delivery status from the evidence source, when the dispute did not carry it."""
+        facts = case.facts
+        if STATUS_KEY in facts.pack_facts:
+            return facts
+        requirement = next(
+            (r for r in self.pack.evidence_plan(facts) if r.key == "shipment.status"), None
+        )
+        source = (
+            self.sources().get("evidence")
+            if self.modules.get("evidence", True)
+            else DisabledEvidenceSource()
+        )
+        if requirement is None or source is None:
+            return facts
+        result = source.fetch(case.id, facts, requirement)  # ModuleUnavailable propagates
+        status = (result.value or {}).get("status") if result.status.value == "FOUND" else None
+        if status is None:
+            return facts  # unknown stays unknown: eligibility says so, a person decides
+        return facts.model_copy(update={"pack_facts": {**facts.pack_facts, STATUS_KEY: status}})
 
     def orchestrator(self, work: SqliteUnitOfWork) -> Orchestrator:
         return Orchestrator(

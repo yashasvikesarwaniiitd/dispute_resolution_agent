@@ -42,7 +42,7 @@ from dispute_agent.kernel.orchestrator.evidence import MODULE_UNAVAILABLE, gathe
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from datetime import datetime
 
     from dispute_agent.kernel.domain.case import CaseFacts
@@ -84,6 +84,7 @@ class RetryTimers(Protocol):
     def retries_this_round(self, case_id: CaseId, gather_round: int) -> int: ...
 
     def schedule(self, timer: Timer) -> Timer: ...
+    def active_for_case(self, case_id: CaseId) -> Sequence[Timer]: ...
 
 
 class CasePack(Protocol):
@@ -114,10 +115,15 @@ class EligibilityStep:
     """May this dispute proceed at all? Three answers, and `unknown` goes to a person."""
 
     pack: CasePack
+    #: Completes the facts eligibility needs from evidence when the dispute did not carry
+    #: them (the delivery status). A source that is switched off raises ModuleUnavailable,
+    #: which the loop turns into module_unavailable:<module> - never a guess (I6, S46).
+    facts: Callable[[Case], CaseFacts] | None = None
     name: str = "eligibility"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
-        result = self.pack.eligibility(case.facts)
+        facts = self.facts(case) if self.facts is not None else case.facts
+        result = self.pack.eligibility(facts)
         if result.outcome == "eligible":
             return StepOutcome(trigger=Trigger.ELIGIBILITY_PASSED)
         if result.outcome == "ineligible":
@@ -156,6 +162,12 @@ class GatherEvidenceStep:
     name: str = "gather_evidence"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
+        if self.timers_store is not None and any(
+            t.kind is TimerKind.EVIDENCE_RETRY for t in self.timers_store.active_for_case(case.id)
+        ):
+            # A retry is already armed for this round: rest until it fires. Fetching again
+            # now would arm a second one (the runner advances resting cases on every tick).
+            return StepOutcome(detail="waiting for the evidence retry")
         fired = (
             self.timers_store.retries_this_round(case.id, case.gather_round)
             if self.timers_store is not None

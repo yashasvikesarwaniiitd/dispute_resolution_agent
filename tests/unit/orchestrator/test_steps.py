@@ -136,6 +136,10 @@ class FakeTimers:
         self.armed.append(timer)
         return timer
 
+    def active_for_case(self, case_id: CaseId) -> list[Timer]:
+        """Each test runs the step once per armed timer; none is still waiting to fire."""
+        return []
+
 
 @dataclass
 class FakeSource:

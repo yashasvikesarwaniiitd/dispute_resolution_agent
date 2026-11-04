@@ -136,8 +136,10 @@ class ReplyReader:
                 None,
             )
         except KernelError as failed:
-            # Any model failure, budget stop or guardrail block: unread, and said so.
-            return None, f"reply_unreadable:{failed.code}"
+            # Any model failure, budget stop or guardrail block: unread, and said so - with
+            # the budget's own kind, so the reviewer sees which limit was reached.
+            cause = getattr(failed, "kind", None) or failed.code
+            return None, f"reply_unreadable:{cause}"
 
 
 def requested_items(proposals: Sequence[Proposal]) -> tuple[str, ...]:

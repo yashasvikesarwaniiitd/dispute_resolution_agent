@@ -183,11 +183,15 @@ class TestItRefusesRatherThanLeavingABlank:
         with pytest.raises(DomainValidationError):
             render(a_context(facts=()), shipment_ref=SHIPMENT)
 
-    def test_a_kind_with_no_template_refuses(self) -> None:
+    def test_a_kind_with_no_template_refuses(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Falling back to something generic would be a generic message about a case, which
-        is worse than no message."""
+        is worse than no message. Every kind has a template now, so one is removed here."""
+        from dispute_agent.packs.weight_dispute import render as module
+
+        without = {k: v for k, v in module.TEMPLATE_FOR_KIND.items() if k != "reminder"}
+        monkeypatch.setattr(module, "TEMPLATE_FOR_KIND", without)
         with pytest.raises(DomainValidationError, match="no template"):
-            render(a_context(MessageKind.HANDED_TO_HUMAN_NOTICE), shipment_ref=SHIPMENT)
+            render(a_context(MessageKind.REMINDER), shipment_ref=SHIPMENT)
 
 
 class TestPhaseFiveTemplates:

@@ -36,6 +36,25 @@ def raise_to_floor(verdict: VerdictKind, signals: Sequence[CautionSignal]) -> Ve
     return max(verdict, floor_of(signals))
 
 
+def repeat_dispute_signal(prior_case_id: str, already_credited: bool) -> CautionSignal:
+    """R24: a dispute linked to an earlier case on the same shipment and claim.
+
+    Always at least REQUIRE_APPROVAL; ESCALATE when the shipment has any non-FAILED credit,
+    in any case and whatever that case's outcome (policy-rules.md R24, I7). A signal is a
+    floor: it can make the verdict stricter, never looser.
+    """
+    return CautionSignal(
+        kind="repeat_dispute",
+        min_verdict=VerdictKind.ESCALATE if already_credited else VerdictKind.REQUIRE_APPROVAL,
+        reason=(
+            "repeat_dispute: the shipment was already credited"
+            if already_credited
+            else "repeat_dispute: an earlier case exists for this shipment and claim"
+        ),
+        source_ref=prior_case_id,
+    )
+
+
 def screen_flag_signal(reason: str, source_ref: str) -> CautionSignal:
     """The screen is unavailable or flagged something (I15).
 

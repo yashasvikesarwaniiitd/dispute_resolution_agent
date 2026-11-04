@@ -149,6 +149,9 @@ def open_world(
     statement: str | None = None,
     notes: tuple[str, ...] | None = None,
     interpreter: ReplyInterpreter | None = None,
+    evidence_faults: dict[str, str] | None = None,
+    kill_switch: Any = None,
+    status_known: bool = True,
 ) -> World:
     """A synthetic dispute opened on the whole line, ready to drive, reply to and tick."""
     built = fixture(name)
@@ -187,17 +190,20 @@ def open_world(
             return IssueWritePort(tickets, case.id, tickets.project_key)
         return CreditWritePort(ledger, case.id)
 
+    source = SyntheticShipmentSource(fixture=built, clock=clock, faults=dict(evidence_faults or {}))
     line = Line(
         pack=WeightDisputePack(),
         policy=policy,
         clock=clock,
         ids=ids,
         ports=ports,
-        sources=lambda: {"evidence": SyntheticShipmentSource(fixture=built, clock=clock)},
+        # Built once: its attempt counter is what makes `timeout_twice` fail, fail, then work.
+        sources=lambda: {"evidence": source},
         reasoner=reasoner,
         ledger=ledger,
         interpreter=interpreter,
         modules={module: module not in modules_off for module in _ALL_ON},
+        **({"kill_switch": kill_switch} if kill_switch is not None else {}),
     )
     engine = create_sqlite_engine(folder / "cases.sqlite3")
     apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))
@@ -212,7 +218,10 @@ def open_world(
             if built.statement
             else None
         ),
-        pack_facts={STATUS_KEY: built.shipment.status},
+        # The dispute normally carries the delivery status. When it does not
+        # (`status_known=False`), eligibility reads it from the evidence source - and an
+        # unavailable source is a named escalation, never a guess (S46; contrast S05b).
+        pack_facts={STATUS_KEY: built.shipment.status} if status_known else {},
     )
     try:
         with SqliteUnitOfWork(engine, clock=clock) as work:
@@ -233,6 +242,7 @@ def open_world(
         causation=causation,
         decide=decide,
         path=[case.state],
+        source=source,
     )
 
 
@@ -252,6 +262,8 @@ class World:
     causation: EventId
     decide: Callable[[Approval], ApprovalDecision | None]
     path: list[CaseState] = field(default_factory=list)
+    #: The synthetic evidence source, so a scenario can make the ops finding available.
+    source: SyntheticShipmentSource | None = None
 
     @property
     def runner(self) -> Runner:

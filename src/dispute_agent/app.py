@@ -49,6 +49,7 @@ from dispute_agent.modules.tracing.noop import NoopTracer
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from dispute_agent.api.scenario_runner import ScenarioModels
     from dispute_agent.kernel.domain.reasoning import ModelRequest
     from dispute_agent.kernel.policy.config import PolicyConfig
     from dispute_agent.kernel.ports import (
@@ -479,6 +480,54 @@ def build_foundry_gateway(settings: Settings, policy: PolicyConfig) -> ModelGate
         ),
         lock=read_lock(FOUNDRY_LOCK),
         price=load_price(PRICING, ROUTE, settings.foundry_model_deployment),
+    )
+
+
+def build_scenario_models(
+    answer: Callable[[ModelRequest], str | dict[str, object]],
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+) -> ScenarioModels:
+    """The scenario suite's model path: recorded answers behind the real spending guard.
+
+    Built here because this is the only file allowed to construct a route to a model
+    (tests/architecture/test_guarded_model_path.py). `answer` is the scripted model; a fault
+    it names ("unavailable") on the primary makes a second, healthy fake the failover route,
+    so F01 is exercised for real (S23a).
+    """
+    import tempfile
+
+    from dispute_agent.infra.sqlite.model_call_log import open_model_call_log
+    from dispute_agent.kernel.gateway.budgeted import BudgetedModelGateway
+    from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
+    from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
+    from dispute_agent.modules.reasoning.llm.reasoner import LlmReasoner
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    down = getattr(answer, "fault", None) == "unavailable"
+    primary = FakeModelGateway(responder=(lambda _req: "unavailable") if down else answer)
+    secondary = FakeModelGateway(responder=answer) if down else None
+    log = Path(tempfile.mkdtemp(prefix="scenario-calls-")) / "calls.sqlite3"
+    gateway = BudgetedModelGateway(
+        primary=primary,
+        route="fake",
+        ledger=open_model_call_log(log),
+        limits=policy.llm,
+        money=policy.llm_primary,
+        clock=clock,
+        ids=ids,
+        secondary=secondary,
+        secondary_cap_usd=policy.llm_secondary.spend_cap_usd,
+    )
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=True)
+    from dispute_agent.api.scenario_runner import ScenarioModels
+
+    return ScenarioModels(
+        gateway=gateway,
+        reasoner=LlmReasoner(prompts=registry, gateway=gateway, ids=ids, clock=clock),
+        interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
+        secondary=secondary,
     )
 
 

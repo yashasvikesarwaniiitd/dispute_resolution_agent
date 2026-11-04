@@ -316,6 +316,9 @@ class VerifyStep:
         kind = _verified_kind(intent)
         guards = dict.fromkeys(set(_KIND_GUARDS.values()), False)
         guards[_KIND_GUARDS[kind]] = True
+        # Supplied for every kind: T24 names it, and the machine never assumes a missing
+        # guard holds - a notice or reminder must not stop the case with a ConfigError.
+        guards["credit_verified_for_case"] = False
         if kind == "credit":
             return self._confirm_credit(case, intent, now)
         if kind == "credit_confirmation":

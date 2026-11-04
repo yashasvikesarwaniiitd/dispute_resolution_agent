@@ -73,9 +73,11 @@ from dispute_agent.kernel.domain.reasoning import (
     ScreenResult,
 )
 from dispute_agent.kernel.domain.values import Money
+from dispute_agent.kernel.executor.executor import _start_of_day
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
 from dispute_agent.kernel.policy.config import PolicyConfig
 from dispute_agent.kernel.policy.credit import credit_amount
+from dispute_agent.kernel.policy.signals import repeat_dispute_signal
 from dispute_agent.kernel.policy.verdicts import PolicyContext
 
 if TYPE_CHECKING:
@@ -86,6 +88,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle
     from dispute_agent.kernel.domain.ids import EvidenceItemId
     from dispute_agent.kernel.domain.models import Case
+    from dispute_agent.kernel.domain.patterns import CautionSignal
     from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal, ReplyReading
     from dispute_agent.kernel.domain.values import UntrustedText
     from dispute_agent.kernel.ports import (
@@ -191,6 +194,9 @@ class InvestigateStep:
         if isinstance(screened, StepOutcome):
             return screened
         briefing = briefing.model_copy(update={"screen_results": screened})
+        stopped = self._before_reasoning(case, briefing.allowed_actions)
+        if stopped is not None:
+            return stopped
         decided = self._propose(briefing)
         if isinstance(decided, StepOutcome):
             return decided
@@ -212,6 +218,84 @@ class InvestigateStep:
         return self._act_on(
             case, proposal, assessment, now, briefing.allowed_actions, briefing.screen_results
         )
+
+    def _before_reasoning(self, case: Case, menu: tuple[ProposalAction, ...]) -> StepOutcome | None:
+        """What stops a round before any model call (I6, I15).
+
+        A reply the interpreter could not read because it was blocked, over budget or drifted
+        goes to a person with that reason - not with whatever the investigator would have said
+        about a round it could not see. And a module some action on this case's menu needs is
+        switched off: the case goes to a person naming it, before a model call is spent on a
+        proposal that could not be carried out (eval-scenarios S20, S41).
+        """
+        bundle = self.evidence.bundle(case.id, case.gather_round)
+        for item in bundle.items:
+            code = item.result.error_code or ""
+            if item.result.requirement_key == "seller_reply" and code.startswith(
+                "reply_unreadable:"
+            ):
+                cause = code.split(":", 1)[1]
+                if cause in _REPLY_FAILURE:
+                    return _escalate(_REPLY_FAILURE[cause], f"the seller's reply: {cause}")
+        for module in _MODULE_ORDER:
+            if any(module in _NEEDS.get(a, ()) for a in menu) and not self.modules.get(
+                module, False
+            ):
+                return StepOutcome(
+                    trigger=Trigger.ESCALATE,
+                    review_reason=ReviewReason(
+                        code=ReviewCode.MODULE_UNAVAILABLE,
+                        module=module,
+                        detail=f"this case may need {module}, which is switched off",
+                    ),
+                    detail=f"module_unavailable:{module}",
+                )
+        return None
+
+    def _escalation(
+        self,
+        case: Case,
+        proposal: Proposal,
+        assessment: ChargeAssessment,
+        now: datetime,
+        menu: tuple[ProposalAction, ...],
+        screens: tuple[ScreenResult, ...],
+    ) -> StepOutcome:
+        """The proposal is "a person should decide": say why as precisely as code can.
+
+        The caution rules still run on it, and a specific reason they find - manipulation,
+        a claimed withdrawal, low confidence - is what the reviewer sees, rather than the
+        generic "the proposal said escalate" (policy-rules.md section 8).
+        """
+        if len(assessment.definite_errors) > 1:
+            return _escalate(
+                ReviewCode.MULTIPLE_DEFINITE_ERRORS,
+                "the assessment proves more than one error; one credit per case",
+            )
+        verdict = self.policy.evaluate(
+            PolicyContext(
+                case=case,
+                stage=PolicyStage.PLANNING,
+                proposal=proposal,
+                assessment=assessment,
+                modules=self.modules,
+                policy=self.config,
+                now=now,
+                signals=self._signals(case),
+                allowed_actions=menu,
+                screen_results=screens,
+                reply_readings=self.readings(case) if self.readings else (),
+            )
+        )
+        if verdict.verdict is not VerdictKind.ALLOW:
+            reason = _first_reason(verdict)
+            code = _review_code_for(reason, ReviewCode.PROPOSAL_ESCALATED)
+            if code is not ReviewCode.PROPOSAL_ESCALATED:
+                return _escalate(code, reason)
+            if verdict.signals and verdict.review_reason is not None:
+                # The floor came from a caution signal (R24): say so, with its reason.
+                return _escalate(verdict.review_reason.code, verdict.review_reason.detail or reason)
+        return _escalate(ReviewCode.PROPOSAL_ESCALATED, proposal.rationale[:200])
 
     # -- asking the reasoner -------------------------------------------------------------------
 
@@ -323,6 +407,19 @@ class InvestigateStep:
             )
         return self.contact(case, bundle or self.evidence.bundle(case.id, case.gather_round))
 
+    def _signals(self, case: Case) -> tuple[CautionSignal, ...]:
+        """Caution the case carries into every verdict (I7): R24 for a repeat dispute."""
+        if case.prior_case_id is None:
+            return ()
+        credited = (
+            None
+            if self.actions is None
+            else self.actions.credited_on_shipment(case.facts.shipment_ref)
+        )
+        # Unknown counts as credited: not knowing is a reason to be careful (money-rules 5).
+        already = credited is None or credited[0].to_paise() > 0
+        return (repeat_dispute_signal(str(case.prior_case_id), already),)
+
     def _message_counts(self, case: Case, now: datetime) -> dict[str, int]:
         """Messages already sent, so R04/R05 judge at planning what the executor re-checks.
 
@@ -334,8 +431,9 @@ class InvestigateStep:
             return {}
         return {
             "messages_sent_total": count(case.id),
+            # The same day the executor counts: in contact.day_boundary_tz, not UTC.
             "messages_sent_today": count(
-                case.id, since=now.replace(hour=0, minute=0, second=0, microsecond=0)
+                case.id, since=_start_of_day(now, self.config.contact.day_boundary_tz)
             ),
         }
 
@@ -353,7 +451,7 @@ class InvestigateStep:
         action = proposal.action
 
         if action is ProposalAction.ESCALATE_TO_HUMAN:
-            return _escalate(ReviewCode.PROPOSAL_ESCALATED, proposal.rationale[:200])
+            return self._escalation(case, proposal, assessment, now, menu, screens)
 
         if action is ProposalAction.WAIT:
             return self._wait(case, proposal, assessment, now, menu, screens)
@@ -454,6 +552,7 @@ class InvestigateStep:
             modules=self.modules,
             policy=self.config,
             now=now,
+            signals=self._signals(case),
             # So R01 checks it too - belt and braces with the check in `run`.
             allowed_actions=menu,
             screen_results=screens,
@@ -514,6 +613,7 @@ class InvestigateStep:
                 modules=self.modules,
                 policy=self.config,
                 now=now,
+                signals=self._signals(case),
                 allowed_actions=menu,
                 screen_results=screens,
                 reply_readings=readings,
@@ -680,6 +780,26 @@ _CODE_FOR_REASON = {
     "ledger_state_unknown": ReviewCode.LEDGER_STATE_UNKNOWN,
     "reply_unresolved": ReviewCode.REPLY_UNRESOLVED,
     "contact_limit": ReviewCode.POLICY_DENIED,
+}
+
+
+#: What each proposal action needs switched on to be carried out (I6, FLOW section 7).
+_NEEDS: dict[ProposalAction, tuple[str, ...]] = {
+    ProposalAction.REQUEST_SELLER_EVIDENCE: ("email", "approvals"),
+    ProposalAction.UPHOLD_CHARGE: ("email", "approvals"),
+    ProposalAction.REQUEST_REMEASUREMENT: ("ticketing",),
+    ProposalAction.PROPOSE_CREDIT: ("ledger", "approvals"),
+}
+_MODULE_ORDER = ("email", "ticketing", "ledger", "approvals")
+
+#: Why a reply could not be read -> what the reviewer is told (policy-rules.md section 8).
+_REPLY_FAILURE = {
+    "guardrail_blocked": ReviewCode.GUARDRAIL_BLOCKED,
+    "llm_budget_exceeded": ReviewCode.LLM_BUDGET_EXCEEDED,
+    "credit_cap_reached": ReviewCode.CREDIT_CAP_REACHED,
+    "credit_window_ended": ReviewCode.CREDIT_WINDOW_ENDED,
+    "agent_drift": ReviewCode.AGENT_DRIFT,
+    "invalid_model_output": ReviewCode.INVALID_MODEL_OUTPUT,
 }
 
 
