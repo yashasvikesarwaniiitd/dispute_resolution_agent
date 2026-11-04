@@ -149,6 +149,14 @@ class TestUntrustedText:
 
 
 class TestSettings:
+    @pytest.fixture(autouse=True)
+    def _clean_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Settings reads the real environment and `.env`; these tests must not, or a
+        developer's exported key changes the result - and lands in a failure message."""
+        for name in Settings.model_fields:
+            monkeypatch.delenv(name.upper(), raising=False)
+        monkeypatch.setitem(Settings.model_config, "env_file", None)
+
     def test_secrets_never_render(self) -> None:
         """SecretStr is the cheap half of I12; repr is where it pays off."""
         settings = Settings(app_env="test", anthropic_api_key=SENTINEL)
@@ -164,8 +172,16 @@ class TestSettings:
         settings = Settings(app_env="test", anthropic_api_key=SENTINEL, jira_api_token=OTHER_SECRET)
         assert settings.secret_values() == frozenset({SENTINEL, OTHER_SECRET})
 
-    def test_nothing_is_collected_when_nothing_is_loaded(self) -> None:
-        assert Settings(app_env="test").secret_values() == frozenset()
+    def test_nothing_is_collected_when_nothing_is_loaded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In a clean environment. Reading the developer's real environment made this fail
+        on a machine with ANTHROPIC_API_KEY exported - and print the key in the failure."""
+        for name in Settings.model_fields:
+            monkeypatch.delenv(name.upper(), raising=False)
+        loaded = Settings(_env_file=None, app_env="test").secret_values()
+        # Never print a collected value: count only.
+        assert len(loaded) == 0, f"{len(loaded)} secret value(s) collected"
 
     def test_content_capture_needs_both_the_flag_and_a_test_env(self) -> None:
         """I14. The flag alone is not enough, which is the point of checking it here."""

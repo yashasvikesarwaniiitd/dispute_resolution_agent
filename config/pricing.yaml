@@ -10,9 +10,15 @@
 # The key under foundry_agent_service is your FOUNDRY_MODEL_DEPLOYMENT name.
 
 currency: USD
-effective_date: null
+effective_date: 2026-11-04
 routes:
-  foundry_agent_service: {}
+  foundry_agent_service:
+    gpt-5-mini:
+      input_per_mtok: "0.25"
+      output_per_mtok: "2.00"
+      # ESTIMATE: OpenAI's published list price for gpt-5-mini, used because the Azure
+      # pricing page shows "$-". Replace with the portal's figure when you find it.
+      source: "estimate - OpenAI list price for gpt-5-mini, entered 2026-11-04; verify in Azure portal"
   # Example shape (values are placeholders, not prices):
   # foundry_agent_service:
   #   gpt-5-mini:

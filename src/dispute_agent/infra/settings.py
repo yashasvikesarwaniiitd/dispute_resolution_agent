@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     anthropic_model_haiku: str | None = None
     foundry_project_endpoint: str | None = None
     foundry_model_deployment: str | None = None
+    #: The Entra directory the pilot subscription lives in. Not a secret; pins the sign-in
+    #: to it, so a work account already signed in on the laptop is never picked up.
+    azure_tenant_id: str | None = None
     graph_client_id: str | None = None
     graph_mailbox: str | None = None
     #: The `consumers` authority, because the pilot account is a personal Outlook.com one

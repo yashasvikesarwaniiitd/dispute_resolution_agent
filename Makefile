@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval agents-sync foundry-check try-agent
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login demo eval agents-sync foundry-check foundry-login try-agent
 
 setup:
 	$(PY) setup
@@ -50,6 +50,10 @@ agents-sync:
 
 foundry-check:
 	$(PY) foundry-check
+
+# make foundry-login ARGS="--device-code" if the browser redirect is blocked
+foundry-login:
+	$(PY) foundry-login $(ARGS)
 
 # make try-agent ARGS="injection_in_statement --offline"
 try-agent:

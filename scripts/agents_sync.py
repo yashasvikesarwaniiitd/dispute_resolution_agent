@@ -1,6 +1,6 @@
 """`make agents-sync`: create or update the Foundry agent from the prompt in the repo.
 
-Run by the owner, after `az login` (foundry.md section 4, docs/SETUP_FOUNDRY.md). It changes
+Run by the owner, after `make foundry-login` (foundry.md section 4, docs/SETUP_FOUNDRY.md). It changes
 Foundry; nothing else in the project does.
 """
 
@@ -9,12 +9,21 @@ from __future__ import annotations
 import sys
 from datetime import UTC, datetime
 
-from dispute_agent.app import DEFAULT_CONFIG_DIR, FOUNDRY_LOCK, PROMPTS_DIR, build_model_policy
+from dispute_agent.app import (
+    DEFAULT_CONFIG_DIR,
+    FOUNDRY_AUTH_RECORD,
+    FOUNDRY_LOCK,
+    PROMPTS_DIR,
+    build_model_policy,
+)
 from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.errors import KernelError
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.modules.model_gateway.foundry_agent_service.client import (
     AzureAgentServiceClient,
+)
+from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
+    runtime_credential,
 )
 from dispute_agent.modules.model_gateway.foundry_agent_service.sync import sync_agent
 from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
@@ -43,7 +52,9 @@ def main() -> int:
     try:
         result = sync_agent(
             AzureAgentServiceClient(
-                settings.foundry_project_endpoint, timeout_s=policy.llm.call_timeout_s
+                settings.foundry_project_endpoint,
+                timeout_s=policy.llm.call_timeout_s,
+                credential=runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD),
             ),
             prompt_name=PROMPT,
             prompt_version=VERSION,
