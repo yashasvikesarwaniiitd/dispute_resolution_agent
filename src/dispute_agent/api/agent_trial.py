@@ -18,6 +18,7 @@ exactly as the API refuses it (S27) - which is what `non_allowlisted_seller` is 
 
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -40,11 +41,12 @@ from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, p
 from dispute_agent.kernel.orchestrator.steps import AssessStep, EligibilityStep, GatherEvidenceStep
 from dispute_agent.kernel.policy.config import MessagesConfig
 from dispute_agent.kernel.policy.engine import PolicyEngine
-from dispute_agent.kernel.policy.rules import phase_3_rules
+from dispute_agent.kernel.policy.rules import phase_5_rules
 from dispute_agent.kernel.statemachine.machine import StateMachine
 from dispute_agent.modules.cross_case.null import NullOutcomeObserver, NullPatternContextProvider
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import SELLER_CONTACT, fixture
 from dispute_agent.modules.evidence.synthetic_shipments.source import SyntheticShipmentSource
+from dispute_agent.modules.input_screen.rules_based import RulesBasedInputScreen
 from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
 from dispute_agent.packs.weight_dispute.eligibility import STATUS_KEY
 from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
@@ -94,8 +96,15 @@ def run_trial(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
+    statement: str | None = None,
+    notes: tuple[str, ...] | None = None,
 ) -> TrialReport:
+    """`statement` and `notes` replace the fixture's own, for the injection evals (P4-09)."""
     built = fixture(name)
+    if statement is not None:
+        built = dataclasses.replace(built, statement=statement)
+    if notes is not None:
+        built = dataclasses.replace(built, notes=notes)
     pack = WeightDisputePack()
     now = clock.now()
     facts = CaseFacts(
@@ -147,8 +156,9 @@ def run_trial(
                         pack=pack,  # type: ignore[arg-type]
                         reasoner=watching,
                         fallback=fallback,
+                        screen=RulesBasedInputScreen(),
                         drafter=TemplateDrafter(),
-                        policy=PolicyEngine(phase_3_rules(), clock, ids),
+                        policy=PolicyEngine(phase_5_rules(), clock, ids),
                         evidence=work.evidence,
                         assessments=work.assessments,
                         intents=work.intents,

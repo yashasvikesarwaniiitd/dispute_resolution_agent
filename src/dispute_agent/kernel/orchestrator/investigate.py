@@ -44,6 +44,7 @@ from dispute_agent.kernel.domain.enums import (
     PolicyStage,
     ProposalAction,
     ReviewCode,
+    ScreenKind,
     Trigger,
     VerdictKind,
 )
@@ -61,24 +62,32 @@ from dispute_agent.kernel.domain.errors import (
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import ApprovalId, IntentId
 from dispute_agent.kernel.domain.models import ReviewReason
-from dispute_agent.kernel.domain.reasoning import CaseBriefing, ContactStatus, DraftContext
+from dispute_agent.kernel.domain.reasoning import (
+    CaseBriefing,
+    ContactStatus,
+    DraftContext,
+    ScreenResult,
+)
 from dispute_agent.kernel.orchestrator.orchestrator import StepOutcome
 from dispute_agent.kernel.policy.config import PolicyConfig
 from dispute_agent.kernel.policy.verdicts import PolicyContext
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from datetime import datetime
 
     from dispute_agent.kernel.domain.actions import ActionPayload, PolicyVerdict
     from dispute_agent.kernel.domain.evidence import ChargeAssessment
+    from dispute_agent.kernel.domain.ids import EvidenceItemId
     from dispute_agent.kernel.domain.models import Case
-    from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal
+    from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal, ReplyReading
+    from dispute_agent.kernel.domain.values import UntrustedText
     from dispute_agent.kernel.ports import (
         ApprovalStore,
         AssessmentStore,
         EvidenceStore,
         IdGenerator,
+        InputScreen,
         IntentStore,
         Reasoner,
     )
@@ -125,6 +134,12 @@ class InvestigateStep:
     #: model that cannot be reached (orchestrator.md section 5). None when `reasoner` is
     #: already the baseline: there is nothing further to fall back to.
     fallback: Reasoner | None = None
+    #: Reads every outside text of the round before the reasoner is asked (orchestrator.md
+    #: section 3, step 1). Advisory (I15): its flags reach the briefing and policy, and only
+    #: a provider block changes the path - to a person.
+    screen: InputScreen | None = None
+    #: The reply readings of this round, when a reply round is running (R20, R21).
+    readings: Callable[[Case], tuple[ReplyReading, ...]] | None = None
     name: str = "investigate"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -136,6 +151,10 @@ class InvestigateStep:
             return _escalate(ReviewCode.INTERNAL_ERROR, "no assessment for this round")
 
         briefing = self._briefing(case, assessment)
+        screened = self._screen(briefing)
+        if isinstance(screened, StepOutcome):
+            return screened
+        briefing = briefing.model_copy(update={"screen_results": screened})
         decided = self._propose(briefing)
         if isinstance(decided, StepOutcome):
             return decided
@@ -150,7 +169,9 @@ class InvestigateStep:
                 ReviewCode.INVALID_MODEL_OUTPUT,
                 f"proposed {proposal.action.value}, which is not on this case's menu",
             )
-        return self._act_on(case, proposal, assessment, now, briefing.allowed_actions)
+        return self._act_on(
+            case, proposal, assessment, now, briefing.allowed_actions, briefing.screen_results
+        )
 
     # -- asking the reasoner -------------------------------------------------------------------
 
@@ -209,6 +230,21 @@ class InvestigateStep:
             # caught at start-up; if it reaches a case, a person looks (review, M4).
             return _escalate(ReviewCode.INTERNAL_ERROR, f"prompt: {broken}")
 
+    # -- screening ---------------------------------------------------------------------------
+
+    def _screen(self, briefing: CaseBriefing) -> tuple[ScreenResult, ...] | StepOutcome:
+        """Every outside text of the round, screened before any model sees it (I15)."""
+        if self.screen is None:
+            return ()
+        results: list[ScreenResult] = []
+        for text, kind, item_id in _outside_texts(briefing):
+            result = self.screen.screen(text, kind)
+            results.append(result.model_copy(update={"evidence_item_id": item_id}))
+        if any(r.blocked for r in results):
+            # R23: a provider block is a person's call, and never fails over.
+            return _escalate(ReviewCode.GUARDRAIL_BLOCKED, "an outside text was blocked")
+        return tuple(results)
+
     # -- building the briefing ---------------------------------------------------------------
 
     def _briefing(self, case: Case, assessment: ChargeAssessment) -> CaseBriefing:
@@ -245,6 +281,7 @@ class InvestigateStep:
         assessment: ChargeAssessment,
         now: datetime,
         menu: tuple[ProposalAction, ...],
+        screens: tuple[ScreenResult, ...] = (),
     ) -> StepOutcome:
         action = proposal.action
 
@@ -302,6 +339,8 @@ class InvestigateStep:
                 now=now,
                 # So R01 checks it too - belt and braces with the check in `run`.
                 allowed_actions=menu,
+                screen_results=screens,
+                reply_readings=self.readings(case) if self.readings else (),
             )
         )
         return self._by_verdict(case, intent, verdict, now)
@@ -353,9 +392,11 @@ class InvestigateStep:
     ) -> StepOutcome:
         kind = verdict.verdict
         if kind is VerdictKind.DENY:
-            return _escalate(ReviewCode.POLICY_DENIED, _first_reason(verdict))
+            reason = _first_reason(verdict)
+            return _escalate(_review_code_for(reason, ReviewCode.POLICY_DENIED), reason)
         if kind is VerdictKind.ESCALATE:
-            return _escalate(ReviewCode.POLICY_ESCALATED, _first_reason(verdict))
+            reason = _first_reason(verdict)
+            return _escalate(_review_code_for(reason, ReviewCode.POLICY_ESCALATED), reason)
         if kind is VerdictKind.ALLOW:
             return _escalate(
                 ReviewCode.POLICY_ESCALATED,
@@ -380,6 +421,46 @@ class InvestigateStep:
             )
         )
         return StepOutcome(trigger=Trigger.VERDICT_REQUIRE_APPROVAL, detail="approval requested")
+
+
+#: A rule's reason prefix -> the review code a person sees (policy-rules.md section 8).
+#: A specific code tells the reviewer what to look at; "policy escalated" does not.
+_CODE_FOR_REASON = {
+    "manipulation_suspected": ReviewCode.MANIPULATION_SUSPECTED,
+    "seller_withdrawal_claimed": ReviewCode.SELLER_WITHDRAWAL_CLAIMED,
+    "low_confidence": ReviewCode.LOW_CONFIDENCE,
+    "guardrail_blocked": ReviewCode.GUARDRAIL_BLOCKED,
+    "multiple_definite_errors": ReviewCode.MULTIPLE_DEFINITE_ERRORS,
+    "ledger_state_unknown": ReviewCode.LEDGER_STATE_UNKNOWN,
+}
+
+
+def _review_code_for(reason: str, default: ReviewCode) -> ReviewCode:
+    """`reason` is "R21: manipulation_suspected: ..."; the code follows the rule's reason."""
+    after_rule = reason.split(": ", 1)[-1]
+    for prefix, code in _CODE_FOR_REASON.items():
+        if after_rule.startswith(prefix):
+            return code
+    return default
+
+
+def _outside_texts(
+    briefing: CaseBriefing,
+) -> list[tuple[UntrustedText, ScreenKind, EvidenceItemId | None]]:
+    out: list[tuple[UntrustedText, ScreenKind, EvidenceItemId | None]] = []
+    if briefing.facts.statement is not None:
+        out.append((briefing.facts.statement, ScreenKind.DISPUTE_STATEMENT, None))
+    kinds = {
+        "seller_email": ScreenKind.SELLER_REPLY,
+        "seller_portal": ScreenKind.SELLER_REPLY,
+        "jira_comment": ScreenKind.OPS_NOTE,
+        "shipment_note": ScreenKind.SHIPMENT_NOTE,
+        "dispute_form": ScreenKind.DISPUTE_STATEMENT,
+    }
+    for item in briefing.evidence.items:
+        for text in item.result.untrusted:
+            out.append((text, kinds.get(text.origin, ScreenKind.SELLER_REPLY), item.id))
+    return out
 
 
 def _escalate(code: ReviewCode, detail: str) -> StepOutcome:
