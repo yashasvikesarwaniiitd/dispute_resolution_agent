@@ -131,6 +131,8 @@ def main() -> int:
         )
         if reason.detail:
             print(f"  Detail: {reason.detail}")
+    if report.credit_amount:
+        print(f"\nCredit waiting for your approval: {report.credit_amount} (derived by code)")
     if report.email_body:
         print("\nDrafted email, waiting in your approval queue (NOT sent):")
         print(f"  Subject: {report.email_subject}")

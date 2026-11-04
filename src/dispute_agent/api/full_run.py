@@ -14,22 +14,32 @@ Nothing here reaches the network unless the caller passes real adapters in.
 
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dispute_agent.api.agent_trial import _open_case
 from dispute_agent.infra.sqlite.engine import apply_schema, create_sqlite_engine, schema_sql_path
+from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
 from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
 from dispute_agent.infra.transitions import default_table
 from dispute_agent.kernel.domain.case import CaseFacts
-from dispute_agent.kernel.domain.enums import ActionType, ActorKind, ApprovalDecision, CaseState
+from dispute_agent.kernel.domain.enums import (
+    ActionType,
+    ActorKind,
+    ApprovalDecision,
+    CaseState,
+    InboundEventType,
+)
+from dispute_agent.kernel.domain.events import Event, EventPayload, InboundEvent, InboundPayload
+from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
 from dispute_agent.kernel.domain.models import Actor
 from dispute_agent.kernel.domain.values import Money, UntrustedText
 from dispute_agent.kernel.executor.executor import ActionExecutor
 from dispute_agent.kernel.orchestrator.execution import ApplyApprovalStep, ExecuteStep, VerifyStep
+from dispute_agent.kernel.orchestrator.intake import Intake
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
 from dispute_agent.kernel.orchestrator.steps import AssessStep, EligibilityStep, GatherEvidenceStep
@@ -83,6 +93,10 @@ class FullReport:
     jira_issues: int = 0
     ledger_credits: int = 0
     subjects: list[str] = field(default_factory=list)
+    #: The run's case database, kept so a test or the demo can read the timeline afterwards.
+    database: Path | None = None
+    #: The plans still waiting for a decision when the run stopped (what the reviewer sees).
+    pending_payloads: list[Any] = field(default_factory=list)
 
 
 def run_full(
@@ -95,8 +109,20 @@ def run_full(
     decide: Callable[[Approval], ApprovalDecision | None] = lambda _a: ApprovalDecision.APPROVED,
     ledger_failure: str | None = None,
     max_rounds: int = 12,
+    modules_off: tuple[str, ...] = (),
+    statement: str | None = None,
+    notes: tuple[str, ...] | None = None,
 ) -> FullReport:
+    """`statement` and `notes` replace the fixture's own (the injection evals, P4-09).
+
+    Raises RecipientNotAllowedError when the fixture's seller is not the test seller: the
+    dispute is refused at intake, exactly as the API refuses it (S27).
+    """
     built = fixture(name)
+    if statement is not None:
+        built = dataclasses.replace(built, statement=statement)
+    if notes is not None:
+        built = dataclasses.replace(built, notes=notes)
     pack = WeightDisputePack()
     policy = policy.model_copy(
         update={
@@ -120,6 +146,7 @@ def run_full(
                 entry.transaction_id,
             )
     the_reasoner = reasoner or RulesOnlyReasoner(pack=pack, ids=ids, clock=clock)
+    modules = {name: name not in modules_off for name in _ALL_ON}
 
     def ports(case: Case, action_type: ActionType) -> Any:
         channel.now = clock.now()
@@ -189,7 +216,7 @@ def run_full(
                         intents=work.intents,
                         approvals=work.approvals,
                         ids=ids,
-                        modules=_ALL_ON,
+                        modules=modules,
                         config=policy,
                         proposals=work.proposals,
                         actions=work.actions,
@@ -203,7 +230,7 @@ def run_full(
                         executor=executor,
                         ids=ids,
                         ledger=ledger,
-                        modules=_ALL_ON,
+                        modules=modules,
                         config=policy,
                         assessments=work.assessments,
                     ),
@@ -223,7 +250,7 @@ def run_full(
                         drafter=TemplateDrafter(),
                         ids=ids,
                         assessments=work.assessments,
-                        modules=_ALL_ON,
+                        modules=modules,
                         config=policy,
                     ),
                 }
@@ -258,6 +285,10 @@ def run_full(
                     jira_issues=tickets.issue_count(),
                     ledger_credits=ledger.credit_count(),
                     subjects=[s.message.subject for s in channel._all],
+                    database=folder / "cases.sqlite3",
+                    pending_payloads=[
+                        work.intents.get(a.request.intent_id).payload for a in pending
+                    ],
                 )
             if case.state is CaseState.VERIFYING or (
                 case.state is CaseState.AWAITING_APPROVAL and not pending
@@ -275,6 +306,52 @@ def run_full(
         engine.dispose()
     assert report is not None
     return report
+
+
+def _open_case(
+    work: SqliteUnitOfWork, facts: CaseFacts, name: str, now: Any, ids: IdGenerator
+) -> tuple[Case, EventId]:
+    inbound = InboundEvent(
+        type=InboundEventType.DISPUTE_RAISED,
+        source="dispute_api",
+        source_event_id=f"trial-{name}-{ids.new_id('inb')}",
+        occurred_at=now,
+        actor=Actor(kind=ActorKind.EXTERNAL, id="dispute_api"),
+        payload=InboundPayload(),
+    )
+    SqliteInboxStore(work.connection).accept(inbound, now)
+    input_id = EventId(ids.new_id("evt"))
+    opened = Intake(
+        allowed_recipients=(SELLER_CONTACT,), reopen_window=timedelta(days=7)
+    ).open_or_get_case(
+        work.cases,
+        inbound,
+        facts,
+        pack="weight_dispute",
+        now=now,
+        case_id=CaseId(ids.new_id("case")),
+        correlation_id=CorrelationId(ids.new_id("corr")),
+        opened_event_id=EventId(ids.new_id("evt")),
+        causation_id=input_id,
+    )
+    work.cases.insert(opened.case)
+    raised = work.events.append(
+        Event(
+            id=input_id,
+            case_id=opened.case.id,
+            type=InboundEventType.DISPUTE_RAISED,
+            occurred_at=now,
+            recorded_at=now,
+            actor=Actor(kind=ActorKind.EXTERNAL, id="dispute_api"),
+            cause=opened.events[0].cause,
+            correlation_id=opened.case.correlation_id,
+            dedupe_key=inbound.dedupe_key,
+            payload=EventPayload(),
+        )
+    )
+    for event in opened.events:
+        work.events.append(event)
+    return opened.case, raised.id
 
 
 _ALL_ON = dict.fromkeys(

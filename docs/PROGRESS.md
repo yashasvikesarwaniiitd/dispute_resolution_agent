@@ -14,9 +14,9 @@
 | 2 Weight-dispute pack | Next | | Build from `docs/spec/task-cards/phase-2.md`. Three Phase 1 items land here: the gather_evidence scenario for ADR 0026, and the steps that currently escalate (eligibility, assess, investigate) |
 | 3 Real channels | Not started | | |
 | 4P Prototype agent (ADR 0029) | Complete; live on Foundry (wd-case-investigator v1, gpt-5-mini) | | `make verify` green (2318 passed); safety review 1 HIGH + 4 MED + 5 LOW, fixed or recorded; `docs/SETUP_FOUNDRY.md`, `make try-agent` |
-| 4 Agent reasoning | Not started | | Remainder is 4+ (ADR 0029) |
+| 4+ Agent made trustworthy (ADR 0031) | Built; safety review pending | | reply interpreter, drafter, two-pass control, injection screen and corpus by every route, Haiku route and F01 failover, per-route caps, Prompt Shields annotations, allow-listed tracing, spend report, eval harness |
 | 4b Foundry integration | Not started | | |
-| 5 Approvals and ledger | Not started | | |
+| 5 Approvals and ledger (ADR 0032) | Built; safety review pending | | simulated ledger, action store, apply/execute/verify stations, credit flow S01 to RESOLVED_CREDITED, verification, credit review view, templates, offline demo |
 | 6 Evaluation and hardening | Not started | | |
 | 7 Cross-case intelligence | Not started | | |
 
@@ -56,6 +56,8 @@ Add one line per ADR: number, title, status.
 | 0028 | Phase 3 implementation notes | accepted |
 | 0029 | A prototype Foundry agent first, then improve it (with SDK addendum) | accepted (owner, 2026-11-04) |
 | 0030 | The model-call log lives in its own database file | accepted |
+| 0031 | Phase 4+ decisions: guardrails, structured output, injection layers, number words, failover | accepted |
+| 0032 | Phase 5: the ledger, the stations after approval, and how a credit is proven | accepted |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 

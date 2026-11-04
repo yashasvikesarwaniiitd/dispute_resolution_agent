@@ -1,15 +1,14 @@
-"""`make try-agent`: one synthetic dispute through the line, with the agent deciding (ADR 0029).
+"""`make try-agent`: one synthetic dispute through the line, stopping at your approval (ADR 0029).
 
-The prototype's front door. It runs a named synthetic case from intake to the investigate
-station - gather, assess, decide, draft, policy, approval request - with the model-backed
-reasoner, and reports what happened in plain words. It is the same line the end-to-end
-tests run, assembled here because the long-running runtime gains the investigate station
-only with the sending stations in Phase 5 (BACKLOG.md).
+The prototype's front door, now a thin view over the full single-case run (`full_run.py`):
+the same line, the same stations, the same rules - only it never answers an approval, so the
+furthest a case reaches is the approval queue. One code path for the trial, the demo and the
+end-to-end tests means they cannot drift apart.
 
-**It cannot send anything.** It uses a throwaway database in a temporary folder, the
-furthest any case can reach is the approval queue, and no channel is wired at all. The only
-thing that leaves the machine is the model call, and that goes through the spending guard
-and is logged to `data/model_calls.sqlite3` like any other.
+**It cannot send anything.** It runs in a throwaway database, against the email and Jira
+fakes and a temporary simulated ledger, and stops before any approval is given. The only
+thing that leaves the machine is the model call, which goes through the spending guard and
+is logged to `data/model_calls.sqlite3` like any other.
 
 The recipient allowlist is the one synthetic test seller (`SELLER_CONTACT`), as the owner's
 `.env` would name the test seller. A fixture with any other address is refused at intake,
@@ -18,63 +17,19 @@ exactly as the API refuses it (S27) - which is what `non_allowlisted_seller` is 
 
 from __future__ import annotations
 
-import dataclasses
-import tempfile
-from dataclasses import dataclass, field
-from datetime import timedelta
-from pathlib import Path
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from dispute_agent.infra.sqlite.engine import apply_schema, create_sqlite_engine, schema_sql_path
-from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
-from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
-from dispute_agent.infra.transitions import default_table
-from dispute_agent.kernel.domain.case import CaseFacts
-from dispute_agent.kernel.domain.enums import ActorKind, InboundEventType
-from dispute_agent.kernel.domain.events import Event, EventPayload, InboundEvent, InboundPayload
-from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
-from dispute_agent.kernel.domain.models import Actor
-from dispute_agent.kernel.domain.values import UntrustedText
-from dispute_agent.kernel.orchestrator.intake import Intake, RecipientNotAllowedError
-from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
-from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
-from dispute_agent.kernel.orchestrator.steps import AssessStep, EligibilityStep, GatherEvidenceStep
-from dispute_agent.kernel.policy.config import MessagesConfig
-from dispute_agent.kernel.policy.engine import PolicyEngine
-from dispute_agent.kernel.policy.rules import phase_5_rules
-from dispute_agent.kernel.statemachine.machine import StateMachine
-from dispute_agent.modules.cross_case.null import NullOutcomeObserver, NullPatternContextProvider
-from dispute_agent.modules.evidence.synthetic_shipments.fixtures import SELLER_CONTACT, fixture
-from dispute_agent.modules.evidence.synthetic_shipments.source import SyntheticShipmentSource
-from dispute_agent.modules.input_screen.rules_based import RulesBasedInputScreen
-from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
-from dispute_agent.packs.weight_dispute.eligibility import STATUS_KEY
-from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
-from dispute_agent.packs.weight_dispute.render import TemplateDrafter
+from dispute_agent.api.full_run import run_full
+from dispute_agent.infra.clock import FakeClock
+from dispute_agent.kernel.orchestrator.intake import RecipientNotAllowedError
+from dispute_agent.kernel.policy.numbers import render_fact
 
 if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
-    from dispute_agent.kernel.domain.reasoning import CaseBriefing, Proposal
+    from dispute_agent.kernel.domain.reasoning import Proposal
     from dispute_agent.kernel.policy.config import PolicyConfig
     from dispute_agent.kernel.ports import Clock, IdGenerator, Reasoner
-
-MODULES_ON = dict.fromkeys(
-    ("email", "ticketing", "ledger", "approvals", "evidence", "reasoning", "model_gateway"),
-    True,
-)
-
-
-@dataclass
-class Watching:
-    """The reasoner, with what it was asked and what it answered kept for the report."""
-
-    inner: Reasoner
-    proposals: list[Proposal] = field(default_factory=list)
-
-    def propose(self, briefing: CaseBriefing) -> Proposal:
-        proposal = self.inner.propose(briefing)
-        self.proposals.append(proposal)
-        return proposal
 
 
 @dataclass(frozen=True)
@@ -87,6 +42,8 @@ class TrialReport:
     email_subject: str | None
     email_body: str | None
     refused: str | None = None
+    #: Set when the pending approval is a credit: the amount code derived, for the reviewer.
+    credit_amount: str | None = None
 
 
 def run_trial(
@@ -99,151 +56,38 @@ def run_trial(
     statement: str | None = None,
     notes: tuple[str, ...] | None = None,
 ) -> TrialReport:
-    """`statement` and `notes` replace the fixture's own, for the injection evals (P4-09)."""
-    built = fixture(name)
-    if statement is not None:
-        built = dataclasses.replace(built, statement=statement)
-    if notes is not None:
-        built = dataclasses.replace(built, notes=notes)
-    pack = WeightDisputePack()
-    now = clock.now()
-    facts = CaseFacts(
-        shipment_ref=built.shipment.ref,
-        claim_ref=built.shipment.claim_ref,
-        seller_ref=built.shipment.seller_id,
-        seller_contact=built.seller_contact,
-        raised_at=now,
-        statement=(
-            UntrustedText.create(built.statement, "dispute_form", f"form-{name}")
-            if built.statement
-            else None
-        ),
-        pack_facts={STATUS_KEY: built.shipment.status},
-    )
-    policy = policy.model_copy(
-        update={
-            "messages": MessagesConfig.model_validate(
-                {**policy.messages.model_dump(), "allowed_recipients": [SELLER_CONTACT]}
-            )
-        }
-    )
-    watching = Watching(reasoner)
-    fallback = Watching(RulesOnlyReasoner(pack=pack, ids=ids, clock=clock, fallback_used=True))
+    try:
+        report = run_full(
+            name,
+            policy=policy,
+            # The full run moves its own clock while it waits for read-backs; a trial stops at
+            # the first approval, and must never move the caller's clock either way.
+            clock=FakeClock(clock.now()),
+            ids=ids,
+            reasoner=reasoner,
+            decide=lambda _approval: None,
+            statement=statement,
+            notes=notes,
+        )
+    except RecipientNotAllowedError as refused:
+        return TrialReport(name, None, None, False, None, None, refused=str(refused))
 
-    with tempfile.TemporaryDirectory(prefix="try-agent-") as folder:
-        engine = create_sqlite_engine(Path(folder) / "trial.sqlite3")
-        apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))
-        try:
-            with SqliteUnitOfWork(engine, clock=clock) as work:
-                try:
-                    case = _open_case(work, facts, name, now, ids)
-                except RecipientNotAllowedError as refused:
-                    return TrialReport(name, None, None, False, None, None, refused=str(refused))
-                steps: dict[str, Step] = {
-                    **phase_1_steps(),
-                    "eligibility": EligibilityStep(pack),
-                    "gather_evidence": GatherEvidenceStep(
-                        pack=pack,
-                        sources={"evidence": SyntheticShipmentSource(fixture=built, clock=clock)},
-                        store=work.evidence,
-                        ids=ids,
-                        timers_store=work.timers,
-                    ),
-                    "assess": AssessStep(pack, work.evidence, work.assessments),
-                    "investigate": InvestigateStep(
-                        # MenuPack types `state` as object; the pack narrows it to CaseState.
-                        # The e2e tests carry the same ignore (Phase 3 BACKLOG item).
-                        pack=pack,  # type: ignore[arg-type]
-                        reasoner=watching,
-                        fallback=fallback,
-                        screen=RulesBasedInputScreen(),
-                        drafter=TemplateDrafter(),
-                        policy=PolicyEngine(phase_5_rules(), clock, ids),
-                        evidence=work.evidence,
-                        assessments=work.assessments,
-                        intents=work.intents,
-                        approvals=work.approvals,
-                        ids=ids,
-                        modules=MODULES_ON,
-                        config=policy,
-                    ),
-                }
-                advanced = Orchestrator(
-                    StateMachine(default_table()),
-                    steps,
-                    clock,
-                    ids,
-                    patterns=NullPatternContextProvider(),
-                    outcomes=NullOutcomeObserver(),
-                ).advance(
-                    case[0],
-                    case[1],
-                    commit=lambda before, after: work.cases.save(after, before.version),
-                )
-                for event in advanced.events:
-                    work.events.append(event)
-                pending = list(work.approvals.pending(case[0].id))
-                intent = work.intents.get(pending[0].request.intent_id) if pending else None
-        finally:
-            engine.dispose()
-
-    payload: Any = intent.payload if intent is not None else None
-    made = watching.proposals or fallback.proposals
-    proposal = made[0] if made else None
+    proposal = report.proposals[0] if report.proposals else None
+    message: Any = next(
+        (p for p in report.pending_payloads if getattr(p, "type", None) == "message"), None
+    )
+    credit: Any = next(
+        (p for p in report.pending_payloads if getattr(p, "type", None) == "credit"), None
+    )
     return TrialReport(
         fixture=name,
-        case=advanced.case,
+        case=report.case,
         proposal=proposal,
-        fell_back=bool(fallback.proposals),
-        email_subject=getattr(payload, "subject", None),
-        email_body=getattr(payload, "body", None),
+        fell_back=bool(proposal and proposal.fallback_used),
+        email_subject=getattr(message, "subject", None),
+        email_body=getattr(message, "body", None),
+        credit_amount=render_fact(credit.amount) if credit is not None else None,
     )
-
-
-def _open_case(
-    work: SqliteUnitOfWork, facts: CaseFacts, name: str, now: Any, ids: IdGenerator
-) -> tuple[Case, EventId]:
-    inbound = InboundEvent(
-        type=InboundEventType.DISPUTE_RAISED,
-        source="dispute_api",
-        source_event_id=f"trial-{name}-{ids.new_id('inb')}",
-        occurred_at=now,
-        actor=Actor(kind=ActorKind.EXTERNAL, id="dispute_api"),
-        payload=InboundPayload(),
-    )
-    SqliteInboxStore(work.connection).accept(inbound, now)
-    input_id = EventId(ids.new_id("evt"))
-    opened = Intake(
-        allowed_recipients=(SELLER_CONTACT,), reopen_window=timedelta(days=7)
-    ).open_or_get_case(
-        work.cases,
-        inbound,
-        facts,
-        pack="weight_dispute",
-        now=now,
-        case_id=CaseId(ids.new_id("case")),
-        correlation_id=CorrelationId(ids.new_id("corr")),
-        opened_event_id=EventId(ids.new_id("evt")),
-        causation_id=input_id,
-    )
-    work.cases.insert(opened.case)
-    raised = work.events.append(
-        Event(
-            id=input_id,
-            case_id=opened.case.id,
-            type=InboundEventType.DISPUTE_RAISED,
-            occurred_at=now,
-            recorded_at=now,
-            actor=Actor(kind=ActorKind.EXTERNAL, id="dispute_api"),
-            cause=opened.events[0].cause,
-            correlation_id=opened.case.correlation_id,
-            dedupe_key=inbound.dedupe_key,
-            payload=EventPayload(),
-        )
-    )
-    for event in opened.events:
-        work.events.append(event)
-    return opened.case, raised.id
 
 
 __all__ = ["TrialReport", "run_trial"]

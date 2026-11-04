@@ -517,6 +517,17 @@ class InvestigateStep:
         kind = verdict.verdict
         if kind is VerdictKind.DENY:
             reason = _first_reason(verdict)
+            after_rule = reason.split(": ", 1)[-1]
+            if after_rule.startswith("module_unavailable:"):
+                # I6: the case needs a module that is switched off. Named, not generic.
+                module = after_rule.split(":", 1)[1]
+                return StepOutcome(
+                    trigger=Trigger.ESCALATE,
+                    review_reason=ReviewReason(
+                        code=ReviewCode.MODULE_UNAVAILABLE, module=module, detail=reason[:300]
+                    ),
+                    detail=reason[:300],
+                )
             return _escalate(_review_code_for(reason, ReviewCode.POLICY_DENIED), reason)
         if kind is VerdictKind.ESCALATE:
             reason = _first_reason(verdict)

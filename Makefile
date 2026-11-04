@@ -39,8 +39,9 @@ run-approvals:
 email-login:
 	$(PY) email-login
 
+# make demo ARGS="--offline calc_error_wrong_slab"
 demo:
-	$(PY) demo
+	$(PY) demo $(ARGS)
 
 eval:
 	$(PY) eval

@@ -111,10 +111,10 @@ def email_login() -> int:
     return uv("python", "-m", "dispute_agent.modules.email.outlook_graph.login")
 
 
-def demo() -> int:
+def demo(*args: str) -> int:
     """One synthetic dispute against the real test accounts. Refuses without credentials
     rather than quietly demonstrating the fakes."""
-    return uv("python", "scripts/demo.py")
+    return uv("python", "scripts/demo.py", *args)
 
 
 def agents_sync() -> int:
@@ -186,6 +186,8 @@ def main(argv: Sequence[str]) -> int:
         return 0
     if argv[0] == "try-agent":
         return try_agent(*argv[1:])
+    if argv[0] == "demo":
+        return demo(*argv[1:])
     if argv[0] == "eval":
         return evaluate(*argv[1:])
     if argv[0] == "foundry-login":

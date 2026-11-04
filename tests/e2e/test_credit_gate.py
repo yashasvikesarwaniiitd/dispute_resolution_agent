@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 import sqlalchemy
 
-from dispute_agent.api.agent_trial import _open_case
+from dispute_agent.api.full_run import _open_case
 from dispute_agent.infra.clock import FakeClock
 from dispute_agent.infra.ids import FakeIdGenerator
 from dispute_agent.infra.sqlite.engine import apply_schema, create_sqlite_engine, schema_sql_path

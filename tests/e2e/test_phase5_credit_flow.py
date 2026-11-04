@@ -152,3 +152,49 @@ class TestTheRemeasurementIssueNeedsNoApproval:
 @pytest.mark.parametrize("name", ["kurta_box_larger", "not_delivered", "multi_error"])
 def test_cases_the_rules_cannot_credit_never_reach_the_ledger(name: str) -> None:
     assert full(name).ledger_credits == 0
+
+
+class TestTheReviewerSeesWhy:
+    """P5-03: a credit in the queue carries its amount, its reason and its evidence."""
+
+    def test_a_pending_credit_shows_the_correction_and_the_evidence(self) -> None:
+        from dispute_agent.infra.sqlite.engine import create_sqlite_engine
+        from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
+        from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
+
+        report = full("calc_error_wrong_slab", decide=lambda a: None)
+        assert report.database is not None
+        engine = create_sqlite_engine(report.database)
+        try:
+            with SqliteUnitOfWork(engine, clock=FakeClock(NOW)) as work:
+                console = ReviewConsole(
+                    store=work.approvals,
+                    clock=FakeClock(NOW),
+                    reviewer=sign_in("t" * 20, "t" * 20, "owner"),
+                )
+                [pending] = console.queue()
+                item = console.view(pending, intents=work.intents, assessments=work.assessments)
+        finally:
+            engine.dispose()
+        assert item.is_credit
+        assert item.credit_reason == "calculation_error"
+        assert item.credit_amount is not None and item.credit_amount.startswith("\u20b9")
+        labels = [label for label, _ in item.evidence]
+        assert labels, "the reviewer must see the facts behind the amount"
+        assert item.matches_approval
+
+
+def test_the_demo_sequence_runs_end_to_end_offline(capsys: pytest.CaptureFixture[str]) -> None:
+    """P5-09's test_demo_sequence: the same sequence against fakes, so the demo cannot rot."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "demo.py"
+    spec = importlib.util.spec_from_file_location("demo", path)
+    assert spec is not None and spec.loader is not None
+    demo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(demo)
+    assert demo.offline("calc_error_wrong_slab", agent=False) == 0
+    out = capsys.readouterr().out
+    assert "RESOLVED_CREDITED" in out
+    assert "ledger credits: 1" in out

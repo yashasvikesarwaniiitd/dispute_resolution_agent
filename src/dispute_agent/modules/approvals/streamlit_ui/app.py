@@ -95,6 +95,14 @@ def _render(approval: Any, reviewer: Any) -> None:
                 "not match its fingerprint and cannot be approved. Report this."
             )
             return
+        if item.is_credit:
+            st.markdown("**Credit to approve**")
+            st.text(f"{item.credit_amount}  -  reason: {item.credit_reason}")
+            st.caption(item.body)
+            st.markdown("**The evidence behind it**")
+            for label, value in item.evidence:
+                st.text(f"{label}: {value}")
+            st.caption("Rejecting a credit hands the case to a person (D40); it is not re-planned.")
         st.markdown("**To**")
         st.text(item.to)
         st.markdown("**Subject**")

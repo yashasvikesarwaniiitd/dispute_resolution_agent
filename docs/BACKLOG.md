@@ -228,3 +228,30 @@ Inputs for the Phase 4+ eval suite and prompt v2 (the v1 prompt is frozen):
 - **Injection flagging held** on both injection cases, on repeat runs.
 - **Reasoning tokens**: about 500-1,150 per case before the answer; the 4,000 output limit
   leaves room. Cost about $0.004-$0.012 per case.
+
+## Phase 4+ and Phase 5 (2026-11-04) - done, and what is left
+
+**Closed by this work:** proposals are now stored with prompt and model (the audit gap); the
+four sending stations (apply_approval, execute, verify, SQLite ActionStore); the case records
+its pending plan; credit flow and verification; credit approvals show the evidence; the
+upheld and credit-confirmation templates; module-unavailable is named on the case (S41).
+
+**Still open:**
+- **The long-running runtime** (`make run-api`) assembles only the Phase 1 steps. The full line
+  is assembled by `api/full_run.py` for the trial, the demo and the tests; the runtime needs the
+  same per-unit-of-work assembly plus real adapter construction from `config/modules.yaml`.
+- **Live demo against Outlook and Jira** needs builders for the real adapters inside the full run
+  and the owner's accounts (`docs/SETUP_CHANNELS.md`); `make demo ARGS="--offline"` runs the whole
+  sequence against fakes today.
+- **The seller-reply round**: a reply arriving, the interpreter reading it, the case re-evaluating
+  (T26, R12, R19, R20 on real readings). The interpreter, R20 and R21 exist and are tested; the
+  routing of a reply into a case round is not wired. The briefing's contact counters are still
+  zero for that reason.
+- **Declared timer effects** beyond approval expiry (checked by time in apply_approval): seller
+  reminders, decision deadlines, OPS_TIMEOUT. VERIFY_RETRY is replaced by "rest and re-advance"
+  with a deadline in the verify step.
+- **Events from steps**: proposals are kept in their own table; PROPOSAL_RECORDED,
+  INTENT_CREATED, APPROVAL_REQUESTED and MODEL_ROUTE_FAILOVER are not yet written as events.
+- **Eval harness plays first rounds only** and ignores scenario faults and config overrides; the
+  Phase 6 runner plays full scripts. Live evals (P4b-11) and the model-choice ADR await the
+  owner's spend decision.

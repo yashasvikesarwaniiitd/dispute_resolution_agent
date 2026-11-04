@@ -83,6 +83,15 @@ class PendingItem:
     #: False when the stored text no longer hashes to what this approval is bound to - an
     #: edit behind the system's back. The page then refuses to offer Approve.
     matches_approval: bool = True
+    #: Set for a credit approval (P5-03): the amount, its reason, and the evidence behind it,
+    #: so the reviewer sees *why*, not just *how much*.
+    credit_amount: str | None = None
+    credit_reason: str | None = None
+    evidence: tuple[tuple[str, str], ...] = ()
+
+    @property
+    def is_credit(self) -> bool:
+        return self.credit_amount is not None
 
     @property
     def case_id(self) -> str:
@@ -145,6 +154,27 @@ class ReviewConsole:
         )
         facts = {fact.fact_id: fact for fact in (assessment.facts if assessment else ())}
         payload = intent.payload
+        if getattr(payload, "type", None) == "credit":
+            from dispute_agent.kernel.policy.numbers import render_fact
+
+            amount = render_fact(payload.amount)  # type: ignore[union-attr]
+            reason = str(payload.reason_code)  # type: ignore[union-attr]
+            return PendingItem(
+                approval=approval,
+                subject=f"Credit of {amount} for {reason.replace('_', ' ')}",
+                body=(
+                    "Derived by code from the assessment: the charge, less the lowest "
+                    "proven correct charge, less anything already credited on this shipment. "
+                    "The model chose to propose a credit; it did not choose the amount."
+                ),
+                numbers=((amount, "credit amount derived by code"),),
+                to="(ledger) " + str(payload.shipment_ref),  # type: ignore[union-attr]
+                matches_approval=payload_hash(payload.model_dump(mode="json"))
+                == approval.request.payload_hash,
+                credit_amount=amount,
+                credit_reason=reason,
+                evidence=tuple((f.label, render_fact(f.value)) for f in facts.values()),
+            )
         item = self.item(
             approval,
             subject=str(getattr(payload, "subject", "")),
