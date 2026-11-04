@@ -1,63 +1,112 @@
-# Claude Code Build Pack (v2)
+# Weight Dispute Resolution Agent
 
-Weight Dispute Resolution & Cross-Case Intelligence Agent. An independent portfolio project on synthetic data; not affiliated with any logistics company.
+An action-taking agent that takes a shipping weight dispute - "the seller disagrees with a
+charge" - to a verified outcome. It gathers evidence, recalculates the charge in code,
+investigates, writes to the seller, opens Jira issues, asks a person to approve credits and
+messages, posts credits to a simulated ledger, and reads every result back before it calls
+anything done.
 
-This pack is the full handoff to Claude Code. It builds the project in two stages and eight phases, with the design done once on Opus and the implementation done on Sonnet to keep credit use down. The agent runs its reasoning in Microsoft Foundry Agent Service (a `gpt-5-mini` deployment in South India), behind a port. Cross-case intelligence is built last into a socket that exists from Phase 0.
+**Code owns every decision; the AI investigates and proposes.** The model can suggest "ask
+the seller for a photo" or "this looks like a calculation error"; whether anything happens,
+and for how much, is decided by deterministic code, policy rules and a person.
 
-## What is in the pack
+An independent portfolio project on synthetic data. Not connected to, or affiliated with, any
+company's systems.
 
+## Honest limits
+
+Read this before any number below.
+
+- **A synthetic pilot.** Every shipment, seller and charge is synthetic. Rates and limits are
+  illustrative configuration, not any company's tariff. Email and Jira run as fakes unless the
+  owner connects test accounts; the ledger is simulated.
+- **Not ready for production use**, and not suitable for real sellers, money or mailboxes.
+  The results do not show production readiness.
+- **A person approves.** Every credit and, in the pilot, every message to a seller waits for
+  a person's approval. The agent is not autonomous.
+- **"Verified" means read back, not delivered.** A verified email is one found in the pilot
+  mailbox's Sent Items with exactly the approved text - not one proven to have reached anyone.
+- **Prompt injection.** No injection in the test corpus succeeded, by any of the four routes
+  it can enter; money and messages also need code-proven facts and a person's approval. That
+  is what was tested - not a guarantee against every possible attack.
+- **No productivity claim.** Nothing here measures real operator time.
+- **Cross-case patterns** (Phase 7) are hypotheses that can only add caution. They never prove
+  fault.
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph outside[Outside the system]
+        seller[Seller]
+        ops[Operations / Jira]
+        reviewer[Reviewer]
+    end
+    subgraph kernel[Kernel - pure code, no AI]
+        dispatch[Dispatcher<br/>routes every inbound event]
+        machine[State machine<br/>legal moves only]
+        policy[Policy engine<br/>R01-R25]
+        executor[Action executor<br/>idempotent, read-back]
+    end
+    subgraph modules[Pluggable modules]
+        evidence[Evidence sources]
+        reasoner[Reasoner<br/>rules baseline or model]
+        channels[Email / Jira / Ledger]
+    end
+    seller -- replies --> dispatch
+    ops -- findings --> dispatch
+    reviewer -- approvals --> policy
+    dispatch --> machine
+    machine --> evidence
+    evidence --> reasoner
+    reasoner -- proposal only --> policy
+    policy -- allowed or approved --> executor
+    executor --> channels
+    channels -- read back --> executor
 ```
-README.md                       this file
-CLAUDE.md                       project rules, 15 safety invariants, model discipline (read every session)
-.claude/
-  settings.json                 opusplan default, pinned model versions, safe permissions
-  agents/                       architect and safety-reviewer (Opus), test-engineer (Sonnet), Explore (Haiku)
-  skills/                       /phase-start  /phase-verify  /adr  /session-handoff
-scripts/
-  stage-a-opus.sh               launch design sessions on Opus
-  stage-b-build.sh              launch build sessions on opusplan
-.env.example  .gitignore        names only; no secrets
-docs/
-  HANDOFF.md                    current state, decisions made, open decisions, owner to-dos, next action
-  MODEL_STRATEGY.md             which model for which task, escalation triggers, session discipline
-  FOUNDRY_SETUP.md              the Azure and Foundry steps you do yourself
-  ARCHITECTURE.md  FLOW.md      layers, ports, modules, Foundry integration, states, orchestrator loop
-  PROGRESS.md  BACKLOG.md       status and session log; parked ideas
-  adr/  spec/                   decisions; specifications written in Stage A
-  build-prompts/                stage-a1 to a5 (Opus design), phase-0 to phase-7 and phase-4b (build)
-prompts/                        the agent's own runtime prompts (versioned, provider-neutral)
+
+A case moves through a declared state machine (`docs/spec/transitions.yaml`); every move writes
+an audit event with its cause. The model can only *propose*; the policy engine decides; the
+executor is the only path to the outside world, and it verifies everything it does by reading it
+back. Fifteen safety invariants (`CLAUDE.md` section 3) each have tests that try to break them.
+
+Architecture: `docs/ARCHITECTURE.md`. Decisions: `docs/adr/`. Specifications: `docs/spec/`.
+
+## Running it
+
+```bash
+make setup          # install with uv
+make verify         # lint, types, architecture rules and every test
+make eval           # the whole scenario suite, its gates, and a report in data/eval/
+make demo ARGS="--offline calc_error_wrong_slab"   # one dispute end to end, offline
+make run-api        # the API on the whole offline line (fakes, synthetic data)
+make run-approvals  # the review console
 ```
 
-## How to use it
+Nothing above reaches the network or costs money. The model route (Microsoft Foundry, with a
+Haiku failover) is off by default; `docs/SETUP_FOUNDRY.md` turns it on. Real Outlook and Jira
+need the owner's test accounts (`docs/SETUP_CHANNELS.md`).
 
-1. Create the repo (`weight-dispute-agent`), `git init`, and copy this pack's contents into the repo root. Run `claude update`.
-2. **Stage A (design, Opus).** Run `./scripts/stage-a-opus.sh`, then type `/phase-start a1`. Review the outline, approve, let it write the specs, review them. Repeat in a fresh session (`/clear` or a new launch) for `a2` to `a5`. At the end the design is frozen and tagged `arch-v1`.
-3. **Stage B (build, Sonnet builds, Opus plans).** Run `./scripts/stage-b-build.sh`, press Shift+Tab to enter plan mode, then `/phase-start 0`. Approve the plan and Sonnet builds. Close the phase with `/phase-verify 0`, the `safety-reviewer` subagent where the phase prompt says so, and `/session-handoff`. Repeat for phases 1, 2, 3, 4, 4b, 5, 6 and 7.
-4. Between sessions, read the new ADRs and `docs/PROGRESS.md`, then commit.
+Walkthrough: `docs/DEMO.md`. Which modules are on and how to switch them: `docs/MODULES.md`.
 
-If a `/` command is not recognised, run `/skills` to see what loaded, or paste the manual kickoff below.
+## What the evaluation shows
 
-## Manual kickoff (if you do not use the skills)
+`make eval` plays the scenario catalogue (`docs/spec/eval-scenarios.yaml`, 57 scenarios outside
+Phase 7) on the whole line, with the model's choices fixed to the ones each scenario declares,
+and enforces the release gates in `config/release_gates.yaml`. That run measures the system
+around the model - policy, approvals, the executor, verification, timers - not the model.
 
-```
-You are starting <Stage A1 | Phase N>.
-1. Read CLAUDE.md, docs/HANDOFF.md, docs/PROGRESS.md, and the matching file in
-   docs/build-prompts/ plus the spec and task-card files it references.
-2. Do not write code or files yet. For a build phase, I will put you in plan mode.
-3. Reply with: understanding (10 lines or fewer); the task plan with files and the
-   test for each task; at most 5 open questions with proposed defaults; any conflicts
-   between documents; which tasks need the architect or safety-reviewer subagents.
-4. Wait for my approval, then work one task at a time with make verify green.
-```
+First recorded run (57 scenarios, 1 run each): 56 of 57 scenarios passed every declared
+expectation; across the 57, zero unauthorised credits, zero duplicate emails, issues or credits,
+zero unknown outcomes marked resolved, and no injection in the 4 injection scenarios succeeded.
+One scenario (S30) is held for an owner decision about its script. The gate thresholds are still
+drafts awaiting the owner's approval.
 
-## Your checklist after each phase (PM view)
+The model's own choices are measured separately by a live run (`make eval ARGS="--live"`); the
+first one is recorded in `docs/evals/2026-11-04-live-gpt-5-mini.md`, with its sample size.
 
-- Does the demo or test output match the acceptance criteria in the words of the phase prompt?
-- Can you explain every new ADR in two sentences to a non-engineer?
-- Was anything outside the phase scope built? It belongs in `docs/BACKLOG.md`.
-- Did the kernel gain any import from modules, packs or infra? `make arch` must say no.
-- Did you check `/usage` and note it in `docs/PROGRESS.md`?
+## Status
 
-## What only you can do
-
-Create the repo, the Entra app registration, the Jira site and token, the Azure subscription, the Foundry project in South India and the `gpt-5-mini` deployment, assign roles, and put values in `.env`. The sequence is in `docs/HANDOFF.md` section 6 and `docs/FOUNDRY_SETUP.md`. Never paste secrets into Claude Code.
+Phases 0 to 5 are complete; Phase 6 (evaluation and hardening) is in progress; Phase 7
+(cross-case intelligence) is next. Progress and history: `docs/PROGRESS.md`. Open items:
+`docs/BACKLOG.md`. How the project was built with Claude Code: `docs/BUILD_PACK.md`.
