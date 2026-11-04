@@ -92,6 +92,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D53 | (2026-11-04) pattern_analyst live eval (foundry_openai, $0.28 of a $0.50 owner cap): FAIL, 3 of 6 under the all-must-pass rule fixed beforehand; it stays `inactive`. Two prompt defects fixed (output budget, unnamed hypothesis kinds); the model still writes identifiers into hypothesis statements, which the PA-E1 check refuses. Injection held in all 24 answers. `docs/evals/2026-11-04-pattern-analyst-live.md`. |
 | D54 | (2026-11-04) The owner approved every phase (0 to 7, 4P, 4+; 4b covered by them) and asked for Phase 7 to be merged into main and pushed. P6-12 stays open until Application Insights exists. |
 | D55 | (2026-11-04) P6-12 closed: the owner created Application Insights and set the connection string locally; the integration check passed with no message content exported. Phase 6 is complete. |
+| D56 | (2026-11-04) End-to-end test of the running app (`tests/e2e/test_running_app_end_to_end.py`): a dispute over HTTP, the review console's own class deciding, the runner ticking, to RESOLVED_CREDITED. It found that the running app could never send or credit: the kill-switch check read the database on the writer engine while the case's own write transaction was open, timed out and failed safe (`kill_switch_active`). Fixed with a deferred reader (`infra/sqlite/control_flags.py`); the scenario suite had not seen it because it uses a different kill switch, and the app-level tests stopped before any write. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

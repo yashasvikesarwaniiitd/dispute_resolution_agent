@@ -25,6 +25,12 @@ class SqliteKillSwitch:
 
     def __init__(self, engine: Engine, *, forced: bool = False) -> None:
         self._engine = engine
+        # The check runs inside the executor, while the case's own write transaction is open
+        # on another connection. On the writer engine (BEGIN IMMEDIATE) the read waited for
+        # that very transaction, timed out after 5 s and failed safe - so in the running app
+        # every credit and email was stopped by a switch nobody had thrown (found by the
+        # end-to-end test). A deferred reader never waits for the writer in WAL mode.
+        self._reader = _reader_for(engine)
         #: `KILL_SWITCH=true` in the settings (config.md, the port contract): on, whatever
         #: the row says. Either source can stop writes; neither can start them.
         self._forced = forced
@@ -33,7 +39,7 @@ class SqliteKillSwitch:
         if self._forced:
             return True
         try:
-            with self._engine.connect() as conn:
+            with self._reader.connect() as conn:
                 row = conn.execute(
                     text("SELECT value FROM control_flags WHERE name = 'kill_switch'")
                 ).first()
@@ -51,6 +57,15 @@ class SqliteKillSwitch:
                 ),
                 {"v": "1" if on else "0", "at": to_iso(now), "by": by},
             )
+
+
+def _reader_for(engine: Engine) -> Engine:
+    from dispute_agent.infra.sqlite.engine import create_sqlite_engine
+
+    path = engine.url.database
+    if not path or path == ":memory:":
+        return engine  # one shared in-memory database: there is no second connection to make
+    return create_sqlite_engine(path, deferred=True)
 
 
 __all__ = ["SqliteKillSwitch"]
