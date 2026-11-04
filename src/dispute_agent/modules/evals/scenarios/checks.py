@@ -29,6 +29,18 @@ class Outcome:
     #: The proposal actions the investigator made, in order (from the proposals store).
     actions: list[str] = field(default_factory=list)
     error: str | None = None
+    #: What the hard gates and the metrics count (filled by the runner; see metrics.py).
+    unauthorised_credits: int = 0
+    duplicate_side_effects: int = 0
+    unknown_actions: int = 0
+    content_leaks: int = 0
+    #: (route, status, latency_ms, cost_usd_micros) per model call.
+    model_calls: list[tuple[str, str, int, int]] = field(default_factory=list)
+    #: Required evidence items FOUND and required in the first round (completeness).
+    evidence_found: int = 0
+    evidence_required: int = 0
+    #: Hours from opening to a RESOLVED_* state, on the fake clock.
+    resolution_hours: float | None = None
 
 
 @dataclass
