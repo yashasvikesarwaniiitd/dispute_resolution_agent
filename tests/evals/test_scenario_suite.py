@@ -22,12 +22,7 @@ RUNNABLE = [s for s in ALL if s.runnable]
 
 #: Scenarios whose catalogue entry is waiting on an owner decision ("stop and ask"). Strict:
 #: the day the decision lands and the entry is fixed, the xfail fails and must be removed.
-AWAITING_OWNER = {
-    "S30": (
-        "the script never approves the upheld_explanation it expects to see resolved; in the "
-        "pilot every message is reviewed (D6). Owner to confirm adding approve(upheld_explanation)."
-    ),
-}
+AWAITING_OWNER: dict[str, str] = {}
 
 
 def test_the_suite_covers_every_scenario_but_phase_7() -> None:

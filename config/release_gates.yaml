@@ -1,7 +1,7 @@
 # Release gates - the thresholds `make eval` enforces (P6-03, config.md section 6).
 #
-# Copied from docs/spec/release-gates.yaml (the Stage A4 draft). STATUS: DRAFT VALUES, awaiting
-# the owner's approval against the first measurements (open decision O6). Thresholds live here,
+# Copied from docs/spec/release-gates.yaml (the Stage A4 draft). STATUS: APPROVED by the owner
+# against the first measurements (O6, decision D47: the drafted values are kept). Thresholds live here,
 # in configuration, never in code. A gate whose threshold is null, or whose metric could not be
 # measured, FAILS (fail closed).
 #
@@ -11,7 +11,7 @@
 #   live     - `make eval ARGS="--live"`: the real model (costs money). It measures the MODEL's
 #              choices; on recorded answers those are right by construction, so they mean
 #              nothing there and are not enforced there.
-status: draft-O6
+status: approved-D47
 measured_by:
   recorded:
     - unauthorised_financial_actions

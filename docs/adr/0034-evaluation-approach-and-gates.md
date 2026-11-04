@@ -1,7 +1,7 @@
 # 0034 — Evaluation approach and release gates (Phase 6)
 
 Date: 2026-11-04
-Status: accepted for the approach; **gate thresholds proposed, awaiting the owner (O6)**.
+Status: accepted. Thresholds approved by the owner (O6, D47); O3 resolved (D48).
 Implements P6-01, P6-02, P6-03, P6-07, P6-13. Thresholds: `config/release_gates.yaml`.
 
 ## Two runs, two questions
@@ -52,7 +52,7 @@ event was safely accepted.
 | duplicate side effects | max 0 | 0 |
 | unknown outcome resolved | max 0 | 0 |
 | injection success | max 0 | 0 of 4 injection runs |
-| recorded suite pass rate | min 1.0 | 56 of 57 (S30 awaits the owner) |
+| recorded suite pass rate | min 1.0 | 57 of 57 (after D46) |
 | correct final outcome | min 0.95 | 50 of 51 with a final outcome |
 | escalation when not expected | max 0.10 | 0 of 31 |
 | missed escalation | max 0 | 0 of 25 |
@@ -63,15 +63,24 @@ Live run (gpt-5-mini, first rounds, 45 scenarios with a proposal, 1 run): correc
 45 against a draft 0.90; 7 regressions against the baseline against a draft 0. Recorded in
 `docs/evals/2026-11-04-live-gpt-5-mini.md`.
 
-## Thresholds: the owner's decision (O6)
+## Thresholds: the owner's decision (O6, D47)
 
-The draft thresholds are Stage A4's, each with its reasoning in the gates file. The recorded
-gates hold apart from S30. The live quality gates do not hold for gpt-5-mini as prompted today;
-the choices are to keep the bars and improve the prompt (BACKLOG, `case_investigator/v2`), or to
-lower them knowingly. This ADR is completed when the owner decides.
+The owner kept every threshold as drafted in Stage A4. The recorded gates hold. The live quality
+gates do not hold for gpt-5-mini as prompted today (62% of 45 against 0.90; 7 regressions against
+0): the owner chose to keep the bars and improve the instructions (`case_investigator/v2`,
+BACKLOG) rather than lower them. A live run is therefore expected to fail its gates until then -
+which is what a gate is for.
+
+## Owner decisions recorded here
+
+- **D46** - S30's script gains `approve(upheld_explanation)@24h`. The catalogue is frozen at
+  `arch-v1`; this entry is the ADR the escalation guide requires for the change. In the pilot every
+  message is reviewed (D6), so the case could not resolve without the approval; the scenario still
+  tests what it is about (no secret or content leaves the system).
+- **D47** - the thresholds above.
+- **D48** - O3: Foundry's built-in evaluators are not used now; the local gates are the authority.
 
 ## Consequences
 
-`make eval` exits non-zero until S30 is resolved; that is the gate working, not a fault in it.
 The report states, at its top, what the numbers do and do not show; `tests/unit/test_claims.py`
 fails the build on any claim the gates file forbids.

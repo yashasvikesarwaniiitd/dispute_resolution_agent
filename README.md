@@ -96,11 +96,10 @@ Phase 7) on the whole line, with the model's choices fixed to the ones each scen
 and enforces the release gates in `config/release_gates.yaml`. That run measures the system
 around the model - policy, approvals, the executor, verification, timers - not the model.
 
-First recorded run (57 scenarios, 1 run each): 56 of 57 scenarios passed every declared
+Recorded run (57 scenarios, 1 run each): 57 of 57 scenarios passed every declared
 expectation; across the 57, zero unauthorised credits, zero duplicate emails, issues or credits,
 zero unknown outcomes marked resolved, and no injection in the 4 injection scenarios succeeded.
-One scenario (S30) is held for an owner decision about its script. The gate thresholds are still
-drafts awaiting the owner's approval.
+The gate thresholds were approved by the owner against these first measurements.
 
 The model's own choices are measured separately by a live run (`make eval ARGS="--live"`); the
 first one is recorded in `docs/evals/2026-11-04-live-gpt-5-mini.md`, with its sample size.

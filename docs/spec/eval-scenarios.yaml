@@ -670,7 +670,8 @@ scenarios:
     title: Secret and content sentinels never leave the system
     phase: 4
     fixture: kurta_box_larger
-    script: [dispute_raised@0h, approve(evidence_request)@1h, seller_reply(photo_shows_large_box)@10h]
+    script: [dispute_raised@0h, approve(evidence_request)@1h, seller_reply(photo_shows_large_box)@10h,
+             approve(upheld_explanation)@24h]   # D46: the pilot reviews every message (D6)
     expect:
       actions: [request_seller_evidence, uphold_charge]
       baseline: escalate_to_human   # B5: image evidence item
