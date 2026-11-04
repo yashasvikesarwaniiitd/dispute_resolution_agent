@@ -16,18 +16,22 @@ import structlog
 
 from dispute_agent.api.events import SubmitResult, input_event
 from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
+from dispute_agent.kernel.domain.enums import InboundEventType
 from dispute_agent.kernel.domain.errors import DuplicateEvent
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
+from dispute_agent.kernel.domain.inbound import HUMAN_EVENTS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from dispute_agent.api.events import RaiseDispute
+    from dispute_agent.api.line import Line
+    from dispute_agent.api.runner import Runner
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
     from dispute_agent.kernel.domain.events import Event, InboundEvent
     from dispute_agent.kernel.domain.models import Case
+    from dispute_agent.kernel.orchestrator.dispatch import DispatchResult
     from dispute_agent.kernel.orchestrator.intake import Intake
-    from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator
     from dispute_agent.kernel.ports import Clock, IdGenerator
 
 log = structlog.get_logger()
@@ -40,7 +44,8 @@ class Runtime:
         self,
         unit_of_work: Callable[[], SqliteUnitOfWork],
         intake: Intake,
-        orchestrator: Orchestrator,
+        line: Line,
+        runner: Runner,
         clock: Clock,
         ids: IdGenerator,
         *,
@@ -48,7 +53,8 @@ class Runtime:
     ) -> None:
         self._uow = unit_of_work
         self._intake = intake
-        self._orchestrator = orchestrator
+        self._line = line
+        self.runner = runner
         self._clock = clock
         self._ids = ids
         self._pack = pack
@@ -109,13 +115,7 @@ class Runtime:
             # call - which every case does once the full line is wired - would otherwise be
             # refused as an illegal jump. This also covers the Phase 1 review's point: a
             # counter-only change is saved with its own transition, never discarded.
-            advanced = self._orchestrator.advance(
-                result.case,
-                raised.id,
-                commit=lambda before, after: work.cases.save(after, before.version),
-            )
-            for produced in advanced.events:
-                work.events.append(produced)
+            advanced = self._line.advance(work, result.case, raised.id)
 
             inbox.mark_processed(inbox_id, result.case.id, raised.id)
 
@@ -137,6 +137,18 @@ class Runtime:
                     else advanced.case.review_reason.render()
                 ),
             )
+
+    def submit_inbound(self, event: InboundEvent) -> DispatchResult:
+        """Any inbound event but a new dispute: a reply, a finding, a withdrawal, a bounce.
+
+        People's decisions (approvals, taking or returning a case) are refused here until this
+        endpoint authenticates a person: pre-dispatch rule P3 trusts the declared actor, so an
+        open endpoint must not accept one (safety review of ADR 0033). The review console
+        decides approvals in the store, and the runner applies them.
+        """
+        if event.type in HUMAN_EVENTS or event.type is InboundEventType.DISPUTE_RAISED:
+            raise PermissionError(f"{event.type.value} is not accepted on this endpoint")
+        return self.runner.submit(event)
 
     def read_case(self, case_id: str) -> tuple[Case, Sequence[Event]]:
         with self._uow() as work:

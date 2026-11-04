@@ -114,7 +114,18 @@ class TestTheAppFactory:
     def test_the_shipped_config_builds(self) -> None:
         """If this fails, `make run-api` fails."""
         application = build_application(config_dir=SHIPPED_CONFIG, app_env="local")
-        assert application.registry.enabled_names() == ("evals", "input_screen", "tracing")
+        # Phase 6: the whole line runs offline; model_gateway and cross_case stay off.
+        assert set(application.registry.enabled_names()) == {
+            "approvals",
+            "email",
+            "evals",
+            "evidence",
+            "input_screen",
+            "ledger",
+            "reasoning",
+            "ticketing",
+            "tracing",
+        }
 
     def test_the_shipped_config_builds_under_ci(self) -> None:
         build_application(config_dir=SHIPPED_CONFIG, app_env="ci")
@@ -135,16 +146,16 @@ class TestTheAppFactory:
         with pytest.raises(ConfigError, match="approvals"):
             create_app(config_dir=tmp_path, app_env="test")
 
-    def test_an_adapter_that_is_not_built_yet_fails_fast(self, tmp_path: Path) -> None:
-        """Phase 0 has three real adapters. Enabling anything else is caught at startup."""
+    def test_a_real_channel_without_the_owner_s_account_fails_fast(self, tmp_path: Path) -> None:
+        """A real channel is never built from defaults (I11): caught at startup, by name."""
         (tmp_path / "modules.yaml").write_text(
             PHASE_0_FILE.replace(
                 "ticketing:     {enabled: false, adapter: fake}",
-                "ticketing:     {enabled: true,  adapter: fake}",
+                "ticketing:     {enabled: true,  adapter: jira_cloud}",
             ),
             encoding="utf-8",
         )
-        with pytest.raises(ConfigError, match="not built yet"):
+        with pytest.raises(ConfigError, match="needs the owner's test account"):
             create_app(config_dir=tmp_path, app_env="test")
 
 

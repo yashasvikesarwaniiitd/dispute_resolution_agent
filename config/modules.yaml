@@ -4,12 +4,14 @@
 # combination (CLAUDE.md section 4). A disabled module is wired to its Disabled adapter,
 # except cross_case (Null) and tracing (no-op) — orchestrator.md section 5.
 #
-# Phase 0 state: the modules whose adapters do not exist yet are off, and the ones that are
-# on run the adapters that do. Phases 3, 4, 4b, 5 and 7 flip these as they build.
+# Phase 6 state: the whole line runs offline - synthetic shipments, the rules-only investigator,
+# fake email and Jira, the simulated ledger and the review queue. Real Outlook and Jira need the
+# owner's test accounts (docs/SETUP_CHANNELS.md); the model route costs money and stays off
+# until the owner turns it on (docs/SETUP_FOUNDRY.md). cross_case is Phase 7.
 
 modules:
   evidence:
-    enabled: false                               # on from Phase 2, when synthetic_shipments exists
+    enabled: true                                # synthetic shipments, served by reference
     adapter: synthetic_shipments
     settings:
       seed: 42                                    # makes synthetic data reproducible (I11)
@@ -23,7 +25,7 @@ modules:
       in_adapter_retries: 2
 
   reasoning:
-    enabled: false                                # on from Phase 2, when the pack baseline exists
+    enabled: true                                 # the rules baseline; llm needs model_gateway
     adapter: rules_only                           # llm from Phase 4; then depends on model_gateway
 
   input_screen:
@@ -35,7 +37,7 @@ modules:
     adapter: noop                                 # otel_foundry is preview; never required by make verify
 
   email:
-    enabled: false                                # on from Phase 3, when outlook_graph exists
+    enabled: true                                 # fake; outlook_graph needs the owner's account
     adapter: fake
     settings:
       poll_interval_s: 60
@@ -44,7 +46,7 @@ modules:
       trusted_authserv_id: null                   # set from a test message (integrations.md 1.5)
 
   ticketing:
-    enabled: false                                # on from Phase 3, when jira_cloud exists
+    enabled: true                                 # fake; jira_cloud needs the owner's account
     adapter: fake
     settings:
       poll_interval_s: 120
@@ -59,13 +61,13 @@ modules:
       field_dead_weight_kg: null
 
   ledger:
-    enabled: false                                # on from Phase 5; depends on approvals (I3)
+    enabled: true                                 # simulated, its own file; depends on approvals (I3)
     adapter: simulated
     settings:
       failure_mode: null
 
   approvals:
-    enabled: false                                # on from Phase 3, when store_backed exists
+    enabled: true                                 # the approvals table and the review console
     adapter: store_backed                         # message review from Phase 3; credits from Phase 5
 
   cross_case:

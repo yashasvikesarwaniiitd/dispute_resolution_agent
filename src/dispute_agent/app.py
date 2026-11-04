@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from fastapi import FastAPI
@@ -47,7 +47,7 @@ from dispute_agent.modules.ticketing.disabled import DisabledTicketingSystem
 from dispute_agent.modules.tracing.noop import NoopTracer
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncIterator, Callable
 
     from dispute_agent.api.scenario_runner import ScenarioModels
     from dispute_agent.kernel.domain.reasoning import ModelRequest
@@ -117,6 +117,33 @@ def load_modules_file(config_dir: Path) -> ModulesFile:
     return ModulesFile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
+def _seed_charges(ledger: Any) -> None:
+    """The synthetic world's charges, so the simulated ledger has what was billed (R16).
+
+    Idempotent (INSERT OR IGNORE on the transaction id): a restart seeds nothing twice.
+    """
+    from dispute_agent.kernel.domain.values import Money
+    from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES, fixture
+
+    for name in FIXTURES:
+        for entry in fixture(name).shipment.ledger:
+            if entry.kind == "DEBIT":
+                ledger.seed_debit(
+                    entry.shipment_ref,
+                    Money.from_paise(entry.amount_paise),
+                    entry.reason_code or "weight_charge",
+                    entry.transaction_id,
+                )
+
+
+def _needs_accounts(module: str, adapter: str) -> ConfigError:
+    """A real channel needs the owner's own test accounts, never built from defaults (I11)."""
+    return ConfigError(
+        f"module {module!r} with adapter {adapter!r} needs the owner's test account; follow "
+        "docs/SETUP_CHANNELS.md, or use the fake adapter"
+    )
+
+
 def _not_built(module: str, adapter: str) -> ConfigError:
     """Fail fast and say so plainly (CLAUDE.md section 6).
 
@@ -129,15 +156,37 @@ def _not_built(module: str, adapter: str) -> ConfigError:
     )
 
 
-def build_adapters(registry: Registry) -> Adapters:
+def build_adapters(
+    registry: Registry,
+    *,
+    clock: Clock | None = None,
+    ids: IdGenerator | None = None,
+    data_dir: Path | None = None,
+) -> Adapters:
     """Resolve each module's chosen adapter into an object.
 
     The registry decided *which* adapter; this decides *how* to build it. Keeping the two
     apart is what lets the kernel validate a combination without importing a single adapter.
     """
+    clock = clock or SystemClock()
+    ids = ids or UlidIdGenerator()
+    # Without a database (a configuration check) nothing is written under data/.
+    if data_dir is None:
+        import tempfile
+
+        data = Path(tempfile.mkdtemp(prefix="adapters-"))
+    else:
+        data = data_dir
+
     evidence_adapter = registry.adapter_name("evidence")
     if evidence_adapter == "disabled":
         evidence: EvidenceSource = DisabledEvidenceSource()
+    elif evidence_adapter == "synthetic_shipments":
+        from dispute_agent.modules.evidence.synthetic_shipments.library import (
+            SyntheticLibrarySource,
+        )
+
+        evidence = SyntheticLibrarySource(clock=clock)
     else:
         raise _not_built("evidence", evidence_adapter)
 
@@ -148,11 +197,18 @@ def build_adapters(registry: Registry) -> Adapters:
         raise _not_built("model_gateway", gateway_adapter)
 
     reasoning_adapter = registry.adapter_name("reasoning")
+    interpreter: ReplyInterpreter = DisabledReplyInterpreter()
+    drafter: MessageDrafter = DisabledMessageDrafter()
     if reasoning_adapter == "disabled":
         reasoner: Reasoner = DisabledReasoner()
-        interpreter: ReplyInterpreter = DisabledReplyInterpreter()
-        drafter: MessageDrafter = DisabledMessageDrafter()
+    elif reasoning_adapter == "rules_only":
+        from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
+        from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
+
+        reasoner = RulesOnlyReasoner(pack=WeightDisputePack(), ids=ids, clock=clock)
     else:
+        # `llm` needs the model route built with settings and policy; the runtime builds it
+        # (build_model_gateway / build_llm_reasoner), never an unguarded one here (I14).
         raise _not_built("reasoning", reasoning_adapter)
 
     screen_adapter = registry.adapter_name("input_screen")
@@ -172,26 +228,42 @@ def build_adapters(registry: Registry) -> Adapters:
     email_adapter = registry.adapter_name("email")
     if email_adapter == "disabled":
         email: MessageChannel = DisabledMessageChannel()
+    elif email_adapter == "fake":
+        from dispute_agent.modules.email.fake.channel import FakeMessageChannel
+
+        email = FakeMessageChannel()
     else:
-        raise _not_built("email", email_adapter)
+        raise _needs_accounts("email", email_adapter)
 
     ticketing_adapter = registry.adapter_name("ticketing")
     if ticketing_adapter == "disabled":
         ticketing: TicketingSystem = DisabledTicketingSystem()
+    elif ticketing_adapter == "fake":
+        from dispute_agent.modules.ticketing.fake.ticketing import FakeTicketingSystem
+
+        ticketing = FakeTicketingSystem()
     else:
-        raise _not_built("ticketing", ticketing_adapter)
+        raise _needs_accounts("ticketing", ticketing_adapter)
 
     ledger_adapter = registry.adapter_name("ledger")
     if ledger_adapter == "disabled":
         ledger: Ledger = DisabledLedger()
+    elif ledger_adapter == "simulated":
+        from dispute_agent.modules.ledger.simulated.ledger import SimulatedLedger
+
+        ledger = SimulatedLedger(data / "ledger.sqlite3", clock=clock.now)
+        if evidence_adapter == "synthetic_shipments":
+            _seed_charges(ledger)
     else:
         raise _not_built("ledger", ledger_adapter)
 
     approvals_adapter = registry.adapter_name("approvals")
-    if approvals_adapter == "disabled":
-        approvals: ApprovalService = DisabledApprovalService()
-    else:
+    if approvals_adapter not in ("disabled", "store_backed"):
         raise _not_built("approvals", approvals_adapter)
+    # store_backed: approvals live in the case database and the review console decides them
+    # there (ADR 0018); the line writes them through its unit of work. The notify/withdraw
+    # port is not called by the line yet (BACKLOG), so nothing is wired behind it.
+    approvals: ApprovalService = DisabledApprovalService()
 
     cross_case_adapter = registry.adapter_name("cross_case")
     if cross_case_adapter == "null":
@@ -238,10 +310,16 @@ def build_application(
     registry = validate_modules(load_modules_file(directory), app_env=env)
     clock = SystemClock()
     ids = UlidIdGenerator()
-    runtime = _build_runtime(directory, database, loaded, clock, ids) if database else None
+    data_dir = database.parent if database else None
+    adapters = build_adapters(registry, clock=clock, ids=ids, data_dir=data_dir)
+    runtime = (
+        _build_runtime(directory, database, loaded, clock, ids, adapters, registry)
+        if database
+        else None
+    )
     return Application(
         registry=registry,
-        adapters=build_adapters(registry),
+        adapters=adapters,
         app_env=env,
         settings=loaded,
         clock=clock,
@@ -264,10 +342,54 @@ def create_app(
     application = build_application(
         config_dir=config_dir, app_env=app_env, database=database or _default_database()
     )
-    app = FastAPI(title="Weight dispute resolution agent", version="0.1.0")
+    app = FastAPI(
+        title="Weight dispute resolution agent",
+        version="0.1.0",
+        lifespan=_runner_lifespan(application),
+    )
     app.state.application = application
     app.include_router(build_router(application.registry, application.runtime))
     return app
+
+
+#: Seconds between runner ticks (config.md section 8: runner.tick_seconds).
+TICK_SECONDS = 5.0
+
+
+def _runner_lifespan(application: Application) -> Any:
+    """Start-up recovery, then a tick every few seconds, for as long as the app runs.
+
+    orchestrator.md sections 6 and 7: timers are rows, so this loop is what makes them fire;
+    recovery runs first, before the first tick. Off under `APP_ENV=test`, where a test calls
+    `tick()` itself with a fake clock and a background loop would race it.
+    """
+    import asyncio
+    import contextlib
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        runtime = application.runtime
+        if runtime is None or application.app_env == "test":
+            yield
+            return
+        await asyncio.to_thread(runtime.runner.recover)
+        stop = asyncio.Event()
+
+        async def loop() -> None:
+            while not stop.is_set():
+                with contextlib.suppress(Exception):  # the runner logs; the loop must live
+                    await asyncio.to_thread(runtime.runner.tick)
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(stop.wait(), timeout=TICK_SECONDS)
+
+        task = asyncio.create_task(loop())
+        try:
+            yield
+        finally:
+            stop.set()
+            await task
+
+    return lifespan
 
 
 def _default_database() -> Path | None:
@@ -281,25 +403,34 @@ def _default_database() -> Path | None:
 
 
 def _build_runtime(
-    config_dir: Path, database: Path, settings: Settings, clock: Clock, ids: IdGenerator
+    config_dir: Path,
+    database: Path,
+    settings: Settings,
+    clock: Clock,
+    ids: IdGenerator,
+    adapters: Adapters,
+    registry: Registry,
 ) -> Runtime:
-    """Wire storage, intake and the step loop. The only place any of this is assembled."""
+    """Wire storage, intake, the whole line and the runner. The only place this is assembled.
+
+    The same `Line` the scenario suite and the demo use (api/line.py), so the running app and
+    the tests cannot drift apart. Modules switched off are switched off here too: the line
+    gives a disabled source or reasoner, and the case goes to a person naming the module (I6).
+    """
     from datetime import timedelta
 
+    from dispute_agent.api.line import Line
+    from dispute_agent.api.runner import Runner
     from dispute_agent.infra.policy import load_policy
+    from dispute_agent.infra.sqlite.control_flags import SqliteKillSwitch
     from dispute_agent.infra.sqlite.engine import create_sqlite_engine, verify_pragmas
     from dispute_agent.infra.sqlite.unit_of_work import unit_of_work_factory
-    from dispute_agent.infra.transitions import default_table
+    from dispute_agent.kernel.domain.enums import ActionType
     from dispute_agent.kernel.orchestrator.intake import Intake
-    from dispute_agent.kernel.orchestrator.orchestrator import (
-        Orchestrator,
-        phase_1_steps,
-    )
-    from dispute_agent.kernel.statemachine.machine import StateMachine
-    from dispute_agent.modules.cross_case.null import (
-        NullOutcomeObserver,
-        NullPatternContextProvider,
-    )
+    from dispute_agent.modules.email.write_port import MessageWritePort
+    from dispute_agent.modules.ledger.write_port import CreditWritePort
+    from dispute_agent.modules.ticketing.write_port import IssueWritePort
+    from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 
     engine = create_sqlite_engine(database)
     verify_pragmas(engine)
@@ -315,16 +446,30 @@ def _build_runtime(
         allowed_recipients=tuple(policy.messages.allowed_recipients),
         reopen_window=timedelta(days=policy.timers.reopen_window_days),
     )
-    orchestrator = Orchestrator(
-        StateMachine(default_table()),
-        phase_1_steps(),
-        clock,
-        ids,
-        patterns=NullPatternContextProvider(),
-        outcomes=NullOutcomeObserver(),
-        max_steps=policy.cases.max_steps_per_advance,
+
+    def ports(case: Any, action_type: ActionType) -> Any:
+        if action_type is ActionType.SEND_MESSAGE:
+            return MessageWritePort(adapters.email, case.id)
+        if action_type is ActionType.UPSERT_ISSUE:
+            project = getattr(adapters.ticketing, "project_key", "WD")
+            return IssueWritePort(adapters.ticketing, case.id, project)
+        return CreditWritePort(adapters.ledger, case.id)
+
+    modules = {m.name: m.enabled for m in registry.all()}
+    line = Line(
+        pack=WeightDisputePack(),
+        policy=policy,
+        clock=clock,
+        ids=ids,
+        ports=ports,
+        sources=lambda: {"evidence": adapters.evidence},
+        reasoner=adapters.reasoner if modules.get("reasoning") else None,
+        ledger=adapters.ledger if modules.get("ledger") else None,
+        modules=modules,
+        kill_switch=SqliteKillSwitch(engine),
     )
-    return Runtime(unit_of_work_factory(engine), intake, orchestrator, clock, ids)
+    runner = Runner(engine, line, observer=adapters.outcomes)
+    return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)
 
 
 # -- the model path (Phase 4P, ADR 0029) ------------------------------------------------------

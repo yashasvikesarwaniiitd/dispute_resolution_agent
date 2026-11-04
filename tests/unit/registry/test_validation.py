@@ -56,9 +56,19 @@ class TestTheShippedFile:
         """If this fails, the app does not start."""
         raw = yaml.safe_load(SHIPPED.read_text(encoding="utf-8"))
         registry = validate_modules(ModulesFile.model_validate(raw))
-        # Phase 0 ships with only the modules whose adapters exist switched on;
-        # Phases 2, 3, 4, 5 and 7 flip the rest as they build them.
-        assert set(registry.enabled_names()) == {"evals", "input_screen", "tracing"}
+        # Phase 6 ships the whole line offline (fakes, synthetic data, simulated ledger);
+        # the model route and cross_case stay off until the owner / Phase 7 turn them on.
+        assert set(registry.enabled_names()) == {
+            "approvals",
+            "email",
+            "evals",
+            "evidence",
+            "input_screen",
+            "ledger",
+            "reasoning",
+            "ticketing",
+            "tracing",
+        }
 
     def test_it_validates_under_ci_too(self) -> None:
         """make verify runs with APP_ENV=ci and must never need a preview adapter."""
