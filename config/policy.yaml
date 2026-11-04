@@ -61,7 +61,7 @@ patterns:
 
 llm:
   max_calls_per_case: 6                           # guarded calls per case; one may include its retries
-  max_output_tokens: 1200
+  max_output_tokens: 4000                         # reasoning tokens count too; gpt-5-mini used ~1,150 thinking on a real briefing
   call_timeout_s: 120                             # reasoning models can take tens of seconds
 
 llm_primary:

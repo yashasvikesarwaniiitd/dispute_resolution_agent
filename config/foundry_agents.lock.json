@@ -1,3 +1,15 @@
 {
-  "agents": {}
+  "agents": {
+    "case_investigator": {
+      "agent_name": "wd-case-investigator",
+      "definition_hash": "sha256:9b397a7294604c8fdc16e5d92c6cda9b528a4704fe37119cea10d2c60fdcb86f",
+      "deployment": "gpt-5-mini",
+      "prompt_hash": "sha256:c6caf2fafcb433eeeb03647695d6f595f565b720e8d64c19ee0c2aa929e3ddb7",
+      "prompt_name": "case_investigator",
+      "prompt_version": "v1",
+      "structured_output": false,
+      "synced_at": "2026-11-04T06:35:33.648633Z",
+      "version": "1"
+    }
+  }
 }

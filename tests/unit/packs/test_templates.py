@@ -86,6 +86,14 @@ class TestItRenders:
         for item in ITEMS:
             assert item in body
 
+    @pytest.mark.parametrize("kind", [MessageKind.EVIDENCE_REQUEST, MessageKind.REMINDER])
+    def test_each_requested_item_is_on_its_own_line(self, kind: MessageKind) -> None:
+        """The first live Foundry run showed three items run together on one line - the
+        loop stripped the line break before each item. "Appears in the body" passed."""
+        lines = render(a_context(kind=kind), shipment_ref=SHIPMENT).body.splitlines()
+        for item in ITEMS:
+            assert f"- {item}" in lines, f"{item!r} is not on a line of its own"
+
     def test_the_case_and_shipment_are_named(self) -> None:
         message = render(a_context(), shipment_ref=SHIPMENT)
         assert CASE_REF in message.subject

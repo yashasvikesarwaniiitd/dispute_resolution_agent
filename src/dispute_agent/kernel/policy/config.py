@@ -148,7 +148,8 @@ class LlmConfig(BaseModel):
     model_config = _FROZEN
 
     max_calls_per_case: int = Field(default=6, gt=0)
-    max_output_tokens: int = Field(default=1200, gt=0)
+    #: Reasoning models spend part of this thinking before they answer (foundry.md 6).
+    max_output_tokens: int = Field(default=4000, gt=0)
     #: Per model call. Reasoning models can take tens of seconds (foundry.md section 7).
     call_timeout_s: int = Field(default=120, gt=0)
 

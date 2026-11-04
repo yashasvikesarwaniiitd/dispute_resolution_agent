@@ -49,6 +49,9 @@ class RawReply:
     latency_ms: int
     cost_usd: Decimal
     model_id: str
+    #: Set when the provider says the answer is unusable before we read it (cut short at
+    #: the token limit, for example). Treated as invalid, with this as the reason.
+    unusable: str | None = None
 
 
 def parse(text: str, schema: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -104,6 +107,8 @@ def complete_with_one_retry(
             raise
         spent.append(reply)
         try:
+            if reply.unusable is not None:
+                raise InvalidModelOutput(reply.unusable)
             output = parse(reply.text, req.prompt.output_schema)
         except InvalidModelOutput as invalid:
             last_error = invalid

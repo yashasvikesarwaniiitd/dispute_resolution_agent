@@ -96,7 +96,9 @@ def main() -> int:
     )
     print("=" * 72)
     p = report.proposal
-    if p is None:
+    if p is None and spent > 0:
+        print("The agent was asked, but its answer was rejected (see the reason below).")
+    elif p is None:
         print("The agent was not asked: the case stopped before the decide station.")
     else:
         who = "RULES (fallback - the model could not be reached)" if report.fell_back else "AGENT"

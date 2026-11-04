@@ -143,6 +143,9 @@ class FoundryAgentServiceGateway:
         # A response cut short (max_output_tokens) is not an answer (foundry.md section 6):
         # an empty text makes it invalid, and it gets the one retry like any other.
         text = reply.text if reply.status == "completed" else ""
+        unusable = None
+        if reply.status != "completed":
+            unusable = f"cut short ({reply.incomplete_reason or reply.status or 'no status'})"
 
         tokens_in = reply.input_tokens
         tokens_out = reply.output_tokens
@@ -158,6 +161,7 @@ class FoundryAgentServiceGateway:
             latency_ms=latency_ms,
             cost_usd=self.price.cost(tokens_in, tokens_out) + failed_cost.cost_usd,
             model_id=reply.model or agent.deployment,
+            unusable=unusable,
         )
 
     def _with_retries(
