@@ -80,6 +80,8 @@ class SimulatedLedger:
     #: For `delayed_visibility`: how long a new transaction is invisible to read-back.
     visibility_delay_s: float = 30.0
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
+    #: Attempts to post, whatever their outcome (the kill-switch drill counts these).
+    post_calls: int = 0
     idempotent_writes: bool = True
     lookup_supported: bool = True
 
@@ -93,6 +95,7 @@ class SimulatedLedger:
     # -- writing ---------------------------------------------------------------------------------
 
     def post_credit(self, req: CreditRequest, key: IdempotencyKey) -> TransactionRef:
+        self.post_calls += 1  # every attempt, so a drill can prove there were none (I10)
         mode = self.failure_mode
         if mode == "timeout_before":
             # A one-off, like a real timeout: the next try reaches the ledger (S11).

@@ -251,12 +251,15 @@ def _run(
 
 
 def _at(world: World, step: Step) -> None:
+    """Move the clock to the step's time and let the runner do what time does.
+
+    Only when time actually moves: two steps at the same moment happen in script order, so a
+    switch thrown "at 0h" is on before the case first advances.
+    """
     target = START + step.at
     if world.clock.now() < target:
-        world.clock.set(target) if hasattr(world.clock, "set") else world.clock.advance(
-            target - world.clock.now()
-        )
-    world.tick()
+        world.clock.advance(target - world.clock.now())
+        world.tick()
 
 
 def _settle(world: World) -> None:

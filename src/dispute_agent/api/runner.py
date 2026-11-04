@@ -86,7 +86,9 @@ class Runner:
                 inbox_id = work.inbox.accept(event, self.line.clock.now())
             except DuplicateEvent as duplicate:
                 inbox_id = duplicate.existing_inbox_id
-        return self.dispatch(inbox_id)
+        # Accepted is accepted: if handling it loses a race or fails, the event is already
+        # safe in the inbox and the same rules as the tick apply - retry, or a person.
+        return self._safe_dispatch(inbox_id, TickReport())
 
     def dispatch(self, inbox_id: InboxId) -> DispatchResult:
         with self._work() as work:
