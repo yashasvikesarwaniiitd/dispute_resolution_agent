@@ -101,7 +101,10 @@ class TestTheMigration:
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
             if not row[0].startswith(("sqlite_", "alembic_"))
         }
-        assert tables == set(ALL_TABLES)
+        from dispute_agent.infra.sqlite.patterns import TABLES as PATTERN_TABLES
+
+        # 0002 adds the cross-case tables (Phase 7); schema.sql's own set is unchanged.
+        assert tables == set(ALL_TABLES) | set(PATTERN_TABLES)
         assert (
             conn.execute("SELECT count(*) FROM sqlite_master WHERE type='trigger'").fetchone()[0]
             == 9

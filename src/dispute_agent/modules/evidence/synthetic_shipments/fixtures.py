@@ -373,6 +373,52 @@ def seasonal_bulky_sku() -> Fixture:
     )
 
 
+def cluster_members(built: Fixture) -> tuple[Shipment, ...]:
+    """The parcels of a Phase 7 cluster fixture (synthetic-data.md section 4), one per dispute.
+
+    `hub_scanner_cluster`: five parcels measured by scanner SCN-03-2 at HUB-03, plus a sixth
+    (the new case S15 briefs with the pattern), each its own shipment and claim.
+    `seasonal_bulky_sku`: twelve parcels of one bulky festive SKU, three at each of four hubs,
+    every one measured correctly - the pattern ops will find legitimate (S16).
+    A fixture that is not a cluster has no members.
+    """
+    from dataclasses import replace
+
+    base = built.shipment
+    if built.name == "hub_scanner_cluster":
+        return tuple(
+            replace(
+                _kurta(f"SHP-0013{n:02d}", measured=base.measured),
+                hub_id="HUB-03",
+                scanner_id="SCN-03-2",
+                sku_id="SKU-0007",
+            )
+            for n in range(1, built.cluster_of + 2)
+        )
+    if built.name == "seasonal_bulky_sku":
+        members = []
+        for n in range(1, built.cluster_of + 1):
+            hub = (n - 1) % 4 + 1
+            shipment = _shipment(
+                f"SHP-0014{n:02d}",
+                declared=base.declared,
+                measured=base.measured,
+                declared_dead=base.declared_dead_grams,
+                measured_dead=base.measured_dead_grams,
+                zone=base.zone,
+            )
+            members.append(
+                replace(
+                    shipment,
+                    hub_id=f"HUB-{hub:02d}",
+                    scanner_id=f"SCN-{hub:02d}-{n % 2 + 1}",
+                    sku_id="SKU-FEST-01",
+                )
+            )
+        return tuple(members)
+    return ()
+
+
 #: Every fixture synthetic-data.md section 4 names. A scenario cannot reference one that is
 #: not here, and a test reads both files to prove it.
 FIXTURES: dict[str, object] = {
