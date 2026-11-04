@@ -801,7 +801,9 @@ _NEEDS: dict[ProposalAction, tuple[str, ...]] = {
     ProposalAction.REQUEST_SELLER_EVIDENCE: ("email", "approvals"),
     ProposalAction.UPHOLD_CHARGE: ("email", "approvals"),
     ProposalAction.REQUEST_REMEASUREMENT: ("ticketing",),
-    ProposalAction.PROPOSE_CREDIT: ("ledger", "approvals"),
+    # email too: a credit is resolved only once the seller is told (ADR 0012), and money
+    # must not move on a case whose confirmation could not be sent.
+    ProposalAction.PROPOSE_CREDIT: ("ledger", "approvals", "email"),
 }
 _MODULE_ORDER = ("email", "ticketing", "ledger", "approvals")
 

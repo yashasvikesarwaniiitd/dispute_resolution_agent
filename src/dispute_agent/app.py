@@ -170,7 +170,8 @@ def build_adapters(
     """
     clock = clock or SystemClock()
     ids = ids or UlidIdGenerator()
-    # Without a database (a configuration check) nothing is written under data/.
+    # Without a database (a configuration check) the simulated ledger goes to a fresh temp
+    # folder, never under data/, so a check cannot touch the real files.
     if data_dir is None:
         import tempfile
 
@@ -354,6 +355,29 @@ def create_app(
 
 #: Seconds between runner ticks (config.md section 8: runner.tick_seconds).
 TICK_SECONDS = 5.0
+#: Consecutive failed ticks after which the runner is reported stalled (about a minute).
+STALLED_AFTER = 12
+
+
+def tick_once(runner: Any, failures: int) -> int:
+    """One tick; returns the count of consecutive failures (0 after a good tick).
+
+    A tick that raises is logged by exception type (never its text, I12) and counted: a
+    runner that keeps failing fires no timer and advances no case, so it must be loud
+    (Phase 6 safety review, MED-1) rather than silently retried forever.
+    """
+    import structlog
+
+    log = structlog.get_logger(__name__)
+    try:
+        runner.tick()
+    except Exception as failed:
+        failures += 1
+        log.error("runner_tick_failed", error=type(failed).__name__, consecutive=failures)
+        if failures == STALLED_AFTER:
+            log.critical("runner_stalled", consecutive=failures)
+        return failures
+    return 0
 
 
 def _runner_lifespan(application: Application) -> Any:
@@ -376,9 +400,9 @@ def _runner_lifespan(application: Application) -> Any:
         stop = asyncio.Event()
 
         async def loop() -> None:
+            failures = 0
             while not stop.is_set():
-                with contextlib.suppress(Exception):  # the runner logs; the loop must live
-                    await asyncio.to_thread(runtime.runner.tick)
+                failures = await asyncio.to_thread(tick_once, runtime.runner, failures)
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=TICK_SECONDS)
 
@@ -466,7 +490,7 @@ def _build_runtime(
         reasoner=adapters.reasoner if modules.get("reasoning") else None,
         ledger=adapters.ledger if modules.get("ledger") else None,
         modules=modules,
-        kill_switch=SqliteKillSwitch(engine),
+        kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
     )
     runner = Runner(engine, line, observer=adapters.outcomes)
     return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)

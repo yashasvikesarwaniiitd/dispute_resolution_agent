@@ -58,6 +58,9 @@ class MessageApprovalBound:
             return deny(self.rule_id, "approval_missing_or_unbound")
         if approval.decided_by is None or not approval.decided_by.id.startswith("human:"):
             return deny(self.rule_id, "approval_missing_or_unbound")
+        if approval.decided_by.id not in ctx.policy.approvals.approver_ids:
+            # T09 at the executor's own re-check, not only where the decision is applied.
+            return deny(self.rule_id, "approver_not_listed")
         if approval.used_by_action_id is not None:
             return deny(self.rule_id, "approval_missing_or_unbound")
         if approval.request.subject is not ApprovalSubject.MESSAGE:

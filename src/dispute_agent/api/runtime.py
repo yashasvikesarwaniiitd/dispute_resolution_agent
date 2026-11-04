@@ -21,6 +21,16 @@ from dispute_agent.kernel.domain.errors import DuplicateEvent
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
 from dispute_agent.kernel.domain.inbound import HUMAN_EVENTS
 
+#: What an unauthenticated endpoint may accept (Phase 6 safety review, MED-2): a reply is
+#: evidence only and its sender is never trusted as authenticated ("none" is not "pass"); a
+#: delivery failure can only escalate. An ops finding feeds measurements into a credit
+#: decision and a withdrawal closes a case, so both need an authenticated source (the Jira
+#: poller, the seller portal) and are refused here, as are people's decisions (T09).
+OPEN_ENDPOINT = frozenset(
+    {InboundEventType.SELLER_REPLY_RECEIVED, InboundEventType.DELIVERY_FAILURE_RECEIVED}
+)
+_ = HUMAN_EVENTS  # people's decisions are a subset of what is refused
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
@@ -146,7 +156,7 @@ class Runtime:
         open endpoint must not accept one (safety review of ADR 0033). The review console
         decides approvals in the store, and the runner applies them.
         """
-        if event.type in HUMAN_EVENTS or event.type is InboundEventType.DISPUTE_RAISED:
+        if event.type not in OPEN_ENDPOINT:
             raise PermissionError(f"{event.type.value} is not accepted on this endpoint")
         return self.runner.submit(event)
 

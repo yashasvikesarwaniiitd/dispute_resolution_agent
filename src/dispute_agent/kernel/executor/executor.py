@@ -456,7 +456,8 @@ class ActionExecutor:
             try:
                 return port.send(payload, key)
             except TransientPortError:
-                if attempt == attempts - 1:
+                # Last try, or the switch went on since the first one (I10): stop here.
+                if attempt == attempts - 1 or self._kill_switch.is_engaged():
                     raise
         raise AssertionError("unreachable")  # pragma: no cover
 

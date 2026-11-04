@@ -23,10 +23,15 @@ if TYPE_CHECKING:
 class SqliteKillSwitch:
     """Implements KillSwitch."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, forced: bool = False) -> None:
         self._engine = engine
+        #: `KILL_SWITCH=true` in the settings (config.md, the port contract): on, whatever
+        #: the row says. Either source can stop writes; neither can start them.
+        self._forced = forced
 
     def is_engaged(self) -> bool:
+        if self._forced:
+            return True
         try:
             with self._engine.connect() as conn:
                 row = conn.execute(

@@ -83,7 +83,7 @@ class FakeMessageChannel:
 
     `faults` maps a fault token to the behaviour it causes on the *next* matching call:
 
-    - `timeout` — `send` raises `TransientPortError` after the draft exists and was sent,
+    - `timeout` — `send` raises `AmbiguousOutcome` after the draft exists and was sent,
       which is scenario S12a: the message really went, and only the answer was lost.
     - `stuck_in_drafts` — the draft is created and `/send` never runs, which is S12b: the
       only honest answer to `find_sent` is `AmbiguousOutcome`.
