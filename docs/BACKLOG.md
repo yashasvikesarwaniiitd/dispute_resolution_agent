@@ -211,3 +211,20 @@ now saved after every transition (`advance(..., commit=...)`), as orchestrator.m
   - *The per-case cap counts guarded calls, and one guarded call can include its retries*
     (up to 2 answer attempts x 3 transport attempts). Each retry is costed, so the lifetime
     cap sees all of it; the policy comment now says what is counted.
+
+## From the first live Foundry runs (2026-11-04, all 15 fixtures, about $0.10)
+
+Inputs for the Phase 4+ eval suite and prompt v2 (the v1 prompt is frozen):
+- **Number words in requested items.** The agent wrote an item with a number word; the
+  template's MD-F1 guard blocked the draft and the case went to a person. Safe, but a good
+  case lost. v2 should instruct digits only in `requested_items`.
+- **The agent upholds more readily than the rules.** It upheld on `conflicting_history`,
+  `hub_scanner_cluster` and `injection_in_statement`, where the baseline escalates or asks
+  for evidence; it asked for evidence on `ambiguous_image`, `kurta_box_larger` and
+  `injection_in_ops_note`, where the baseline escalates. Agreement 6 of 13. An uphold is a
+  "no money" decision: the eval suite must judge these before `upheld_explanation` exists.
+- **Decisions vary between runs** (`scanner_fault`: request_seller_evidence, then
+  request_remeasurement). Evals should run each case several times.
+- **Injection flagging held** on both injection cases, on repeat runs.
+- **Reasoning tokens**: about 500-1,150 per case before the answer; the 4,000 output limit
+  leaves room. Cost about $0.004-$0.012 per case.

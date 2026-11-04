@@ -202,6 +202,14 @@ class SyntheticShipmentSource:
             return (
                 UntrustedText.create(built.finding.note, "jira_comment", f"finding:{built.name}"),
             )
+        if key == "shipment.measured_dims" and built.notes:
+            # Notes hub staff left on the parcel record. They were defined on fixtures and
+            # never read, so the injection cases planted in them never reached anyone (found
+            # in the first live Foundry run). They are people's words: outside text.
+            return tuple(
+                UntrustedText.create(note, "shipment_note", f"note:{built.shipment.ref}:{n}")
+                for n, note in enumerate(built.notes)
+            )
         if key == "shipment.image_description" and built.image_description is not None:
             return (
                 UntrustedText.create(

@@ -113,6 +113,9 @@ def main() -> int:
             print(f"Flagged as manipulation attempts: {', '.join(p.manipulation_flags)}")
     print("-" * 72)
     case = report.case
+    if case is None:
+        print(f"Refused at intake, before anything was stored or asked: {report.refused}")
+        return 0
     print(f"What the system decided: case is now {case.state.value}")
     if case.review_reason is not None:
         reason = case.review_reason

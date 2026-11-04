@@ -11,8 +11,9 @@ furthest any case can reach is the approval queue, and no channel is wired at al
 thing that leaves the machine is the model call, and that goes through the spending guard
 and is logged to `data/model_calls.sqlite3` like any other.
 
-The recipient allowlist is set to the fixture's own synthetic address, because the line's
-policy refuses to even draft to an address it does not know (R06) and nothing is sent.
+The recipient allowlist is the one synthetic test seller (`SELLER_CONTACT`), as the owner's
+`.env` would name the test seller. A fixture with any other address is refused at intake,
+exactly as the API refuses it (S27) - which is what `non_allowlisted_seller` is there to show.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from dispute_agent.kernel.domain.events import Event, EventPayload, InboundEvent
 from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
 from dispute_agent.kernel.domain.models import Actor
 from dispute_agent.kernel.domain.values import UntrustedText
-from dispute_agent.kernel.orchestrator.intake import Intake
+from dispute_agent.kernel.orchestrator.intake import Intake, RecipientNotAllowedError
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
 from dispute_agent.kernel.orchestrator.steps import AssessStep, EligibilityStep, GatherEvidenceStep
@@ -42,7 +43,7 @@ from dispute_agent.kernel.policy.engine import PolicyEngine
 from dispute_agent.kernel.policy.rules import phase_3_rules
 from dispute_agent.kernel.statemachine.machine import StateMachine
 from dispute_agent.modules.cross_case.null import NullOutcomeObserver, NullPatternContextProvider
-from dispute_agent.modules.evidence.synthetic_shipments.fixtures import fixture
+from dispute_agent.modules.evidence.synthetic_shipments.fixtures import SELLER_CONTACT, fixture
 from dispute_agent.modules.evidence.synthetic_shipments.source import SyntheticShipmentSource
 from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
 from dispute_agent.packs.weight_dispute.eligibility import STATUS_KEY
@@ -77,11 +78,13 @@ class Watching:
 @dataclass(frozen=True)
 class TrialReport:
     fixture: str
-    case: Case
+    #: None when intake refused the dispute; `refused` then says why.
+    case: Case | None
     proposal: Proposal | None
     fell_back: bool
     email_subject: str | None
     email_body: str | None
+    refused: str | None = None
 
 
 def run_trial(
@@ -111,7 +114,7 @@ def run_trial(
     policy = policy.model_copy(
         update={
             "messages": MessagesConfig.model_validate(
-                {**policy.messages.model_dump(), "allowed_recipients": [built.seller_contact]}
+                {**policy.messages.model_dump(), "allowed_recipients": [SELLER_CONTACT]}
             )
         }
     )
@@ -123,7 +126,10 @@ def run_trial(
         apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))
         try:
             with SqliteUnitOfWork(engine, clock=clock) as work:
-                case = _open_case(work, facts, name, now, ids)
+                try:
+                    case = _open_case(work, facts, name, now, ids)
+                except RecipientNotAllowedError as refused:
+                    return TrialReport(name, None, None, False, None, None, refused=str(refused))
                 steps: dict[str, Step] = {
                     **phase_1_steps(),
                     "eligibility": EligibilityStep(pack),
@@ -198,7 +204,7 @@ def _open_case(
     SqliteInboxStore(work.connection).accept(inbound, now)
     input_id = EventId(ids.new_id("evt"))
     opened = Intake(
-        allowed_recipients=(facts.seller_contact,), reopen_window=timedelta(days=7)
+        allowed_recipients=(SELLER_CONTACT,), reopen_window=timedelta(days=7)
     ).open_or_get_case(
         work.cases,
         inbound,
