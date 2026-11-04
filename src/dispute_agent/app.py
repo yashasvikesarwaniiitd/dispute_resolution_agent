@@ -347,6 +347,7 @@ def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
         credit_expires_on=settings.azure_credit_expires_on,
         allow_paid_usage=settings.llm_allow_paid_usage,
         spend_cap_usd=settings.llm_primary_spend_cap_usd,
+        secondary_cap_usd=settings.llm_secondary_spend_cap_usd,
     )
 
 
@@ -359,6 +360,7 @@ def build_model_gateway(
     ids: IdGenerator,
     fake_answer: Callable[[ModelRequest], str | dict[str, object]] | None = None,
     log_path: Path = MODEL_CALL_LOG,
+    secondary: str | None = None,
 ) -> ModelGateway:
     """The one guarded path to a model (I14, ADR 0017): the chosen route, inside the guard.
 
@@ -375,8 +377,17 @@ def build_model_gateway(
     elif adapter == "foundry_agent_service":
         primary = build_foundry_gateway(settings, policy)
         route = "foundry_agent_service"
+    elif adapter == "foundry_openai":
+        primary = build_foundry_openai_gateway(settings, policy)
+        route = "foundry_openai"
     else:
         raise _not_built("model_gateway", adapter)
+
+    second: ModelGateway | None = None
+    if secondary == "anthropic_direct":
+        second = build_haiku_gateway(settings, policy)
+    elif secondary is not None:
+        raise ConfigError(f"the only failover route is anthropic_direct, not {secondary!r} (F01)")
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     return BudgetedModelGateway(
@@ -387,6 +398,46 @@ def build_model_gateway(
         money=policy.llm_primary,
         clock=clock,
         ids=ids,
+        secondary=second,
+        secondary_cap_usd=policy.llm_secondary.spend_cap_usd,
+    )
+
+
+def build_haiku_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:
+    """The secondary: Haiku only, the one provider API key, read by the settings loader."""
+    from dispute_agent.modules.model_gateway.anthropic_direct.gateway import (
+        ROUTE,
+        AnthropicDirectGateway,
+    )
+    from dispute_agent.modules.model_gateway.foundry_agent_service.pricing import load_price
+
+    model = settings.anthropic_model_haiku
+    return AnthropicDirectGateway.build(
+        model=model,
+        api_key=settings.anthropic_api_key,
+        price=load_price(PRICING, ROUTE, model or ""),
+        timeout_s=policy.llm.call_timeout_s,
+    )
+
+
+def build_foundry_openai_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:
+    from dispute_agent.modules.model_gateway.foundry_agent_service.pricing import load_price
+    from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
+        runtime_credential,
+    )
+    from dispute_agent.modules.model_gateway.foundry_openai.gateway import (
+        FoundryOpenAiGateway,
+    )
+
+    if not settings.foundry_project_endpoint or not settings.foundry_model_deployment:
+        raise ConfigError("FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL_DEPLOYMENT must be set")
+    return FoundryOpenAiGateway.build(
+        endpoint=settings.foundry_project_endpoint,
+        deployment=settings.foundry_model_deployment,
+        credential=runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD),
+        # Same deployment, same price row as the agent route.
+        price=load_price(PRICING, "foundry_agent_service", settings.foundry_model_deployment),
+        timeout_s=policy.llm.call_timeout_s,
     )
 
 

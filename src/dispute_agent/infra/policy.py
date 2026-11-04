@@ -49,6 +49,7 @@ def with_llm_overrides(
     credit_expires_on: date | None,
     allow_paid_usage: bool,
     spend_cap_usd: Decimal | None,
+    secondary_cap_usd: Decimal | None = None,
 ) -> PolicyConfig:
     """Apply the environment's spending settings (config.md section 7).
 
@@ -69,4 +70,12 @@ def with_llm_overrides(
         )
     except ValueError as bad:
         raise ConfigError(f"LLM spending settings are invalid: {bad}") from None
-    return policy.model_copy(update={"llm_primary": primary})
+    secondary = policy.llm_secondary
+    if secondary_cap_usd is not None:
+        try:
+            secondary = type(secondary).model_validate(
+                {**secondary.model_dump(), "spend_cap_usd": secondary_cap_usd}
+            )
+        except ValueError as bad:
+            raise ConfigError(f"LLM_SECONDARY_SPEND_CAP_USD is invalid: {bad}") from None
+    return policy.model_copy(update={"llm_primary": primary, "llm_secondary": secondary})

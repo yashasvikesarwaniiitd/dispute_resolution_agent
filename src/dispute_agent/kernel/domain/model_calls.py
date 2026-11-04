@@ -38,6 +38,8 @@ class ModelCallRecord(BaseModel):
     cost_usd: Annotated[Decimal, Field(ge=0)]
     status: CallStatus
     error_code: str | None = None
+    #: Set on a failover call: the route that was unavailable (F01).
+    failover_from: str | None = None
     created_at: datetime
 
     @field_validator("created_at")

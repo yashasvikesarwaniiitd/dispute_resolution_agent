@@ -169,6 +169,16 @@ class LlmPrimaryConfig(BaseModel):
     allow_paid_usage: bool = False
 
 
+class LlmSecondaryConfig(BaseModel):
+    """The Haiku route's limits (D17, M05, M06). Its cap is its own: never shared, never
+    crossed by failover."""
+
+    model_config = _FROZEN
+
+    allowed_models: str = "claude-haiku-*"
+    spend_cap_usd: Decimal = Field(default=Decimal("10.00"), gt=0)
+
+
 class PolicyConfig(BaseModel):
     """The kernel-facing part of config/policy.yaml."""
 
@@ -184,6 +194,7 @@ class PolicyConfig(BaseModel):
     baseline: BaselineConfig = Field(default_factory=BaselineConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
     llm_primary: LlmPrimaryConfig = Field(default_factory=LlmPrimaryConfig)
+    llm_secondary: LlmSecondaryConfig = Field(default_factory=LlmSecondaryConfig)
 
     def rules_version(self) -> str:
         """A hash of the effective configuration, recorded on every verdict.

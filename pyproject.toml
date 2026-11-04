@@ -23,6 +23,7 @@ dependencies = [
     "azure-ai-projects>=2.10.0",
     "azure-identity>=1.19",
     "openai>=1.60",
+    "anthropic>=1.0",
 ]
 
 [dependency-groups]

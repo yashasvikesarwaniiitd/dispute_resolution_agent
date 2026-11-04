@@ -91,7 +91,7 @@ class SqliteModelUsageLedger:
                     ),
                     status=call.status,
                     error_code=call.error_code,
-                    failover_from=None,
+                    failover_from=call.failover_from,
                     created_at=call.created_at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 )
             )

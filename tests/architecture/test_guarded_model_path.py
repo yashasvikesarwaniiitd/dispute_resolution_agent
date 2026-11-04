@@ -30,6 +30,8 @@ GUARDED = {
     "FoundryAgentServiceGateway": {"app.py"},
     "FakeModelGateway": {"app.py"},
     "AzureAgentServiceClient": {"app.py"},
+    "AnthropicDirectGateway": {"app.py"},
+    "FoundryOpenAiGateway": {"app.py"},
 }
 
 

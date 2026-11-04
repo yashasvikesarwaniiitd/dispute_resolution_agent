@@ -208,7 +208,10 @@ class InvalidModelOutput(PortError):
 class BudgetExceeded(PortError):
     code: ClassVar[str] = "budget_exceeded"
 
-    def __init__(self, kind: Literal["llm_budget_exceeded", "credit_cap_reached"]) -> None:
+    def __init__(
+        self,
+        kind: Literal["llm_budget_exceeded", "credit_cap_reached", "credit_window_ended"],
+    ) -> None:
         self.kind = kind
         super().__init__(kind)
 

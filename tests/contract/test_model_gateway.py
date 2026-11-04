@@ -31,7 +31,8 @@ from dispute_agent.kernel.domain.errors import (
     TransientPortError,
 )
 from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
-from tests.contract.conftest import build_or_skip, params, pending, ready
+from tests.anthropic_stub import PRICE, haiku
+from tests.contract.conftest import build_or_skip, params, ready
 from tests.contract.harness import UnsupportedError, arrange
 from tests.foundry_stub import deployed_for
 from tests.model_fixtures import SECRET_MARKER, request, valid_answer
@@ -95,10 +96,36 @@ class FoundryStubHarness:
         raise UnsupportedError("the Foundry route's model is the deployment, not a choice")
 
 
+class AnthropicStubHarness:
+    """The real Haiku route over a stand-in for the Anthropic SDK client."""
+
+    name = "anthropic_direct"
+
+    def gateway(self, answers: list[Any]) -> Any:
+        if "guardrail" in answers:
+            raise UnsupportedError("the Anthropic API has no provider content block to raise")
+        built, messages = haiku(answers)
+        built.stub = messages  # type: ignore[attr-defined]
+        return built
+
+    def provider_calls(self, gateway: Any) -> int:
+        return len(gateway.stub.calls)
+
+    def sent_options(self, gateway: Any) -> list[dict[str, Any]]:
+        return [{k: v for k, v in c.items() if k != "messages"} for c in gateway.stub.calls]
+
+    def gateway_for_model(self, model: str) -> Any:
+        from dispute_agent.modules.model_gateway.anthropic_direct.gateway import (
+            AnthropicDirectGateway,
+        )
+
+        return AnthropicDirectGateway(model=model, price=PRICE, client=object())
+
+
 ADAPTERS = [
     ready("fake", FakeHarness),
     ready("foundry_agent_service (stub Azure)", FoundryStubHarness),
-    pending("anthropic_direct", phase="Phase 4+ (card P4-07)", integration=True),
+    ready("anthropic_direct (stub SDK)", AnthropicStubHarness),
 ]
 
 
@@ -164,7 +191,7 @@ class TestOutput:
 class TestErrors:
     def test_a_guardrail_block_raises_guardrail_blocked(self, harness: GatewayHarness) -> None:
         """I15: a block sends the case to a human, it does not retry into success."""
-        gateway = harness.gateway(["guardrail", valid_answer()])
+        gateway = arrange(harness.gateway, ["guardrail", valid_answer()])
         with pytest.raises(GuardrailBlocked):
             gateway.complete(request())
         assert harness.provider_calls(gateway) == 1

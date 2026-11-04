@@ -62,6 +62,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="make try-agent")
     parser.add_argument("case", nargs="?", default="scanner_fault")
     parser.add_argument("--offline", action="store_true", help="use the scripted fake model")
+    parser.add_argument(
+        "--with-haiku",
+        action="store_true",
+        help="fail over to Haiku if Foundry is unavailable (spends on ANTHROPIC_API_KEY)",
+    )
     args = parser.parse_args()
 
     settings = Settings()

@@ -208,7 +208,12 @@ class InvestigateStep:
         except InvalidModelOutput as invalid:
             return _escalate(ReviewCode.INVALID_MODEL_OUTPUT, str(invalid))
         except BudgetExceeded as budget:
-            return _escalate(ReviewCode.LLM_BUDGET_EXCEEDED, str(budget))
+            # policy-rules.md section 8: M01, M03/M05 and M04 each have their own code.
+            code = {
+                "credit_cap_reached": ReviewCode.CREDIT_CAP_REACHED,
+                "credit_window_ended": ReviewCode.CREDIT_WINDOW_ENDED,
+            }.get(budget.kind, ReviewCode.LLM_BUDGET_EXCEEDED)
+            return _escalate(code, str(budget))
         except GuardrailBlocked as blocked:
             return _escalate(ReviewCode.GUARDRAIL_BLOCKED, str(blocked))
         except AgentDrift as drift:

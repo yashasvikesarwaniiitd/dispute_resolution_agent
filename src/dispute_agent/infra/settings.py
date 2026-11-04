@@ -72,10 +72,16 @@ class Settings(BaseSettings):
     azure_credit_expires_on: date | None = None
     llm_allow_paid_usage: bool = False
     llm_primary_spend_cap_usd: Decimal | None = None
+    llm_secondary_spend_cap_usd: Decimal | None = None
     #: "I am knowingly testing a prompt that has not passed its eval suite." Off by default.
     prompts_allow_inactive: bool = False
 
-    @field_validator("azure_credit_expires_on", "llm_primary_spend_cap_usd", mode="before")
+    @field_validator(
+        "azure_credit_expires_on",
+        "llm_primary_spend_cap_usd",
+        "llm_secondary_spend_cap_usd",
+        mode="before",
+    )
     @classmethod
     def _blank_is_unset(cls, value: object) -> object:
         """`.env.example` lists names with empty values; an empty value means not set."""

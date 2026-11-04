@@ -68,3 +68,7 @@ llm_primary:
   spend_cap_usd: "150.00"                         # below the $200 Azure credit, on purpose (D18)
   credit_expires_on: null                         # from AZURE_CREDIT_EXPIRES_ON; required for Foundry
   allow_paid_usage: false                         # from LLM_ALLOW_PAID_USAGE; never on by default
+
+llm_secondary:
+  allowed_models: "claude-haiku-*"                # enforced in code too (I14)
+  spend_cap_usd: "10.00"                          # from LLM_SECONDARY_SPEND_CAP_USD; never crossed by failover
