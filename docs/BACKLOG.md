@@ -236,26 +236,32 @@ four sending stations (apply_approval, execute, verify, SQLite ActionStore); the
 its pending plan; credit flow and verification; credit approvals show the evidence; the
 upheld and credit-confirmation templates; module-unavailable is named on the case (S41).
 
-**Still open:**
-- **The long-running runtime** (`make run-api`) assembles only the Phase 1 steps. The full line
-  is assembled by `api/full_run.py` for the trial, the demo and the tests; the runtime needs the
-  same per-unit-of-work assembly plus real adapter construction from `config/modules.yaml`.
-- **Live demo against Outlook and Jira** needs builders for the real adapters inside the full run
-  and the owner's accounts (`docs/SETUP_CHANNELS.md`); `make demo ARGS="--offline"` runs the whole
-  sequence against fakes today.
-- **The seller-reply round**: a reply arriving, the interpreter reading it, the case re-evaluating
-  (T26, R12, R19, R20 on real readings). The interpreter, R20 and R21 exist and are tested; the
-  routing of a reply into a case round is not wired. The briefing's contact counters are still
-  zero for that reason.
-- **Declared timer effects** beyond approval expiry (checked by time in apply_approval): seller
-  reminders, decision deadlines, OPS_TIMEOUT. VERIFY_RETRY is replaced by "rest and re-advance"
-  with a deadline in the verify step.
-- **Events from steps**: proposals are kept in their own table; PROPOSAL_RECORDED,
-  INTENT_CREATED, APPROVAL_REQUESTED and MODEL_ROUTE_FAILOVER are not yet written as events.
-- **Eval harness plays first rounds only** and ignores scenario faults and config overrides; the
-  Phase 6 runner plays full scripts. The gpt-5-mini live baseline is done
-  (`docs/evals/2026-11-04-live-gpt-5-mini.md`); the model-choice ADR (O1) still needs the same run
-  against a gpt-5.4-mini deployment, which the owner creates.
+**Still open** (updated after ADR 0033, the inbound half):
+- **The long-running runtime** (`make run-api`) still assembles the Phase 1 steps, and
+  `build_adapters` still builds only Disabled adapters. Wire `_build_runtime` to `api/line.py` and
+  `api/runner.py`; build the synthetic, fake/real email and Jira, simulated ledger and store-backed
+  approvals adapters from `config/modules.yaml`; a shipment source that serves any synthetic
+  shipment (not one fixture); `POST /events` for every inbound type; a background tick and
+  `recover()` at start-up. Moves into Phase 6 with P6-01 (the simulator needs the same assembly).
+- **Live demo against Outlook and Jira** needs builders for the real adapters inside the line and
+  the owner's accounts (`docs/SETUP_CHANNELS.md`).
+- **handed_to_human_notice template**: a reviewer who asks to notify the seller on hand-off gets
+  NOTICE_NOT_SENT today (T36); add the template and the T34/T35 path.
+- **Outbound message rows**: `messages` holds inbound replies only; outbound sends are not
+  recorded there, so conversation routing works only after the seller's first reply in a thread.
+  Sender + shipment-in-subject routing covers the first reply.
+- **R11 (draft blocked) and R24 (repeat dispute)** are still carried by steps, not rules.
+- **Before any external inbound endpoint exists** (safety review of ADR 0033, LOW): tie HUMAN_*
+  and APPROVAL_DECIDED events to an authenticated `human:*` actor and the `approvals` /
+  `ops_console` sources (P3 trusts the declared actor today); do not trust `event.case_id` from
+  sources that have their own routing rule; put the decided approval or resolved action on the
+  input event's payload so the trail, not only the stores, says who decided what.
+- **P1 version check**: pre-dispatch rule P1 does not compare `armed_at_version`; cancel and void
+  cover every current path, but the spec names the version check too.
+
+**Closed by ADR 0033:** the seller-reply round, declared timer effects (reminder, decision deadline,
+ops timeout, approval expiry), step events (INTENT_CREATED, APPROVAL_REQUESTED, REMINDER_SKIPPED,
+the effect events), the dispatcher and the runner.
 
 ## From the first live eval (2026-11-04, gpt-5-mini, $0.07)
 

@@ -150,6 +150,7 @@ class Orchestrator:
         max_steps: int = 12,
         tracer: Tracer | None = None,
         effects: Callable[[Case, Case, Applied], Sequence[Event]] | None = None,
+        record: Callable[[Event], object] | None = None,
     ) -> None:
         self._machine = machine
         self._steps = steps
@@ -162,6 +163,21 @@ class Orchestrator:
         #: Carries out each transition's effects (timers, supersede, in-flight -> UNKNOWN,
         #: outcome) in the same unit of work. None only in tests of the bare loop.
         self._effects = effects
+        #: Writes each event the moment its move lands, in the same unit of work. Without it
+        #: the caller writes them at the end - and a checkpoint taken mid-advance (before an
+        #: external write) committed moves whose events were still in memory (review, M6).
+        self._record = record
+
+    @property
+    def records_events(self) -> bool:
+        """True when this loop writes its own events; the caller must not write them again."""
+        return self._record is not None
+
+    def _emit(self, events: list[Event], produced: Sequence[Event]) -> None:
+        for event in produced:
+            if self._record is not None:
+                self._record(event)
+            events.append(event)
 
     def _run_traced(self, step: Step, case: Case, now: datetime) -> StepOutcome:
         """One span per step, carrying ids and states only (observability.md section 3)."""
@@ -269,7 +285,7 @@ class Orchestrator:
 
             now = self._clock.now()
             outcome = self._decide(step, current, now)
-            events.extend(self._notes(current, outcome, step.name, now, causation_id))
+            self._emit(events, self._notes(current, outcome, step.name, now, causation_id))
             steps_run += 1
 
             if outcome.rests:
@@ -291,10 +307,10 @@ class Orchestrator:
         The one path every move takes - a step's, an escalation's, an inbound event's - so no
         caller can save a move and forget what it was meant to cancel, supersede or mark.
         """
-        events.append(applied.event)
         saved = commit(before, applied.case) if commit is not None else applied.case
+        self._emit(events, (applied.event,))
         if self._effects is not None:
-            events.extend(self._effects(before, saved, applied))
+            self._emit(events, self._effects(before, saved, applied))
         return saved
 
     def apply_trigger(
@@ -349,7 +365,7 @@ class Orchestrator:
             return self.land(case, applied, events, commit), tuple(events)
         now = self._clock.now()
         outcome = self._decide(step, case, now)
-        events.extend(self._notes(case, outcome, name, now, causation_id))
+        self._emit(events, self._notes(case, outcome, name, now, causation_id))
         if outcome.rests:
             return case, tuple(events)
         applied = self._applied(case, outcome, name, now, causation_id)

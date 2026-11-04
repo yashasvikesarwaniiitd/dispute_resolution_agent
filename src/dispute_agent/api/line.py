@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
     from dispute_agent.kernel.domain.enums import ActionType
-    from dispute_agent.kernel.domain.events import Event
     from dispute_agent.kernel.domain.ids import EventId
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.orchestrator.orchestrator import AdvanceResult
@@ -187,6 +186,7 @@ class Line:
             patterns=NullPatternContextProvider(),
             outcomes=NullOutcomeObserver(),
             max_steps=self.policy.cases.max_steps_per_advance,
+            record=work.events.append,
             effects=TransitionEffects(
                 timers=work.timers,
                 intents=work.intents,
@@ -231,13 +231,11 @@ class Line:
             return saved
 
         result = self.orchestrator(work).advance(case, causation, commit=commit)
-        _write(work, result.events)
+        # Events are written as each move lands (Orchestrator `record`). A move may release
+        # events held for its new state - redeliver them now (orchestrator.md 3.4, review M1).
+        if result.case.state is not case.state:
+            self.dispatcher(work).redeliver(case.id)
         return result
-
-
-def _write(work: SqliteUnitOfWork, events: tuple[Event, ...]) -> None:
-    for event in events:
-        work.events.append(event)
 
 
 __all__ = ["Line"]

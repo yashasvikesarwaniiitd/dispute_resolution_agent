@@ -18,6 +18,7 @@ Three properties the code below is built around:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Protocol
@@ -158,6 +159,12 @@ class Dispatcher:
     config: PolicyConfig
 
     def dispatch(self, inbox_id: InboxId) -> DispatchResult:
+        result = self._dispatch_one(inbox_id)
+        if result.reaction != "defer" and not result.reaction.startswith("already:"):
+            self.redeliver(result.case_id)
+        return result
+
+    def _dispatch_one(self, inbox_id: InboxId) -> DispatchResult:
         row = self.inbox.get(inbox_id)
         status = str(row["status"])
         if status in ("PROCESSED", "UNROUTABLE", "FAILED"):
@@ -175,9 +182,7 @@ class Dispatcher:
             self._ignore(case, event, recorded, inbox_id, stale)
             return DispatchResult(inbox_id, case.id, f"ignore:{stale}", case.state)
 
-        result = self._react(case, event, recorded, inbox_id)
-        self._redeliver(result.case_id)
-        return result
+        return self._react(case, event, recorded, inbox_id, redelivery=status == "DEFERRED")
 
     # -- routing (orchestrator.md section 2) ----------------------------------------------------
 
@@ -212,19 +217,22 @@ class Dispatcher:
         return None, "no_routing_rule"
 
     def _route_reply(self, reply: SellerReplyReceived) -> tuple[Case | None, str]:
+        sender = reply.from_addr.strip().lower()
+        subject = reply.subject.text
         if reply.conversation_id:
             case_id = self.messages.case_for_conversation(reply.conversation_id)
             if case_id is not None:
-                return self.cases.get(case_id), "conversation"
-        sender = reply.from_addr.strip().lower()
-        subject = reply.subject.text
+                threaded = self.cases.get(case_id)
+                # The same thread is not enough on its own: anyone can reply into a thread.
+                if threaded.facts.seller_contact.strip().lower() == sender:
+                    return threaded, "conversation"
 
         def matching(states: Collection[CaseState]) -> list[Case]:
             return [
                 c
                 for c in self.cases.list_in_states(states)
                 if c.facts.seller_contact.strip().lower() == sender
-                and c.facts.shipment_ref in subject
+                and _names(subject, c.facts.shipment_ref)
                 and c.superseded_by_case_id is None
             ]
 
@@ -278,7 +286,13 @@ class Dispatcher:
     # -- the matrix ---------------------------------------------------------------------------
 
     def _react(
-        self, case: Case, event: InboundEvent, recorded: Event, inbox_id: InboxId
+        self,
+        case: Case,
+        event: InboundEvent,
+        recorded: Event,
+        inbox_id: InboxId,
+        *,
+        redelivery: bool = False,
     ) -> DispatchResult:
         reaction = self.machine.react(case.state, reaction_key(event))
         if isinstance(event.payload, TimerFired) and reaction.primary != "defer":
@@ -288,7 +302,8 @@ class Dispatcher:
         for alternative in reaction.alternatives:
             kind, name, argument = _parse(alternative)
             if kind == "defer":
-                self._append(case, InternalEventType.EVENT_DEFERRED, event, recorded, "defer")
+                if not redelivery:  # held again on a redelivery: already on the trail
+                    self._append(case, InternalEventType.EVENT_DEFERRED, event, recorded, "defer")
                 self.inbox.mark_deferred(inbox_id, case.id, recorded.id)
                 return DispatchResult(inbox_id, case.id, "defer", case.state)
             if kind == "ignore":
@@ -305,8 +320,13 @@ class Dispatcher:
                 final = self._advance(moved, recorded)
                 label = f"escalate:{argument}" if name == "escalate" else f"transition:{name}"
                 return DispatchResult(inbox_id, case.id, label, final.state)
-        # Every alternative's guards failed. The matrix is meant to make this impossible;
-        # if it happens, a person looks rather than the event vanishing.
+        # Every alternative's guards failed. With a person (or finished), say so on the trail
+        # - e.g. a return refused because an UNKNOWN action is unresolved (T37). Elsewhere the
+        # matrix is meant to make this impossible; if it happens, a person looks.
+        if case.state is CaseState.NEEDS_HUMAN_REVIEW or case.state in TERMINAL_STATES:
+            why = f"guards_failed:{reaction.raw}"[:200]
+            self._ignore(case, event, recorded, inbox_id, why)
+            return DispatchResult(inbox_id, case.id, f"ignore:{why}", case.state)
         moved, _ = self._escalate(
             case, recorded, ReviewCode.INTERNAL_ERROR, f"no reaction applied: {reaction.raw}"
         )
@@ -320,7 +340,7 @@ class Dispatcher:
             moved, _ = self._escalate(case, recorded, ReviewCode(argument), event.type.value)
             return moved
         if isinstance(event.payload, HumanReturnedCase):
-            self._resolve_unknown_actions(case, event.payload)
+            self._resolve_unknown_actions(case, event.payload, event.actor, recorded)
         trigger = Trigger(name.upper())  # the table writes triggers in lower case
         review = (
             ReviewReason(code=ReviewCode.LATE_INBOUND, detail=event.type.value)
@@ -445,20 +465,37 @@ class Dispatcher:
             guards["no_notify_seller"] = not event.payload.notify_seller
         return guards
 
-    def _resolve_unknown_actions(self, case: Case, payload: HumanReturnedCase) -> None:
+    def _resolve_unknown_actions(
+        self, case: Case, payload: HumanReturnedCase, actor: Actor, recorded: Event
+    ) -> None:
         """A person says what happened to each UNKNOWN action before the case returns (T37)."""
         mine = {a.id: a for a in self.actions.for_case(case.id)}
         for resolution in payload.unknown_action_resolutions:
             action = mine.get(resolution.action_id)
             if action is None or action.status is not ActionStatus.UNKNOWN:
                 continue  # not this case's, or not unknown: the guard will say so
-            done = resolution.resolution == "confirmed_done"
-            self.actions.set_status(
-                action.id,
-                ActionStatus.VERIFIED if done else ActionStatus.FAILED,
-                self.clock.now(),
-                last_error_code=None if done else "confirmed_not_done_by_human",
-                last_error_detail=resolution.evidence_note[:300],
+            if resolution.resolution == "confirmed_done":
+                # schema.sql: UNKNOWN -> VERIFIED only with a human verifier on the row.
+                self.actions.set_status(
+                    action.id,
+                    ActionStatus.VERIFIED,
+                    self.clock.now(),
+                    verified_by=actor,
+                    last_error_detail=resolution.evidence_note[:300],
+                )
+            else:
+                self.actions.set_status(
+                    action.id,
+                    ActionStatus.FAILED,
+                    self.clock.now(),
+                    last_error_code="human_confirmed_not_done",
+                    last_error_detail=resolution.evidence_note[:300],
+                )
+            self._note(
+                case,
+                InternalEventType.UNKNOWN_ACTION_RESOLVED,
+                recorded,
+                f"{action.id}: {resolution.resolution} by {actor.id}",
             )
 
     # -- bookkeeping ------------------------------------------------------------------------------
@@ -493,22 +530,34 @@ class Dispatcher:
         self._write(result.events)
         return result.case
 
-    def _redeliver(self, case_id: CaseId | None) -> None:
-        """Deferred events whose reaction is no longer `defer` (orchestrator.md 3.4)."""
+    def redeliver(self, case_id: CaseId | None) -> None:
+        """Deferred events whose reaction is no longer `defer` (orchestrator.md 3.4).
+
+        Called after every transaction that moved the case - by dispatch, and by the line
+        after an advance - never from inside another redelivery. A row deferred again (a
+        "transition | defer" whose guards fail) is not retried in the same pass: retrying it
+        there was an endless loop (safety review, H1).
+        """
         if case_id is None:
             return
-        for _ in range(20):  # each pass may move the case; a bound, not a loop forever
+        tried: set[str] = set()
+        for _ in range(50):  # each pass may move the case; a bound, not a loop forever
             case = self.cases.get(case_id)
             held_types: set[str] = set()
             delivered = False
             for row in self.inbox.deferred_for_case(case_id):
+                row_id = str(row["id"])
                 key = reaction_key(parse_inbound(str(row["event_json"])))
-                if key in held_types:
-                    continue  # a reply never overtakes an earlier reply
+                if key in held_types or row_id in tried:
+                    held_types.add(key)  # a reply never overtakes an earlier reply
+                    continue
                 if self.machine.react(case.state, key).primary == "defer":
                     held_types.add(key)
                     continue
-                self.dispatch(InboxId(str(row["id"])))
+                tried.add(row_id)
+                if self._dispatch_one(InboxId(row_id)).reaction == "defer":
+                    held_types.add(key)
+                    continue
                 delivered = True
                 break
             if not delivered:
@@ -520,6 +569,10 @@ class Dispatcher:
         """The input event, appended once ever (a redelivery reuses it)."""
         if row.get("event_id"):
             return self.events.get(EventId(str(row["event_id"])))
+        try:  # written before a checkpoint, then the row was never marked (safety review, M6)
+            return self.events.get(EventId(f"evt_{str(inbox_id).removeprefix('inb_')}"))
+        except NotFound:
+            pass
         return self.events.append(
             Event(
                 id=EventId(f"evt_{str(inbox_id).removeprefix('inb_')}"),
@@ -561,12 +614,38 @@ class Dispatcher:
             )
         )
 
+    def _note(self, case: Case, kind: InternalEventType, recorded: Event, detail: str) -> None:
+        from dispute_agent.kernel.domain.events import StepPayload
+
+        self.events.append(
+            Event(
+                id=EventId(self.ids.new_id("evt")),
+                case_id=case.id,
+                type=kind,
+                occurred_at=self.clock.now(),
+                recorded_at=self.clock.now(),
+                actor=_system(),
+                cause=Cause(kind=CauseKind.INPUT_EVENT, ref=str(recorded.id)),
+                correlation_id=case.correlation_id,
+                causation_id=recorded.id,
+                payload=StepPayload(step="dispatch", detail=detail[:500]),
+            )
+        )
+
     def _write(self, events: Sequence[Event]) -> None:
+        if self.orchestrator.records_events:
+            return  # already written as each move landed
         for item in events:
             self.events.append(item)
 
     def _commit(self, before: Case, after: Case) -> Case:
         return self.cases.save(after, before.version)
+
+
+def _names(subject: str, ref: str) -> bool:
+    """The subject names this reference as a whole token: SHP-1 is not SHP-10."""
+    pattern = r"(?<![A-Za-z0-9-])" + re.escape(ref) + r"(?![A-Za-z0-9])"
+    return re.search(pattern, subject) is not None
 
 
 def _parse(alternative: str) -> tuple[str, str, str]:

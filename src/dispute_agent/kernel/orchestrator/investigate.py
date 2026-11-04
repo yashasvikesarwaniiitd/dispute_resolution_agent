@@ -356,7 +356,7 @@ class InvestigateStep:
             return _escalate(ReviewCode.PROPOSAL_ESCALATED, proposal.rationale[:200])
 
         if action is ProposalAction.WAIT:
-            return self._wait(case)
+            return self._wait(case, proposal, assessment, now, menu, screens)
 
         credited: tuple[Money, Money] | None = None
         debited: Money | None = None
@@ -466,28 +466,66 @@ class InvestigateStep:
         )
         return self._by_verdict(case, intent, self.policy.evaluate(ctx), now, ctx)
 
-    def _wait(self, case: Case) -> StepOutcome:
+    def _wait(
+        self,
+        case: Case,
+        proposal: Proposal,
+        assessment: ChargeAssessment,
+        now: datetime,
+        menu: tuple[ProposalAction, ...],
+        screens: tuple[ScreenResult, ...],
+    ) -> StepOutcome:
         """R19 and T09: waiting is honest only while operations is still remeasuring.
 
-        A reply in the round is a reason to decide, not to wait (D19) - unless every reading
-        is an acknowledgement with nothing new while ops is still out (policy-rules.md R19).
+        A reply in the round is a reason to decide, not to wait (D19) - unless every reply was
+        read and every reading is an acknowledgement with nothing new (policy-rules.md R19).
+        An unread reply is never "harmless": no reading is not a benign reading. And a wait is
+        still a proposal, so the caution rules (R20 withdrawal, R21 manipulation, R22 low
+        confidence) run on it like on any other (safety review, M3).
         """
         contact = self._contact(case)
         readings = self.readings(case) if self.readings else ()
-        benign = all(r.intent in ("irrelevant", "disputes_again_no_new_info") for r in readings)
-        if contact.remeasurement_outstanding and (not contact.reply_in_round or benign):
-            return StepOutcome(
-                trigger=Trigger.PROPOSAL_WAIT,
-                guards={"has_open_ops_expectation": True},
-                detail="waiting for operations",
-            )
-        if contact.reply_in_round:
+        bundle = self.evidence.bundle(case.id, case.gather_round)
+        replies = sum(1 for i in bundle.items if i.result.requirement_key == "seller_reply")
+        all_read = len(readings) == replies
+        benign = all_read and all(
+            r.intent in ("irrelevant", "disputes_again_no_new_info") for r in readings
+        )
+        if not contact.remeasurement_outstanding:
+            if contact.reply_in_round:
+                return _escalate(
+                    ReviewCode.REPLY_UNRESOLVED, "the seller replied; waiting would not answer them"
+                )
             return _escalate(
-                ReviewCode.REPLY_UNRESOLVED, "the seller replied; waiting would not answer them"
+                ReviewCode.WAIT_WITHOUT_EXPECTATION,
+                "the proposal was to wait, and nothing is outstanding to wait for",
             )
-        return _escalate(
-            ReviewCode.WAIT_WITHOUT_EXPECTATION,
-            "the proposal was to wait, and nothing is outstanding to wait for",
+        if contact.reply_in_round and not benign:
+            return _escalate(
+                ReviewCode.REPLY_UNRESOLVED,
+                "a reply arrived that was not read or needs an answer; waiting would ignore it",
+            )
+        verdict = self.policy.evaluate(
+            PolicyContext(
+                case=case,
+                stage=PolicyStage.PLANNING,
+                proposal=proposal,
+                assessment=assessment,
+                modules=self.modules,
+                policy=self.config,
+                now=now,
+                allowed_actions=menu,
+                screen_results=screens,
+                reply_readings=readings,
+            )
+        )
+        if verdict.verdict is not VerdictKind.ALLOW:
+            reason = _first_reason(verdict)
+            return _escalate(_review_code_for(reason, ReviewCode.POLICY_ESCALATED), reason)
+        return StepOutcome(
+            trigger=Trigger.PROPOSAL_WAIT,
+            guards={"has_open_ops_expectation": True},
+            detail="waiting for operations",
         )
 
     def _credit_inputs(self, case: Case) -> tuple[tuple[Money, Money] | None, Money | None]:

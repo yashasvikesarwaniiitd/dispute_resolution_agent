@@ -82,6 +82,7 @@ PAYLOAD_TYPES: dict[str, type[EventPayload]] = {
     "INTENT_CREATED": StepPayload,
     "APPROVAL_REQUESTED": StepPayload,
     "MODEL_ROUTE_FAILOVER": StepPayload,
+    "UNKNOWN_ACTION_RESOLVED": StepPayload,
 }
 
 

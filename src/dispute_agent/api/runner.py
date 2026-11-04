@@ -15,14 +15,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import structlog
+from sqlalchemy.exc import OperationalError
 
 from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
-from dispute_agent.kernel.domain.enums import ActorKind, CaseState, InboundEventType
-from dispute_agent.kernel.domain.errors import ConcurrencyConflict, DuplicateEvent
+from dispute_agent.kernel.domain.enums import ActorKind, CaseState, InboundEventType, ReviewCode
+from dispute_agent.kernel.domain.errors import ConcurrencyConflict, DuplicateEvent, NotFound
 from dispute_agent.kernel.domain.events import InboundEvent
-from dispute_agent.kernel.domain.ids import InboxId
+from dispute_agent.kernel.domain.ids import CaseId, InboxId
 from dispute_agent.kernel.domain.inbound import TimerFired
-from dispute_agent.kernel.domain.models import Actor
+from dispute_agent.kernel.domain.models import Actor, ReviewReason
 from dispute_agent.kernel.orchestrator.orchestrator import AUTO_STATES
 
 if TYPE_CHECKING:
@@ -34,6 +35,21 @@ if TYPE_CHECKING:
 log = structlog.get_logger(__name__)
 
 SCHEDULER = Actor(kind=ActorKind.SYSTEM, id="scheduler")
+
+#: States a failed event may send to a person from (transitions.yaml `escalable`).
+ESCALABLE = frozenset(
+    {
+        CaseState.RECEIVED,
+        CaseState.GATHERING_EVIDENCE,
+        CaseState.CALCULATING,
+        CaseState.INVESTIGATING,
+        CaseState.EXECUTING,
+        CaseState.VERIFYING,
+        CaseState.AWAITING_SELLER,
+        CaseState.AWAITING_OPS,
+        CaseState.AWAITING_APPROVAL,
+    }
+)
 
 #: Recovery order (section 7): in-flight actions first, then the rest of the automatic work.
 IN_FLIGHT_STATES = (CaseState.EXECUTING, CaseState.VERIFYING)
@@ -100,7 +116,7 @@ class Runner:
             with self._work() as work:
                 try:
                     work.timers.mark_fired(timer.id, now)
-                except Exception:  # already fired or cancelled by a racing runner
+                except NotFound:  # already fired or cancelled by a racing runner
                     continue
                 try:
                     inbox_id = work.inbox.accept(
@@ -155,7 +171,8 @@ class Runner:
             except ConcurrencyConflict:
                 continue  # someone else moved it; the next tick looks again
             except Exception as failed:  # a bug in a step must not stop the runner
-                log.exception("advance_failed", case_id=str(case_id))
+                # The type only: an exception's text can quote a seller's words (I5, I12).
+                log.error("advance_failed", case_id=str(case_id), error=type(failed).__name__)
                 report.failures.append(f"advance {case_id}: {type(failed).__name__}")
         return report
 
@@ -200,24 +217,55 @@ class Runner:
             case_ids = [c.id for c in work.cases.list_in_states(open_states)]
         for case_id in case_ids:
             with self._work() as work:
-                rows = work.inbox.deferred_for_case(case_id)
-            if rows:
-                report.dispatched.append(self._safe_dispatch(InboxId(str(rows[0]["id"])), report))
+                if work.inbox.deferred_for_case(case_id):
+                    self.line.dispatcher(work).redeliver(case_id)
 
     def _safe_dispatch(self, inbox_id: InboxId, report: TickReport) -> DispatchResult:
+        """Dispatch one event in its own transaction, and never lose it (safety review, M5).
+
+        A transient failure (a concurrent writer, a locked database) leaves the row PENDING,
+        so the next tick tries again. Anything else marks it FAILED *and* sends its case to a
+        person: a fired deadline whose event failed would otherwise never fire again, and the
+        case would wait forever with nobody told (I4).
+        """
         from dispute_agent.kernel.orchestrator.dispatch import DispatchResult as _Result
 
         try:
             return self.dispatch(inbox_id)
-        except ConcurrencyConflict:
-            return _Result(inbox_id, None, "retry:concurrency_conflict")
+        except (ConcurrencyConflict, OperationalError) as transient:
+            log.warning("dispatch_retry", inbox_id=str(inbox_id), error=type(transient).__name__)
+            return _Result(inbox_id, None, f"retry:{type(transient).__name__}")
         except Exception as failed:
-            # Recorded on the row and in the report; the row stays for a person (never lost).
-            log.exception("dispatch_failed", inbox_id=str(inbox_id))
-            with self._work() as work:
-                work.inbox.mark_failed(inbox_id, type(failed).__name__)
-            report.failures.append(f"dispatch {inbox_id}: {type(failed).__name__}")
-            return _Result(inbox_id, None, f"failed:{type(failed).__name__}")
+            error = type(failed).__name__
+            log.error("dispatch_failed", inbox_id=str(inbox_id), error=error)
+            report.failures.append(f"dispatch {inbox_id}: {error}")
+            case_id = self._fail(inbox_id, error)
+            return _Result(inbox_id, case_id, f"failed:{error}")
+
+    def _fail(self, inbox_id: InboxId, error: str) -> CaseId | None:
+        """Mark the row FAILED and hand its case to a person, in one transaction."""
+        with self._work() as work:
+            work.inbox.mark_failed(inbox_id, error)
+            row = work.inbox.get(inbox_id)
+            case_id = CaseId(str(row["case_id"])) if row.get("case_id") else None
+            if case_id is None:
+                return None  # no case known: the FAILED row is what a person looks at
+            case = work.cases.get(case_id)
+            if case.state not in ESCALABLE:
+                return case_id
+            history = work.events.list_for_case(case_id)
+            if not history:
+                return case_id
+            self.line.orchestrator(work).escalate(
+                case,
+                ReviewReason(
+                    code=ReviewCode.INTERNAL_ERROR,
+                    detail=f"an inbound {row['event_type']} could not be processed: {error}",
+                ),
+                history[-1].id,
+                commit=lambda before, after: work.cases.save(after, before.version),
+            )
+            return case_id
 
 
 __all__ = ["Runner", "TickReport"]

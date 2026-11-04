@@ -93,9 +93,13 @@ class SqliteInboxStore:
         )
 
     def mark_failed(self, inbox_id: InboxId, reason: str) -> None:
+        """Only a row still waiting can fail: a PROCESSED row stays processed (review, M5)."""
         self._conn.execute(
             update(inbox_table)
             .where(inbox_table.c.id == str(inbox_id))
+            .where(
+                inbox_table.c.status.in_([InboxStatus.PENDING.value, InboxStatus.DEFERRED.value])
+            )
             .values(
                 status=InboxStatus.FAILED.value,
                 last_error=reason,
