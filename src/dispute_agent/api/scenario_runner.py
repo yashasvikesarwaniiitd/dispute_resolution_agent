@@ -116,12 +116,17 @@ class ScriptedModel:
                 return "guardrail"
             return answers.reading(label)
         if self._last is not None and self._last[0] == text:
+            if req.prompt.name == "case_investigator_agent":
+                return {"step": "decide", "argument": "", "draft": self._last[1]}
             return self._last[1]
         if not self.actions:
             answer = answers.investigator("escalate_to_human", self.fixture)
         else:
             answer = answers.investigator(self.actions.pop(0), self.fixture)
         self._last = (text, answer)
+        if req.prompt.name == "case_investigator_agent":
+            # The agentic engine (ADR 0042) answers in steps; a recorded answer is a decision.
+            return {"step": "decide", "argument": "", "draft": answer}
         return answer
 
 

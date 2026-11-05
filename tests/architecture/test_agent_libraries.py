@@ -58,8 +58,12 @@ WRITERS = (
 )
 
 
-@pytest.mark.parametrize("path", sorted(EXPLAINER.glob("*.py")), ids=lambda p: p.name)
-def test_the_explainer_imports_nothing_that_writes(path: Path) -> None:
+@pytest.mark.parametrize(
+    "path",
+    [*sorted(EXPLAINER.glob("*.py")), SRC / "modules" / "reasoning" / "llm" / "agentic.py"],
+    ids=lambda p: p.name,
+)
+def test_the_explainer_and_the_agent_import_nothing_that_writes(path: Path) -> None:
     bad = {i for i in _imports(path) if i.startswith(WRITERS)}
     assert not bad, f"{path.name} imports a writer: {sorted(bad)}"
 

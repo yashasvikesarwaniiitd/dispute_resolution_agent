@@ -83,9 +83,9 @@ class Settings(BaseSettings):
     llm_secondary_spend_cap_usd: Decimal | None = None
     #: "I am knowingly testing a prompt that has not passed its eval suite." Off by default.
     prompts_allow_inactive: bool = False
-    #: `single` (one model call per round) or `graph` (two independent passes reconciled by
-    #: code, on LangGraph; ADR 0041). Off by default: `graph` costs two calls per round.
-    reasoning_engine: Literal["single", "graph"] = "single"
+    #: `single` (one model call per round), `graph` (two passes on LangGraph, ADR 0041) or
+    #: `agent` (chooses its own read-only lookups, up to four turns, ADR 0042).
+    reasoning_engine: Literal["single", "graph", "agent"] = "single"
 
     @field_validator(
         "azure_credit_expires_on",

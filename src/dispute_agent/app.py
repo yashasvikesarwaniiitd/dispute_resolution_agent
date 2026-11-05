@@ -1043,22 +1043,36 @@ def build_case_explainer(settings: Settings, database: Path) -> Any:
 
 
 def engine_policy(policy: PolicyConfig, engine: str | None = None) -> PolicyConfig:
-    """The graph engine asks the model twice per round, so it gets twice the configured per-case
-    call cap (ADR 0041). Doubling - not a fixed number - keeps a deliberately tight cap tight."""
+    """The graph engine always asks twice per round, so it gets twice the configured cap
+    (ADR 0041). The agentic engine keeps the configured cap: it spends turns only when it
+    chooses to, and a case whose budget runs out goes to a person (ADR 0042)."""
     import os
 
     choice = engine or os.environ.get("REASONING_ENGINE", "single")
-    if choice != "graph":
+    factor = {"graph": 2}.get(choice, 1)  # the agent keeps the configured cap (ADR 0042)
+    if factor == 1:
         return policy
-    llm = policy.llm.model_copy(update={"max_calls_per_case": policy.llm.max_calls_per_case * 2})
+    llm = policy.llm.model_copy(
+        update={"max_calls_per_case": policy.llm.max_calls_per_case * factor}
+    )
     return policy.model_copy(update={"llm": llm})
 
 
 def _engine(reasoner: Any, engine: str | None = None) -> Any:
-    """`graph` wraps the single-call reasoner in the LangGraph investigator (ADR 0041)."""
+    """`graph`: the LangGraph two-pass investigator (ADR 0041). `agent`: the agentic investigator
+    that chooses its own read-only lookups (ADR 0042). Anything else: the single call."""
     import os
 
     choice = engine or os.environ.get("REASONING_ENGINE", "single")
+    if choice == "agent":
+        from dispute_agent.modules.reasoning.llm.agentic import AgenticReasoner
+
+        return AgenticReasoner(
+            prompts=reasoner.prompts,
+            gateway=reasoner.gateway,
+            ids=reasoner.ids,
+            clock=reasoner.clock,
+        )
     if choice != "graph":
         return reasoner
     from dispute_agent.modules.reasoning.llm.graph import GraphReasoner

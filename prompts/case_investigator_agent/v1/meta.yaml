@@ -1,0 +1,14 @@
+name: case_investigator_agent
+version: v1
+status: inactive  # set active only after its live check passes (prompts/README)
+owner: product
+purpose: Investigate a weight dispute in steps - open evidence, read policy, check its own draft - then recommend exactly one next step. Read-only tools; proposal only.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: read_only_steps  # tools are executed by code between turns (ADR 0042); no provider tool calling
+max_output_tokens: 4000
+eval_suite: tests/unit/modules/reasoning/test_agentic_reasoner.py (offline); scripts/agent_check.py (live)
+derived_from: case_investigator/v1 (same role, trust model, guidance and examples; adds agent_procedure and the step wrapper)
+changelog:
+  - v1: initial version (ADR 0042)

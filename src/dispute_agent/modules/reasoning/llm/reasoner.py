@@ -102,40 +102,64 @@ class LlmReasoner:
         briefing_hash: str,
         prompt_hash: str,
     ) -> Proposal:
-        out: Mapping[str, Any] = response.output
-        try:
-            return Proposal.model_validate(
-                {
-                    "id": ProposalId(self.ids.new_id("prp")),
-                    "case_id": briefing.case_id,
-                    "gather_round": briefing.evidence.gather_round,
-                    "action": out["action"],
-                    "confidence": out["confidence"],
-                    "rationale": out["rationale"],
-                    "findings": out["findings"],
-                    "action_parameters": out["action_parameters"],
-                    "pattern_influence": out["pattern_influence"],
-                    # The provider's screening notes join the model's own flags, so R21
-                    # sees them even when the model noticed nothing (I15: caution only).
-                    "manipulation_flags": [
-                        *out["manipulation_flags"],
-                        *response.screen_annotations,
-                    ],
-                    "reasoner": "llm",
-                    "prompt_name": PROMPT,
-                    "prompt_version": self.version,
-                    "prompt_hash": prompt_hash,
-                    "model_id": response.model_id,
-                    "model_route": response.route,
-                    "briefing_hash": briefing_hash,
-                    "created_at": self.clock.now(),
-                },
-                strict=False,
-            )
-        except ValidationError as bad:
-            # Field names only: the values may echo case data into a log (I12).
-            fields = sorted({".".join(str(p) for p in e["loc"]) for e in bad.errors()})
-            raise InvalidModelOutput(f"not a valid proposal at {fields}") from None
+        return to_proposal(
+            response,
+            briefing,
+            briefing_hash=briefing_hash,
+            prompt_name=PROMPT,
+            prompt_version=self.version,
+            prompt_hash=prompt_hash,
+            ids=self.ids,
+            clock=self.clock,
+        )
+
+
+def to_proposal(
+    response: ModelResponse,
+    briefing: CaseBriefing,
+    *,
+    briefing_hash: str,
+    prompt_name: str,
+    prompt_version: str,
+    prompt_hash: str,
+    ids: IdGenerator,
+    clock: Clock,
+) -> Proposal:
+    """A checked model answer as a `Proposal`. Shared by the single-call and agentic engines."""
+    out: Mapping[str, Any] = response.output
+    try:
+        return Proposal.model_validate(
+            {
+                "id": ProposalId(ids.new_id("prp")),
+                "case_id": briefing.case_id,
+                "gather_round": briefing.evidence.gather_round,
+                "action": out["action"],
+                "confidence": out["confidence"],
+                "rationale": out["rationale"],
+                "findings": out["findings"],
+                "action_parameters": out["action_parameters"],
+                "pattern_influence": out["pattern_influence"],
+                # The provider's screening notes join the model's own flags, so R21
+                # sees them even when the model noticed nothing (I15: caution only).
+                "manipulation_flags": [
+                    *out["manipulation_flags"],
+                    *response.screen_annotations,
+                ],
+                "reasoner": "llm",
+                "prompt_name": prompt_name,
+                "prompt_version": prompt_version,
+                "prompt_hash": prompt_hash,
+                "model_id": response.model_id,
+                "model_route": response.route,
+                "briefing_hash": briefing_hash,
+                "created_at": clock.now(),
+            },
+            strict=False,
+        )
+    except ValidationError as bad:
+        # Field names only: the values may echo case data into a log (I12).
+        fields = sorted({".".join(str(p) for p in e["loc"]) for e in bad.errors()})
+        raise InvalidModelOutput(f"not a valid proposal at {fields}") from None
 
 
 def check(output: Mapping[str, JsonValue], briefing: CaseBriefing, view: BriefingView) -> None:

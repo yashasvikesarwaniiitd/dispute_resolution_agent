@@ -14,7 +14,7 @@ It is built as a **general engine with domain packs**. The first pack, **shippin
 |---|---|
 | **The problem** | Every business that charges customers or partners gets disputes: "you billed me wrongly". Each one is slow, manual and risky: find the evidence, redo the maths, talk to the customer, ask an internal team to check, decide, refund, record. Errors leak money both ways and erode trust. |
 | **What the agent does** | It runs the whole dispute workflow and connects to the real tools a team already uses (email, Jira, a ledger). People stay in control of every decision that matters. |
-| **The key design choice** | **Code decides; the AI only proposes.** The AI reads the case and suggests one next step. Policy rules decide whether that's allowed, and a person approves every refund and every message. |
+| **The key design choice** | **The AI investigates and proposes; code decides.** The AI works the case (it can open evidence in full, look up a policy rule and check its own draft) and suggests one next step. Policy rules decide whether that's allowed, and a person approves every refund and every message. |
 | **What makes it safe** | Fifteen written safety rules, each with tests that actively try to break it. Every outside action is checked, done exactly once, and verified. |
 | **What makes it learn** | It spots patterns across disputes (for example, one faulty scanner or one confusing fee), opens one investigation for the right team, and becomes more careful on matching cases. A pattern is never treated as proof. |
 | **What's proven** | One domain (shipping weight disputes), end to end, on synthetic data, with real Jira and real AI calls. Results are in [Evidence it works](#evidence-it-works). |
@@ -116,6 +116,7 @@ No nagging: at most **3 messages per case** and **1 per day**, and one clarifyin
 | The AI **may** | The AI **may not** |
 |---|---|
 | Read a briefing: the evidence, code's calculation, and the customer's words labelled *untrusted* | Send, refund or change anything. It has no access to those tools at all. |
+| Investigate in steps (agentic engine): open an evidence item in full, look up a policy rule, check its own draft against the same rules its decision will face | Use any tool that writes, take more than 4 steps, or spend past the case's AI call cap |
 | Propose one next step from a fixed menu, with reasons and cited evidence | Produce a number the customer sees. Every number comes from code. |
 | Draft a message's wording from approved templates | Approve itself, change a limit, or skip a person |
 | Interpret a customer's reply | Follow instructions hidden in a customer's text |
@@ -188,13 +189,16 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 
 | Framework | Its job here | In PM terms | Safety boundary |
 |---|---|---|---|
-| **Custom loop** (the engine) | Runs every case: state machine, policy rules, action gate | The decision-maker. Code decides; the AI only proposes. Kept custom on purpose: no framework is allowed to call tools on the model's behalf. | Fifteen invariants, each with tests that try to break them |
+| **Custom loop** (the engine) | Runs every case over days: state machine, policy rules, action gate | The decision-maker. The AI investigates and proposes; code decides. Kept custom on purpose: no framework is allowed to call write tools on the model's behalf. | Fifteen invariants, each with tests that try to break them |
+| **Custom agent loop** (the agentic investigator) | Works one case in steps (`REASONING_ENGINE=agent`) | Instead of answering once, the AI picks its own lookups: open a piece of evidence in full, read a policy rule, check its draft. Then it decides. Like an analyst who pulls the file before signing off. | Read-only tools only (evidence already gathered, local policy index). At most 4 steps, the case's usual call cap, every call through the guarded gateway. Its decision faces the same checks and policy as before. Off by default (ADR 0042) |
 | **Claude Agent SDK** | The **Case Explainer** (`make explain`) | A reviewer asks *"why did this case go to a person?"* and an assistant reads the case history and answers, citing its sources. | Four read-only tools. The database is opened read-only, so SQLite itself refuses writes. No built-in tools; anything else is denied; Haiku only; capped spend (ADR 0039) |
 | **LlamaIndex** | **Policy lookup** for the Explainer | Finds the exact rule or decision record behind an answer, so "R16" becomes a sentence a new reviewer understands. | Local keyword search (BM25): no AI, no cost, no network; project documents only (ADR 0040) |
 | **LangGraph** | An experimental **two-pass investigator** (`REASONING_ENGINE=graph`) | Asks the AI twice. If the two answers disagree, the more cautious one wins and a person decides. A model that disagrees with itself shouldn't decide. | Still only proposes. Every AI call goes through the guarded gateway. Never less cautious than either pass (property-tested). Off by default (ADR 0041) |
 | **Claude Code** | How the whole product was built | Design, code, tests, reviews and documentation | – |
 
 **What measuring LangGraph taught us.** Both engines pass all 57 recorded scenarios. The live comparison was inconclusive: it showed the live test rests on 13 disputes, not 45 independent decisions. Measuring before adopting is the point. The two-pass engine stays off until a better-designed test shows it helps.
+
+**Where the agency sits, and why.** The agent already runs multi-day cases on its own: it gathers evidence, writes to the customer, reads replies, raises tickets and posts credits, all through one gate. The agentic investigator adds the missing piece inside a decision: the AI chooses what to look at before it commits. It does **not** gain any power to act. For a workflow that moves money, the AI's freedom stops at gathering information and correcting itself. Every action still passes policy and, for money and messages, a person. The first live check showed the mechanism works safely (every dispute decided validly), but the AI rarely chose to look anything up, so it isn't more accurate yet. That is prompt work, measured per dispute.
 
 ---
 
@@ -220,6 +224,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 | Release gates | All 12 recorded gates pass (`config/release_gates.yaml`). |
 | AI choosing the right first step (live) | gpt-5-mini: 62% of 45 (2026-11-04), then 24% of 45 on an identical rerun (2026-11-05); rules only: 48% of 45. Both runs are below the 90 percent bar. **Caution:** the 45 scenarios rest on 13 distinct disputes, so these scores swing widely. Treat them as unsettled, not as a measured level. |
 | LangGraph two-pass investigator vs single call | Recorded suite: both 57 of 57. Live: 58% of 45 vs 24% of 45 on the same day, which is **inconclusive** for the same reason. It stays off by default (`docs/evals/2026-11-05-langgraph-vs-single.md`). |
+| Agentic investigator | Recorded suite: 57 of 57 with it on and off. Live, per distinct dispute (gpt-5-mini, USD 0.13): passed its pre-set rule, with all 11 decided validly. It checked its own draft on 2 disputes and got both right; on the other 9 it decided at once. Right first step: single call 6 of 11, agent 5 of 11, one run each, so too few to separate them. Off by default (ADR 0042). |
 | Case Explainer (live check) | 3 of 3 answers named the real reason, cited a source and recommended no decision, for USD 0.003. |
 | Attack tests (live, local) | 0 of 24 injection attempts got through, by two routes (`docs/evals/2026-11-04-red-team-live.md`). |
 | Pattern analyst AI (live) | Passed 6 of 6 under a rule fixed before the run (`docs/evals/2026-11-04-pattern-analyst-live.md`). |
@@ -329,7 +334,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (41 decision records) |
+| Why each decision was made | `docs/adr/` (42 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |
