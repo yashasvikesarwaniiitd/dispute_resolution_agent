@@ -300,3 +300,8 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **A dismissed key never comes back.** One pattern per (dimension, value), and DISMISSED is permanent (ADR 0037). A new problem on the same scanner later needs a person to reopen it; consider a "re-detect after N days" rule with its own ADR.
 - **UNKNOWN investigations reach a person through the logs only** (`pattern_investigation_needs_person`, `Investigations.needs_person()`). The review console has no view for them yet.
 
+
+## Making the engine multi-domain (2026-11-05, from the README repositioning)
+
+- **Neutral core names before a second domain pack.** The pack socket (`kernel/ports/domain_pack.py`) is generic, but the core still says "shipment" and "seller" (`CaseFacts`, about 37 kernel files), the action menu has `request_remeasurement`, and `IssuePayload.kind` only allows `remeasurement`. A second domain needs neutral names (item, customer, request re-check) first: a kernel change, so an ADR, after `phase-7-complete`.
+- **A second pack as the proof.** For example marketplace fee disputes or B2B invoice disputes, reusing the engine unchanged after the rename.
