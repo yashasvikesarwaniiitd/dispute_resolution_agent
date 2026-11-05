@@ -64,6 +64,9 @@ Add one line per ADR: number, title, status.
 | 0036 | The cross-case module: thresholds, clustering, investigations through the executor | accepted |
 | 0037 | The confirmation rule: only independent evidence moves a pattern | accepted |
 | 0038 | A Gmail API email adapter, and the first kernel change after Phase 7 | accepted (D59) |
+| 0039 | A read-only Case Explainer on the Claude Agent SDK, and a bounded I14 exception | accepted (D60) |
+| 0040 | Policy lookup with LlamaIndex BM25 (local, no embeddings) | accepted (D60) |
+| 0041 | A LangGraph two-pass investigator, off by default and measured head to head | accepted, experimental (D60) |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 
@@ -134,3 +137,4 @@ Three things were found between frozen documents and recorded rather than resolv
 | 2026-11-04 | 7 analyst | Opus (desktop session) | $0.032 (within the owner's $0.50 cap; $0.31 in all) | PA-E1 kept strict and the prompt aligned (D57); live run 5 passed 6 of 6, first try each, injection ignored; pattern_analyst v1 activated and wired for when the model route is on | Owner: Outlook and Jira test accounts |
 | 2026-11-04 | 3 live (Jira) | Opus (desktop session) | $0 | Owner created a personal Jira site and project WD; live contract suite green; live end-to-end: the cross-case investigation WD-42 opened through the executor and read back, no duplicate on re-run. Fixed: the Jira lookup's KeyError on the new search API; contract keys now fresh per run; real Jira wired into startup behind `config/modules.local.yaml` | Owner: Outlook when the personal Azure directory exists; tidy the WD test issues if wanted |
 | 2026-11-04 | email (Gmail) | Opus (desktop session) | $0 | Owner chose the Gmail API over Outlook (no Microsoft directory). Tagged `phase-7-complete`; one disclosed kernel line + spec row under ADR 0038; kernel rule now: Phase 7 diff empty forever, later kernel commits name an ADR. Built `gmail_api` (PKCE loopback sign-in, encrypted refresh token, send, two markers, read-back, replies, bounces); 26 offline tests against a stand-in Gmail; joined the live contract suite | Owner: Google Cloud setup and `make gmail-login`, then the live run |
+| 2026-11-05 | agent frameworks | Opus (desktop session) | about USD 0.21 (owner cap USD 0.50) | Case Explainer on the Claude Agent SDK (read-only tools, SQLite mode=ro, no built-ins, deny hook, Haiku only, capped; live check 3 of 3 for USD 0.003); LlamaIndex BM25 policy lookup (local, about 245 passages); LangGraph two-pass investigator (recorded 57 of 57 after fixing a script-like stand-in and doubling its call cap; live inconclusive: the 45 scenarios rest on 13 disputes). Explainer found an ineligible case does not store its reason | Owner: decide whether to fund a per-dispute repeated live evaluation |

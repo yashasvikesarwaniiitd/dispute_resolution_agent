@@ -28,6 +28,12 @@ dependencies = [
 ]
 
 [dependency-groups]
+agents = [
+    "claude-agent-sdk>=0.2.178",
+    "langgraph>=1.2.20",
+    "llama-index-core>=0.14.25",
+    "llama-index-retrievers-bm25>=0.8.0",
+]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
@@ -59,6 +65,9 @@ packages = ["src/dispute_agent"]
 # with incompatible hardlinks", os error 396) and intermittently holds locks on files uv is
 # replacing. Copying instead of hardlinking costs a little disk and makes installs reliable.
 link-mode = "copy"
+# The agent libraries (ADRs 0039-0041) are installed by default, so CI tests them for real
+# rather than skipping. Each lives in one module file (tests/architecture/test_agent_libraries.py).
+default-groups = ["dev", "agents"]
 
 [tool.ruff]
 src = ["src", "tests"]
@@ -117,6 +126,11 @@ warn_unreachable = true
 # CLAUDE.md section 7: no Any without a comment. Surface them rather than hide them.
 disallow_any_explicit = false
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+# Third-party agent libraries without type information (ADRs 0039-0041).
+module = ["llama_index.*", "bm25s.*", "Stemmer.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 # MSAL ships no type information. The adapter confines it to one module and one method, and

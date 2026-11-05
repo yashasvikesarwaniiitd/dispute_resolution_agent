@@ -174,11 +174,27 @@ Points a PM should push on before taking this further:
   - customer satisfaction after resolution.
 
   None of these is measured here.
-- **Is the AI worth it over rules?** In the live test the AI chose the right first step in **62% of 45** scenarios, against **48% of 45** for rules alone. Better, but well below the 90 percent bar set for release. The gap is in knowing when to escalate. Is it better instructions, a better model, or narrower AI scope?
+- **Is the AI worth it over rules, and can we even tell yet?** The first live test scored the AI at 62% of 45 scenarios, against 48% of 45 for rules. But a rerun a day later scored 24% of 45, with nothing changed. The 45 scenarios rest on only 13 distinct disputes, and one dispute decides 29 of them, so one coin-flip moves the score by tens of points. Before choosing better instructions, a better model or narrower AI scope, the measurement itself needs fixing: score per dispute, over repeated runs (`docs/evals/2026-11-05-langgraph-vs-single.md`).
 - **Fairness.** A pattern must never become a penalty. Could a hub cluster bias decisions against the sellers who ship through it? Here patterns only add caution, never a decision. Is that enough?
 - **Gaming.** Once customers learn what earns a credit, the evidence they send will change. The design treats all customer text as untrusted and makes code prove every number. What else is needed?
 - **Systems of record.** Read-back proves the ledger, mailbox or ticket says what we did. In a real company, which system is the source of truth for a credit, and who reconciles it?
 - **Cost per case.** AI calls are capped and logged per case. At what dispute value is the AI step not worth its cost?
+
+---
+
+## How the agent frameworks are used
+
+Each tool was picked for a job, and the safety rules apply to all of them.
+
+| Framework | Its job here | In PM terms | Safety boundary |
+|---|---|---|---|
+| **Custom loop** (the engine) | Runs every case: state machine, policy rules, action gate | The decision-maker. Code decides; the AI only proposes. Kept custom on purpose: no framework is allowed to call tools on the model's behalf. | Fifteen invariants, each with tests that try to break them |
+| **Claude Agent SDK** | The **Case Explainer** (`make explain`) | A reviewer asks *"why did this case go to a person?"* and an assistant reads the case history and answers, citing its sources. | Four read-only tools. The database is opened read-only, so SQLite itself refuses writes. No built-in tools; anything else is denied; Haiku only; capped spend (ADR 0039) |
+| **LlamaIndex** | **Policy lookup** for the Explainer | Finds the exact rule or decision record behind an answer, so "R16" becomes a sentence a new reviewer understands. | Local keyword search (BM25): no AI, no cost, no network; project documents only (ADR 0040) |
+| **LangGraph** | An experimental **two-pass investigator** (`REASONING_ENGINE=graph`) | Asks the AI twice. If the two answers disagree, the more cautious one wins and a person decides. A model that disagrees with itself shouldn't decide. | Still only proposes. Every AI call goes through the guarded gateway. Never less cautious than either pass (property-tested). Off by default (ADR 0041) |
+| **Claude Code** | How the whole product was built | Design, code, tests, reviews and documentation | – |
+
+**What measuring LangGraph taught us.** Both engines pass all 57 recorded scenarios. The live comparison was inconclusive: it showed the live test rests on 13 disputes, not 45 independent decisions. Measuring before adopting is the point. The two-pass engine stays off until a better-designed test shows it helps.
 
 ---
 
@@ -190,7 +206,7 @@ Points a PM should push on before taking this further:
 | Ledger (where credits are posted) | **Simulated**, as an independent store that can fail in realistic ways. |
 | Jira | **Real**: tested live against the owner's test project. A stand-in is used by default. |
 | Email | **Stand-in mailbox** for now. Real Gmail (ADR 0038) and Outlook connectors are built; going live needs the owner's sign-in. |
-| AI | **Real** when switched on (Microsoft Foundry); off by default. |
+| AI | **Real** when switched on (Microsoft Foundry); off by default. The Case Explainer uses Claude Haiku directly, read-only. |
 | Monitoring | Traces reach Azure Application Insights with **no message content**. |
 
 ---
@@ -202,7 +218,9 @@ Points a PM should push on before taking this further:
 | Automated tests | More than 3,200 pass on every change, on the owner's machine and on GitHub. |
 | Scenario suite (`make eval`) | **57 of 57** scenarios pass. Across them: zero unapproved credits, zero duplicate emails, tickets or credits, zero unconfirmed outcomes counted as done, and no prompt injection succeeded in the 4 injection scenarios. |
 | Release gates | All 12 recorded gates pass (`config/release_gates.yaml`). |
-| AI choosing the right first step (live, 2026-11-04) | gpt-5-mini **62% of 45**; rules-only **48% of 45**. Below the 90 percent bar (`docs/evals/2026-11-04-live-gpt-5-mini.md`). |
+| AI choosing the right first step (live) | gpt-5-mini: 62% of 45 (2026-11-04), then 24% of 45 on an identical rerun (2026-11-05); rules only: 48% of 45. Both runs are below the 90 percent bar. **Caution:** the 45 scenarios rest on 13 distinct disputes, so these scores swing widely. Treat them as unsettled, not as a measured level. |
+| LangGraph two-pass investigator vs single call | Recorded suite: both 57 of 57. Live: 58% of 45 vs 24% of 45 on the same day, which is **inconclusive** for the same reason. It stays off by default (`docs/evals/2026-11-05-langgraph-vs-single.md`). |
+| Case Explainer (live check) | 3 of 3 answers named the real reason, cited a source and recommended no decision, for USD 0.003. |
 | Attack tests (live, local) | 0 of 24 injection attempts got through, by two routes (`docs/evals/2026-11-04-red-team-live.md`). |
 | Pattern analyst AI (live) | Passed 6 of 6 under a rule fixed before the run (`docs/evals/2026-11-04-pattern-analyst-live.md`). |
 | End to end on the running app | A dispute goes in over the web API, a person approves, and the case ends credited, confirmed and recorded. |
@@ -235,9 +253,10 @@ make eval           # the 57 scenarios, the gates, and a report in data/eval/
 make demo ARGS="--offline calc_error_wrong_slab"   # one dispute end to end, printed as a timeline
 make run-api        # the web API and the background runner (offline: stand-ins, synthetic data)
 make run-approvals  # the review console, where a person approves credits and messages
+make explain ARGS="<case_id> <question>"   # ask the read-only Case Explainer (Haiku; a fraction of a cent)
 ```
 
-None of the commands above reaches the internet or costs money. To switch on the real AI see `docs/SETUP_FOUNDRY.md`, and for real Jira or email see `docs/SETUP_CHANNELS.md`.
+None of the commands above reaches the internet or costs money, except `make explain`, which calls Claude Haiku within a capped budget. To switch on the real AI see `docs/SETUP_FOUNDRY.md`, and for real Jira or email see `docs/SETUP_CHANNELS.md`.
 
 ---
 
@@ -310,7 +329,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (38 decision records) |
+| Why each decision was made | `docs/adr/` (41 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

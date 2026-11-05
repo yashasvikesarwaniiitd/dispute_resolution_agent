@@ -919,7 +919,7 @@ def build_scenario_models(
         primary=primary,
         route="fake",
         ledger=open_model_call_log(log),
-        limits=policy.llm,
+        limits=engine_policy(policy).llm,
         money=policy.llm_primary,
         clock=clock,
         ids=ids,
@@ -934,7 +934,7 @@ def build_scenario_models(
         # Always behind the anchoring control (ADR 0025): one pass when a briefing has no
         # patterns, two when it has (safety review, Phase 7, MED-1).
         reasoner=TwoPassReasoner(
-            LlmReasoner(prompts=registry, gateway=gateway, ids=ids, clock=clock)
+            _engine(LlmReasoner(prompts=registry, gateway=gateway, ids=ids, clock=clock))
         ),
         interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
         secondary=secondary,
@@ -953,6 +953,7 @@ def build_live_models(
     from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
+    policy = engine_policy(policy, settings.reasoning_engine)
     gateway = build_model_gateway(
         "foundry_agent_service", settings=settings, policy=policy, clock=clock, ids=ids
     )
@@ -998,6 +999,73 @@ def build_pattern_analyst(
     )
 
 
+#: Lifetime spend cap for the case explainer (ADR 0039), inside the owner's USD 0.50 approval.
+EXPLAINER_CAP_USD = "0.25"
+EXPLAINER_USAGE_LOG = PROJECT_ROOT / "data" / "explainer_usage.jsonl"
+
+
+def build_case_explainer(settings: Settings, database: Path) -> Any:
+    """The read-only Case Explainer on the Claude Agent SDK (ADR 0039), Haiku only (I14).
+
+    Built here and nowhere else, like every route to a model. Refuses to start without the
+    key, with a non-Haiku model, or with an inactive prompt unless PROMPTS_ALLOW_INACTIVE.
+    """
+    from decimal import Decimal
+
+    from dispute_agent.modules.reasoning.explainer.agent import (
+        CaseExplainer,
+        ExplainerTools,
+        UsageLog,
+        check_haiku,
+    )
+    from dispute_agent.modules.reasoning.explainer.policy_index import default_index
+    from dispute_agent.modules.reasoning.explainer.reader import CaseReader
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    model = check_haiku(settings.anthropic_model_haiku)
+    key = settings.anthropic_api_key
+    if key is None:
+        raise ConfigError("ANTHROPIC_API_KEY is not set; the case explainer cannot start")
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    status = str(registry.meta("case_explainer", "v1").get("status", "inactive")).split()[0]
+    if status != "active" and not settings.prompts_allow_inactive:
+        raise ConfigError(
+            "prompt case_explainer/v1 is inactive; set PROMPTS_ALLOW_INACTIVE=true only for its check"
+        )
+    return CaseExplainer(
+        tools=ExplainerTools(reader=CaseReader(database), policies=default_index()),
+        system_prompt=registry.system_text("case_explainer", "v1"),
+        model=model,
+        api_key=key.get_secret_value(),
+        usage=UsageLog(EXPLAINER_USAGE_LOG),
+        lifetime_cap_usd=Decimal(EXPLAINER_CAP_USD),
+    )
+
+
+def engine_policy(policy: PolicyConfig, engine: str | None = None) -> PolicyConfig:
+    """The graph engine asks the model twice per round, so it gets twice the configured per-case
+    call cap (ADR 0041). Doubling - not a fixed number - keeps a deliberately tight cap tight."""
+    import os
+
+    choice = engine or os.environ.get("REASONING_ENGINE", "single")
+    if choice != "graph":
+        return policy
+    llm = policy.llm.model_copy(update={"max_calls_per_case": policy.llm.max_calls_per_case * 2})
+    return policy.model_copy(update={"llm": llm})
+
+
+def _engine(reasoner: Any, engine: str | None = None) -> Any:
+    """`graph` wraps the single-call reasoner in the LangGraph investigator (ADR 0041)."""
+    import os
+
+    choice = engine or os.environ.get("REASONING_ENGINE", "single")
+    if choice != "graph":
+        return reasoner
+    from dispute_agent.modules.reasoning.llm.graph import GraphReasoner
+
+    return GraphReasoner(reasoner)
+
+
 def build_llm_reasoner(
     gateway: ModelGateway,
     *,
@@ -1028,4 +1096,4 @@ def build_llm_reasoner(
 
     # P7-06, always: with no patterns in the briefing this is the single pass it wraps, so
     # no route can reach a patterned case without the anchoring control (MED-1).
-    return TwoPassReasoner(reasoner)
+    return TwoPassReasoner(_engine(reasoner, settings.reasoning_engine))

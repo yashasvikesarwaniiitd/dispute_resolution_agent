@@ -104,6 +104,11 @@ def run_approvals() -> int:
     )
 
 
+def explain(*args: str) -> int:
+    """Ask the read-only Case Explainer (ADR 0039). Costs a little; Haiku only."""
+    return uv("python", "scripts/explain.py", *args)
+
+
 def gmail_login() -> int:
     """Sign in to the pilot Gmail in the browser (ADR 0038). Every 7 days in Testing status."""
     return uv("python", "-m", "dispute_agent.modules.email.gmail_api.login")
@@ -188,6 +193,7 @@ TARGETS = {
     "run-api": run_api,
     "email-login": email_login,
     "gmail-login": gmail_login,
+    "explain": explain,
     "run-approvals": run_approvals,
     "demo": demo,
     "eval": evaluate,
@@ -205,6 +211,8 @@ def main(argv: Sequence[str]) -> int:
         return demo(*argv[1:])
     if argv[0] == "eval":
         return evaluate(*argv[1:])
+    if argv[0] == "explain":
+        return explain(*argv[1:])
     if argv[0] == "foundry-login":
         return foundry_login(*argv[1:])
     code = 0

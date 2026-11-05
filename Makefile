@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login explain demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team
 
 setup:
 	$(PY) setup
@@ -41,6 +41,10 @@ email-login:
 
 gmail-login:
 	$(PY) gmail-login
+
+# make explain ARGS="<case_id> <question>"  |  ARGS="--list"  |  ARGS="--check"
+explain:
+	$(PY) explain $(ARGS)
 
 # make demo ARGS="--offline calc_error_wrong_slab"
 demo:

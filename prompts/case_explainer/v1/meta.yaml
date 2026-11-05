@@ -1,0 +1,15 @@
+name: case_explainer
+version: v1
+status: active  # live check passed 3 of 3, 2026-11-05 (ADR 0039)
+owner: product
+purpose: Explain a case to a human reviewer from read-only tools. Never decides, never acts.
+output_schema: none  # plain text for a person; the tools, not a schema, bound what it can do
+model_requirements:
+  structured_output: false
+  tool_use: read_only_custom_tools
+max_output_tokens: 1200
+runtime: claude_agent_sdk  # ADR 0039; Haiku only (I14 exception, read-only)
+eval_suite: tests/unit/modules/reasoning/test_case_explainer.py (offline) and scripts/explain.py --check (live)
+changelog:
+  - v1: initial version (ADR 0039)
+  - v1 activated 2026-11-05: `make explain ARGS=--check` passed 3 of 3 on Haiku (named the real state or reason, cited a source, recommended no decision), USD 0.003.

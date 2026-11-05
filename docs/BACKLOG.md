@@ -305,3 +305,12 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 
 - **Neutral core names before a second domain pack.** The pack socket (`kernel/ports/domain_pack.py`) is generic, but the core still says "shipment" and "seller" (`CaseFacts`, about 37 kernel files), the action menu has `request_remeasurement`, and `IssuePayload.kind` only allows `remeasurement`. A second domain needs neutral names (item, customer, request re-check) first: a kernel change, so an ADR, after `phase-7-complete`.
 - **A second pack as the proof.** For example marketplace fee disputes or B2B invoice disputes, reusing the engine unchanged after the rename.
+
+## Found by the Case Explainer's live check (2026-11-05)
+
+- **An ineligible case does not store why.** `REJECTED_INELIGIBLE` cases have empty `review_code` / `review_detail`, so the record cannot say which eligibility rule failed (for example `not_delivered`); the explainer had to say so. Store the eligibility reason code on the case (kernel change: an ADR).
+
+## Live evaluation design (found 2026-11-05, ADR 0041)
+
+- **Score live accuracy per distinct dispute, over repeated runs.** The 45 live scenarios rest on 13 fixtures, and `kurta_box_larger` alone decides 29 of 57 scenarios, so one model coin-flip moves the score by tens of points (62% of 45, then 24% of 45 on an identical rerun). Suggested: 13 disputes × 5 runs × each engine, reporting per-dispute agreement. That is about USD 0.5 to 0.7 and needs the owner's approval. Until then the live score is reported as unsettled.
+

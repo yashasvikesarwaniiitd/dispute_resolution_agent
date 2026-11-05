@@ -100,6 +100,10 @@ class ScriptedModel:
     fixture: str | None
     fault: str | None = None
     calls: list[str] = field(default_factory=list)
+    #: The last investigator question and its answer. A model asked the same question twice
+    #: gives the same answer; without this, a second pass (the LangGraph engine, ADR 0041)
+    #: would be handed the *next* round's recorded answer.
+    _last: tuple[str, dict[str, object]] | None = None
 
     def __call__(self, req: ModelRequest) -> str | dict[str, object]:
         self.calls.append(req.purpose)
@@ -111,9 +115,14 @@ class ScriptedModel:
             if self.fault == "content_filter_block" and label in ("jailbreak",):
                 return "guardrail"
             return answers.reading(label)
+        if self._last is not None and self._last[0] == text:
+            return self._last[1]
         if not self.actions:
-            return answers.investigator("escalate_to_human", self.fixture)
-        return answers.investigator(self.actions.pop(0), self.fixture)
+            answer = answers.investigator("escalate_to_human", self.fixture)
+        else:
+            answer = answers.investigator(self.actions.pop(0), self.fixture)
+        self._last = (text, answer)
+        return answer
 
 
 class _NoLabel:
