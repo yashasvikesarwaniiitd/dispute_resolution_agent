@@ -68,8 +68,13 @@ def page() -> None:
                 st.info(data.NO_STORE)
             elif st.button("Raise a dispute", type="primary", width="stretch"):
                 with st.spinner("Sending your ticket"):
+                    # Hosted, the entry hands over the in-process service's route; locally it
+                    # is the running API over loopback. Either way: POST /events (ADR 0045).
+                    post = st.session_state.get("post") or data.poster(
+                        settings.console_api_url, settings.http_timeout_s
+                    )
                     raised = raise_ticket(
-                        data.poster(settings.console_api_url, settings.http_timeout_s),
+                        post,
                         chosen,
                         contact,
                         datetime.now(UTC),

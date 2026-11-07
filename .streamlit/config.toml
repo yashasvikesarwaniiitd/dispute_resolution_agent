@@ -25,7 +25,8 @@ toolbarMode = "minimal"
 
 [server]
 headless = true
-address = "127.0.0.1"
+# No address here: the hosted console must listen where its host says. `make run-console`
+# passes --server.address 127.0.0.1 so the local one stays on loopback (threat T09).
 
 [browser]
 gatherUsageStats = false

@@ -77,6 +77,18 @@ class Settings(BaseSettings):
     #: (threat T09). The console never writes a case itself (ADR 0044).
     console_api_url: str = "http://127.0.0.1:8000"
 
+    # --- the hosted console (ADR 0045) -------------------------------------------------------
+    #: The one password in front of every screen of the hosted console. Required there: the
+    #: hosted entry refuses to start without it. Unset on the owner's machine.
+    console_password: SecretStr | None = None
+    #: Gmail's refresh token, given as a secret where the encrypted file cannot travel (a
+    #: Windows DPAPI file does not open on Linux). Held in memory only; `make gmail-export`
+    #: copies it to the clipboard. Expires with the sign-in, every 7 days in Testing status.
+    gmail_refresh_token: SecretStr | None = None
+    #: Which modules file `config/` serves (default: modules.local.yaml, else modules.yaml).
+    #: The hosted console sets `modules.hosted.yaml`: real Gmail and Jira, no secrets in it.
+    modules_file: str | None = None
+
     # --- model spending and the prototype prompt (D18, ADR 0029) --------------------------
     #: The last day of the Azure free credit. After it, model calls stop unless
     #: `llm_allow_paid_usage` is on.

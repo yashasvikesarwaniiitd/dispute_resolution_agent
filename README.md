@@ -215,6 +215,8 @@ Four screens over the running system (`make run-console`, beside `make run-api`)
 
 The console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
 
+It can also be **hosted live** on Streamlit Community Cloud, sending real email and opening real Jira issues behind one password (ADR 0045, `docs/DEPLOY_STREAMLIT.md`).
+
 ---
 
 ## What's real and what's simulated
@@ -351,7 +353,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (44 decision records) |
+| Why each decision was made | `docs/adr/` (45 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

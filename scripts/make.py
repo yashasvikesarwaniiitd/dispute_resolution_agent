@@ -97,7 +97,17 @@ def run_api() -> int:
 def run_console() -> int:
     """The operations console (ADR 0044): seller tickets, agent steps, review, ledger.
     Run beside `make run-api`; it reads the same stores and posts tickets to that service."""
-    return uv("streamlit", "run", "src/dispute_agent/ui/app.py")
+    return uv("streamlit", "run", "src/dispute_agent/ui/app.py", "--server.address", "127.0.0.1")
+
+
+def hosted_secrets() -> int:
+    """The hosted console's Secrets block, to the clipboard (ADR 0045). Run it yourself."""
+    return uv("python", "scripts/hosted_secrets.py")
+
+
+def gmail_export() -> int:
+    """Copy the Gmail refresh token to the clipboard for the hosted console (ADR 0045)."""
+    return uv("python", "scripts/gmail_export.py")
 
 
 def run_approvals() -> int:
@@ -202,6 +212,8 @@ TARGETS = {
     "explain": explain,
     "run-approvals": run_approvals,
     "run-console": run_console,
+    "gmail-export": gmail_export,
+    "hosted-secrets": hosted_secrets,
     "demo": demo,
     "eval": evaluate,
     "red-team": red_team,

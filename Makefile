@@ -42,6 +42,12 @@ run-console:
 email-login:
 	$(PY) email-login
 
+hosted-secrets:
+	$(PY) hosted-secrets
+
+gmail-export:
+	$(PY) gmail-export
+
 gmail-login:
 	$(PY) gmail-login
 

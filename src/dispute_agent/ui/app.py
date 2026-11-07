@@ -1,21 +1,49 @@
-"""The operations console (ADR 0044): `make run-console`.
+"""The operations console (ADR 0044): `make run-console`, or hosted (ADR 0045).
 
 Four screens in a top bar: raise a ticket (seller), the agent's steps, review (the human in
-the loop) and the ledger (finance). Run it beside the dispute service (`make run-api`); the
-console reads the same stores and posts tickets to that service.
+the loop) and the ledger (finance).
+
+On the owner's machine it runs beside the dispute service (`make run-api`), reads the same
+stores and posts tickets to that service over loopback. Hosted, `streamlit_app.py` at the
+repository root runs the dispute service in the same process and hands `main` the function
+that posts to it; there, a password stands in front of every screen and the console does not
+open without one.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import streamlit as st
 
+from dispute_agent.infra.settings import Settings
+from dispute_agent.kernel.domain.errors import ConfigError
+from dispute_agent.ui.gate import opens
 from dispute_agent.ui.screens import finance, reviewer, seller, trail
 from dispute_agent.ui.theme import stylesheet
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-def main() -> None:
+
+def main(
+    *,
+    hosted: bool = False,
+    post: Callable[[dict[str, str]], tuple[int, dict[str, Any]]] | None = None,
+    start: Callable[[], object] | None = None,
+) -> None:
     st.set_page_config(page_title="Dispute desk", page_icon=":material/balance:", layout="wide")
     st.html(stylesheet())
+    if hosted and not _through_the_gate():
+        return
+    if start is not None:
+        try:
+            start()  # the in-process dispute service, started once per process
+        except ConfigError as missing:  # names the setting that is missing, never a value
+            st.error(f"The dispute service could not start: {missing}")
+            return
+    if post is not None:
+        st.session_state["post"] = post
     pages = {
         "seller": st.Page(
             seller.page,
@@ -38,4 +66,30 @@ def main() -> None:
     st.navigation(list(pages.values()), position="top").run()
 
 
-main()
+def _through_the_gate() -> bool:
+    if st.session_state.get("gate_passed"):
+        return True
+    expected = Settings().console_password
+    st.title("Dispute desk")
+    if expected is None:
+        st.error(
+            "This hosted console has no password set (CONSOLE_PASSWORD), so it stays closed. "
+            "It sends real email and opens real Jira issues."
+        )
+        return False
+    st.markdown(
+        "A live dispute resolution agent on synthetic data. It sends real email to a test "
+        "address and opens real Jira issues in a test project, so it is behind a password."
+    )
+    with st.form("gate"):
+        given = st.text_input("Password", type="password")
+        if st.form_submit_button("Enter", type="primary"):
+            if opens(given, expected.get_secret_value()):
+                st.session_state["gate_passed"] = True
+                st.rerun()
+            st.error("That password is not correct.")
+    return False
+
+
+if __name__ == "__main__":
+    main()

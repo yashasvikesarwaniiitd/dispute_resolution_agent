@@ -331,3 +331,9 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **Hallmark's own checks were not run.** Its `sloplint` and theme scripts target hand-written HTML and need Node; the console applied its Floor and app-screen rules by hand. A rendered-page review against its gates is possible later.
 - **Live reviewer flow in the browser.** The signed-in reviewer screen is tested with Streamlit's test runner and a test-made token; a click-through in a real browser needs the owner's own token.
 
+## The hosted console (2026-11-07, ADR 0045)
+
+- **Persistence.** The hosted case store and simulated ledger vanish on a restart. A small hosted database would keep them; not needed for a demo.
+- **Throttle ticket raising.** A password holder can raise tickets that open Jira issues without approval; bounded by 14 shipments today, worth a per-session limit before more shipments exist.
+- **Publish the Google app (or move to a workspace account)** to end the 7-day Gmail renewal.
+

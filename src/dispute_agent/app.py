@@ -116,7 +116,17 @@ class Application:
 LOCAL_MODULES = "modules.local.yaml"
 
 
-def load_modules_file(config_dir: Path) -> ModulesFile:
+def load_modules_file(config_dir: Path, name: str | None = None) -> ModulesFile:
+    """`name` (the MODULES_FILE setting) wins; else the git-ignored local file; else the shared one.
+
+    The hosted console names `modules.hosted.yaml` (ADR 0045). A named file that is missing is
+    an error, never a quiet fall back to another configuration.
+    """
+    if name:
+        path = config_dir / name
+        if not path.is_file():
+            raise ConfigError(f"MODULES_FILE names {name!r}, which is not in {config_dir}")
+        return ModulesFile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
     local = config_dir / LOCAL_MODULES
     path = local if local.is_file() else config_dir / "modules.yaml"
     if not path.is_file():
@@ -165,17 +175,21 @@ def _not_built(module: str, adapter: str) -> ConfigError:
 
 def _build_gmail(settings: Settings | None) -> MessageChannel:
     """The owner's pilot Gmail (ADR 0038). Refuses without every setting and a sign-in (I11)."""
-    from dispute_agent.modules.email.gmail_api.auth import GmailAuth
+    from dispute_agent.modules.email.gmail_api.auth import GmailAuth, SecretRefreshStore
     from dispute_agent.modules.email.gmail_api.channel import GmailChannel
 
     secret = None if settings is None else settings.gmail_client_secret
     if settings is None or not (settings.gmail_client_id and secret and settings.gmail_mailbox):
         raise _needs_accounts("email", "gmail_api")
+    refresh = settings.gmail_refresh_token
     auth = GmailAuth(
         client_id=settings.gmail_client_id,
         client_secret=secret.get_secret_value(),
         cache_path=settings.gmail_token_cache_path,
         timeout_s=settings.http_timeout_s,
+        # A hosted console has the sign-in as a secret, in memory only (ADR 0045); the owner's
+        # machine keeps the encrypted file.
+        store=SecretRefreshStore(refresh.get_secret_value()) if refresh else None,
     )
     # Not signed in still builds: sends then fail as reauth_required and cases reach a person,
     # exactly as config.md describes for outlook_graph. `make gmail-login` fixes it.
@@ -516,7 +530,7 @@ def build_application(
 
     configure_logging(app_env=env, secrets=loaded.secret_values())
 
-    registry = validate_modules(load_modules_file(directory), app_env=env)
+    registry = validate_modules(load_modules_file(directory, loaded.modules_file), app_env=env)
     clock = SystemClock()
     ids = UlidIdGenerator()
     data_dir = database.parent if database else None

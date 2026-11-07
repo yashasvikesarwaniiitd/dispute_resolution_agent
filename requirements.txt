@@ -1,0 +1,3 @@
+# Streamlit Community Cloud installs from here (ADR 0045): the project itself, with its
+# runtime dependencies from pyproject.toml. Local work uses uv and uv.lock instead.
+.

@@ -246,8 +246,26 @@ class GmailAuth:
         self._store().save(json.dumps({"refresh_token": refresh}))
 
 
+@dataclass
+class SecretRefreshStore:
+    """A refresh token given as a secret, held in memory only (ADR 0045).
+
+    For a host where the encrypted file cannot travel. It never writes anywhere: a sign-in
+    there is impossible anyway (the loopback flow needs a browser on the same machine), and
+    Google keeps the same refresh token across refreshes, so `save` has nothing to keep.
+    """
+
+    refresh_token: str = field(repr=False)
+
+    def load(self) -> str:
+        return json.dumps({"refresh_token": self.refresh_token})
+
+    def save(self, _value: str) -> None:
+        return None
+
+
 def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-__all__ = ["REAUTH_REQUIRED", "SCOPES", "GmailAuth"]
+__all__ = ["REAUTH_REQUIRED", "SCOPES", "GmailAuth", "SecretRefreshStore"]
