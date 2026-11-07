@@ -75,6 +75,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .who--ai, .who--rules { color: var(--color-ink); font-weight: 600; }
 .muted { color: var(--color-muted); font-size: 0.875rem; }
+.headline { font-size: 1.25rem; font-weight: 600; color: var(--color-ink); margin: var(--space-sm) 0 0; }
+.next { color: var(--color-ink-2); margin: var(--space-xs) 0 var(--space-md); }
+.phases { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: var(--space-sm) 0 var(--space-md); }
+.phase {
+  min-width: 7.5rem; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-chip);
+  border: var(--rule-hair) solid var(--color-rule); color: var(--color-muted); line-height: 1.3;
+}
+.phase b { display: block; font-weight: 500; color: inherit; }
+.phase small { font-size: 0.8125rem; }
+.phase--done { color: var(--color-ink-2); border-color: var(--color-rule-2); }
+.phase--current, .phase--person { color: var(--color-ink); border-color: var(--color-ink); }
+.phase--current b, .phase--person b, .phase--waiting b { font-weight: 600; }
+.phase--waiting { color: var(--color-ink); border: var(--rule-hair) dashed var(--color-ink); }
+.phase--person { background: var(--color-paper-3); }
+.phase--skipped { border-style: dotted; }
+.phase--settled { color: var(--color-paid); border-color: var(--color-paid); }
+.round { margin: var(--space-md) 0 var(--space-xs); font-weight: 600; color: var(--color-ink); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }

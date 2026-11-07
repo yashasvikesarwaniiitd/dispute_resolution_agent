@@ -101,11 +101,14 @@ def test_the_steps_tell_the_case_in_order(desk: dict[str, Any]) -> None:
     assert not at.exception
     text = _text(at)
     for expected in (
+        "Waiting for a reviewer to approve a ₹1,820.00 credit.",  # the headline
+        "Approve or reject it on the Review screen",  # what happens next
+        "Round 1: First look",
         "Dispute raised on SHP-000002",
-        "Recalculated the charge",
-        "Overcharge: ₹1,820.00",
+        "Charged ₹2,800.00, correct ₹980.00, overcharged ₹1,820.00.",
         "Proposed: Credit the seller",
         "a person must approve first",
+        "Overcharge: ₹1,820.00",  # in the step's details
     ):
         assert expected in text
 

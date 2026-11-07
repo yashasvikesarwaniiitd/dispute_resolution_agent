@@ -14,7 +14,7 @@ plain text, never as markup.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -60,6 +60,10 @@ class Step:
     #: Model-written text, shown literally (never as markdown).
     quoted: tuple[str, ...] = ()
     tone: Tone = Tone.DONE
+    #: One line a reader takes in at a glance; `lines` and `quoted` are the details.
+    summary: str = ""
+    #: The evidence round this step belongs to; 0 is before the first look.
+    round: int = 0
 
 
 @dataclass(frozen=True)
@@ -83,6 +87,8 @@ class Trail:
     ai_calls: int = 0
     ai_cost: Decimal = Decimal(0)
     steps: list[Step] = field(default_factory=list)
+    #: What started each round: "First look", "After the seller replied", ...
+    round_titles: dict[int, str] = field(default_factory=dict)
 
 
 def recommendation(proposal: Proposal) -> Recommendation:
@@ -105,16 +111,49 @@ def recommendation(proposal: Proposal) -> Recommendation:
     )
 
 
-def _evidence(work: SqliteUnitOfWork, case: Case, round_no: int) -> tuple[str, ...]:
+def _evidence(work: SqliteUnitOfWork, case: Case, round_no: int) -> tuple[str, tuple[str, ...]]:
+    """A one-line count with what is missing, and each item as a detail line."""
     try:
         bundle = work.evidence.bundle(case.id, round_no)
     except Exception:  # NotFound and its kin: a round with no stored evidence shows nothing
-        return ()
-    lines = []
+        return "", ()
+    lines, missing, failed = [], [], []
     for item in bundle.items:
         key = item.result.requirement_key
-        lines.append(f"{EVIDENCE.get(key, key)}: {item.result.status.value.lower()}")
-    return tuple(lines)
+        name = EVIDENCE.get(key, key)
+        status = item.result.status.value.lower()
+        lines.append(f"{name}: {status}")
+        if status == "missing":
+            missing.append(name.lower())
+        elif status == "failed":
+            failed.append(name.lower())
+    found = len(bundle.items) - len(missing) - len(failed)
+    summary = f"Found {found} of {len(bundle.items)}"
+    if missing:
+        summary += "; missing: " + ", ".join(missing)
+    if failed:
+        summary += "; could not fetch: " + ", ".join(failed)
+    return summary, tuple(lines)
+
+
+def _assessment_summary(found: ChargeAssessment | None) -> str:
+    """Charged, correct and over, in code's own figures; the definite errors it proved."""
+    if found is None:
+        return ""
+    facts = {fact.fact_id: render_fact(fact.value) for fact in found.facts}
+    parts = []
+    if "f_charged" in facts:
+        parts.append(f"Charged {facts['f_charged']}")
+    if "f_recalculated" in facts:
+        parts.append(f"correct {facts['f_recalculated']}")
+    if "f_discrepancy" in facts:
+        parts.append(f"overcharged {facts['f_discrepancy']}")
+    errors = (
+        "code proved " + ", ".join(words(e) for e in found.definite_errors)
+        if found.definite_errors
+        else "no definite error proved by code"
+    )
+    return (", ".join(parts) + ". " if parts else "") + errors.capitalize() + "."
 
 
 def _assessment(found: ChargeAssessment | None) -> tuple[str, ...]:
@@ -172,7 +211,11 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
     approvals = _decided(work.approvals.for_case(case.id))
     actions = sorted(work.actions.for_case(case.id), key=lambda a: a.action_seq)
     rounds = investigations = decisions = executions = verifications = 0
-    add = trail.steps.append
+    #: What the next round will be "after"; set by the input that starts it.
+    after = "Looked again"
+
+    def add(step: Step) -> None:
+        trail.steps.append(replace(step, round=rounds))
 
     for event in work.events.list_for_case(case.id):
         at, kind, cause = event.occurred_at, event.type, event.cause
@@ -181,17 +224,22 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
             add(Step(at, Actor.SELLER, f"Dispute raised on {case.facts.shipment_ref}"))
         elif kind == InboundEventType.SELLER_REPLY_RECEIVED:
             add(Step(at, Actor.SELLER, "The seller replied", tone=Tone.DONE))
+            after = "After the seller replied"
         elif kind == InboundEventType.OPS_FINDING_RECEIVED:
             add(Step(at, Actor.HUB, "The hub sent its finding"))
+            after = "After the hub's finding"
         elif kind == InboundEventType.TIMER_FIRED:
             add(Step(at, Actor.SYSTEM, "A deadline passed", tone=Tone.WAITING))
+            after = "After a deadline passed"
         elif kind in (
             InboundEventType.HUMAN_TOOK_CASE,
             InboundEventType.HUMAN_RETURNED_CASE,
             InboundEventType.HUMAN_REOPENED_CASE,
             InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL,
         ):
-            add(Step(at, Actor.PERSON, words(kind.value).capitalize()))
+            add(Step(at, Actor.PERSON, PERSON_STEP.get(kind, words(kind.value).capitalize())))
+            if kind == InboundEventType.HUMAN_RETURNED_CASE:
+                after = "After a person returned it"
         elif kind == InternalEventType.CASE_OUTCOME_RECORDED:
             add(Step(at, Actor.SYSTEM, "Outcome shared with pattern detection"))
         elif kind == InternalEventType.STATE_CHANGED and cause.kind.value == "STEP":
@@ -208,17 +256,20 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                     add(Step(at, Actor.CODE, "Checked eligibility: eligible"))
             elif step == "gather_evidence":
                 rounds += 1
+                trail.round_titles[rounds] = "First look" if rounds == 1 else after
+                summary, lines = _evidence(work, case, rounds)
+                add(Step(at, Actor.CODE, "Gathered the evidence", lines, summary=summary))
+            elif step == "assess":
+                found = next((a for a in assessments if a.gather_round == rounds), None)
                 add(
                     Step(
                         at,
                         Actor.CODE,
-                        f"Gathered evidence (round {rounds})",
-                        _evidence(work, case, rounds),
+                        "Recalculated the charge",
+                        _assessment(found),
+                        summary=_assessment_summary(found),
                     )
                 )
-            elif step == "assess":
-                found = next((a for a in assessments if a.gather_round == rounds), None)
-                add(Step(at, Actor.CODE, "Recalculated the charge", _assessment(found)))
             elif step == "investigate":
                 proposal = proposals[investigations] if investigations < len(proposals) else None
                 investigations += 1
@@ -236,12 +287,22 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                     continue
                 rec = recommendation(proposal)
                 proposer = Actor.AI if proposal.reasoner == "llm" else Actor.RULES
-                said = (f"Confidence: {rec.confidence}", f"By: {rec.by}", note)
+                said = (f"Confidence: {rec.confidence}", f"By: {rec.by}")
                 quoted = (
                     rec.rationale,
                     *tuple(f"{kind_}: {text}" for kind_, text, _refs in rec.findings),
                 )
-                add(Step(at, proposer, f"Proposed: {rec.action}", said, quoted, tone=t))
+                add(
+                    Step(
+                        at,
+                        proposer,
+                        f"Proposed: {rec.action}",
+                        said,
+                        quoted,
+                        tone=t,
+                        summary=f"{rec.confidence.capitalize()} confidence. {note}".strip(),
+                    )
+                )
             elif step == "apply_approval":
                 approval = approvals[decisions] if decisions < len(approvals) else None
                 decisions += 1
@@ -251,8 +312,10 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                     approval.decided_by.id.removeprefix("human:") if approval.decided_by else ""
                 )
                 what = approval.request.subject.value.lower()
-                amount = f" of {approval.request.amount}" if approval.request.amount else ""
-                noted: tuple[str, ...] = (f"Note: {approval.note}",) if approval.note else ()
+                amount = (
+                    f" of {render_fact(approval.request.amount)}" if approval.request.amount else ""
+                )
+                noted: tuple[str, ...] = ()
                 add(
                     Step(
                         at,
@@ -261,6 +324,7 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                         f"the {what}{amount}",
                         noted,
                         tone=Tone.DONE,
+                        summary=f"Note: {approval.note}" if approval.note else "",
                     )
                 )
             elif step == "execute":
@@ -280,8 +344,9 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                             at,
                             Actor.CODE,
                             "Proved it happened by reading it back",
-                            (f"Next: {state(to_state)[0]}",) if to_state else (),
+                            (),
                             tone=Tone.SETTLED if settled else Tone.DONE,
+                            summary=f"Next: {state(to_state)[0]}" if to_state else "",
                         )
                     )
                 else:
@@ -299,6 +364,14 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                 note, t = _outcome(to_state, reason)
                 add(Step(at, Actor.SYSTEM, "Handed to a person", (note,), tone=t))
     return trail
+
+
+PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
+    InboundEventType.HUMAN_TOOK_CASE: "A person took the case over",
+    InboundEventType.HUMAN_RETURNED_CASE: "A person returned the case to the agent",
+    InboundEventType.HUMAN_REOPENED_CASE: "A person reopened the case",
+    InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL: "A person confirmed the seller's withdrawal",
+}
 
 
 __all__ = ["Actor", "Recommendation", "Step", "Trail", "build", "recommendation"]

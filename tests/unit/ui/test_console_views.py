@@ -225,3 +225,69 @@ class TestFinanceScreen:
             Decimal("1820.00"),
             Decimal("980.00"),
         )
+
+
+class TestWhereTheCaseIs:
+    """The headline, the next step and the five phases (ui/journey.py)."""
+
+    def _journey(self, world: World) -> Any:
+        from dispute_agent.ui.journey import journey
+
+        with _work(world) as work:
+            return journey(work, work.cases.get(world.case_id))
+
+    def test_a_credited_case_says_how_much_and_every_phase_is_done(self, credited: World) -> None:
+        from dispute_agent.ui.journey import Mark
+
+        where = self._journey(credited)
+        assert where.headline == "Resolved: the seller was credited ₹1,820.00."
+        assert [m for _n, m in where.phases] == [Mark.DONE] * 5
+
+    def test_a_case_waiting_for_approval_says_what_and_where(self, waiting: World) -> None:
+        from dispute_agent.ui.journey import Mark
+
+        where = self._journey(waiting)
+        assert where.headline == "Waiting for a reviewer to approve a ₹1,820.00 credit."
+        assert "Review screen" in where.next_step
+        assert dict(where.phases)["Approved"] is Mark.WAITING
+        assert dict(where.phases)["Acted"] is Mark.TODO
+
+    def test_a_case_with_a_person_says_why(self) -> None:
+        from dispute_agent.ui.journey import Mark
+
+        world = _world("multi_error", approve=False)
+        try:
+            where = self._journey(world)
+        finally:
+            world.close()
+        assert where.headline.startswith("With a person:")
+        assert dict(where.phases)["Investigated"] is Mark.PERSON
+
+    def test_an_ineligible_case_skips_what_never_happened(self) -> None:
+        from dispute_agent.ui.journey import Mark
+
+        world = _world("not_delivered", approve=False)
+        try:
+            where = self._journey(world)
+        finally:
+            world.close()
+        assert where.headline == "Closed: this shipment could not be disputed."
+        phases = dict(where.phases)
+        assert phases["Closed"] is Mark.DONE and phases["Investigated"] is Mark.SKIPPED
+
+
+class TestTheStepsAtAGlance:
+    def test_steps_are_grouped_into_named_rounds_with_one_line_summaries(
+        self, credited: World
+    ) -> None:
+        with _work(credited) as work:
+            story = trail.build(work, work.cases.get(credited.case_id))
+        assert story.round_titles == {1: "First look"}
+        assert {s.round for s in story.steps} == {0, 1}
+        evidence = next(s for s in story.steps if s.title == "Gathered the evidence")
+        assert evidence.summary.startswith("Found ") and "missing: parcel image" in evidence.summary
+        recalc = next(s for s in story.steps if s.title == "Recalculated the charge")
+        assert recalc.summary == (
+            "Charged ₹2,800.00, correct ₹980.00, overcharged ₹1,820.00. "
+            "Code proved calculation error."
+        )

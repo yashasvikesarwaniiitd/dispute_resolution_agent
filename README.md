@@ -209,7 +209,7 @@ Four screens over the running system (`make run-console`, beside `make run-api`)
 | Screen | Who | What it does |
 |---|---|---|
 | **Raise a ticket** | Seller | Shows the seller's shipments and bills, raises a dispute through the same route as the dispute form, and tracks their tickets. |
-| **Agent steps** | Anyone | Tells one case step by step, saying who did each step (code, AI, rules, a person, the seller, the hub): the evidence found and missing, code's recalculation, the AI's proposal and reasoning, policy's verdict, approvals, actions and the read-back that proved them. It refreshes live while the case is open. |
+| **Agent steps** | Anyone | Opens with where the case is and what happens next, and a five-phase progress bar. Then the case round by round, each step saying who did it (code, AI, rules, a person, the seller, the hub) in one line: the evidence found and missing, code's recalculation, the AI's proposal, policy's verdict, approvals, actions and the read-back that proved them. Details and reasoning fold away. It refreshes live while the case is open. |
 | **Review** | The human in the loop | Shows the AI's recommendation beside exactly what will happen on approval, with every number's source. Approve or reject. For cases handed to a person: take over, return to the agent with a note, or confirm a seller's withdrawal (ADR 0046). |
 | **Ledger** | Finance | Lists a seller's charges and credits. Each credit is traced to its case, who approved it, and whether it was proved by reading it back. |
 
