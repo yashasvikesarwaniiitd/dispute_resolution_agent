@@ -89,7 +89,7 @@ class TestAGoodAnswerGoesThroughEveryRail:
         proposal = made[0].proposals[0]
         sent = gateway.requests[0].prompt
         assert proposal.reasoner == "llm"
-        assert (proposal.prompt_name, proposal.prompt_version) == ("case_investigator", "v1")
+        assert (proposal.prompt_name, proposal.prompt_version) == ("case_investigator", "v2")
         assert proposal.prompt_hash == sent.hash
         assert proposal.model_id == "fake-model"
         assert proposal.fallback_used is False

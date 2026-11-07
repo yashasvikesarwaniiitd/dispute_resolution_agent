@@ -118,7 +118,7 @@ No nagging: at most **3 messages per case** and **1 per day**, and one clarifyin
 | Read a briefing: the evidence, code's calculation, and the customer's words labelled *untrusted* | Send, refund or change anything. It has no access to those tools at all. |
 | Investigate in steps (agentic engine): open an evidence item in full, look up a policy rule, check its own draft against the same rules its decision will face | Use any tool that writes, take more than 4 steps, or spend past the case's AI call cap |
 | Propose one next step from a fixed menu, with reasons and cited evidence | Produce a number the customer sees. Every number comes from code. |
-| Draft a message's wording from approved templates | Approve itself, change a limit, or skip a person |
+| Draft a message's wording from approved templates, and choose requested evidence from a fixed, pre-worded list | Approve itself, change a limit, or skip a person |
 | Interpret a customer's reply | Follow instructions hidden in a customer's text |
 | Suggest possible causes of a repeated problem | Accuse anyone, or credit or penalise anyone because of a pattern |
 
@@ -335,7 +335,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (42 decision records) |
+| Why each decision was made | `docs/adr/` (43 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

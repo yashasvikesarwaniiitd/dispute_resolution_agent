@@ -1,0 +1,19 @@
+name: case_investigator
+version: v2
+status: inactive  # no eval run yet (prompts/README): set active only after the eval suite passes
+owner: product
+purpose: Recommend exactly one next step for a weight dispute from a structured briefing. Read-only; proposal only.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+max_output_tokens: 1200
+eval_suite: tests/evals/case_investigator
+eval_cases: docs/spec/prompt-review.md#case_investigator
+pattern_context: optional; omitted when empty (Phase 7 activates it); two-pass anchoring control in agent-design.md section 7
+changelog:
+  - v1: initial version
+  - v1 (pre-release edit, 2026-11-02): aligned with owner decisions D19 (clarify an unclear reply once, never wait after a reply) and D29 (credits only for a code-proven definite error). Edited in place because v1 has never been released or run; from Phase 4 on, changes create v2.
+  - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): untrusted evidence and the reply reading moved into untrusted_ blocks; source_trust on evidence items; contact_status and reviewer_notes blocks; only-cite-existing-ids rule; at most three requested items; multiple definite errors escalate; "high value" removed (amounts are code's business, D30); tool_use none (D12); temperature removed (not sent by any adapter, foundry.md section 6). Failure modes CI-F1..CI-F10 in docs/spec/prompt-review.md.
+  - v1 (pre-release edit, 2026-11-03, Stage A4 independent review): trust model now names encoded, hidden and other-language instructions (the investigator is the only reader of ops notes, shipment notes and dispute statements, threat T02); worked-example evidence ids corrected to the real namespaces (bare fact ids, evi_ ULIDs) so the examples no longer demonstrate output the validator would reject; pattern_context renamed untrusted_pattern_context (a summary may be model-written from other cases' text); independent_view block and the changed_recommendation equality rule added for the Phase 7 two-pass control; screen_results block added (baseline row B2 depends on it); tag attributes rendered through neutralise. Findings A8, B6, B13, B14 in docs/spec/a4-review-findings.md.
+  - v2 (2026-11-07, ADR 0043): requested_items is a closed list (schema enum, the pack's EVIDENCE_ITEMS), chosen and copied, never worded by the model. The first full live run showed a model-worded item ("two photos") blocked by R09/MD-F1; digits would fail I9 too. Clarifications re-request listed items; anything off the list escalates. Everything else is v1 unchanged.

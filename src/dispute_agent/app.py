@@ -1099,15 +1099,15 @@ def build_llm_reasoner(
     clock: Clock,
     ids: IdGenerator,
 ) -> Reasoner:
-    from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, LlmReasoner
+    from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, VERSION, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
-    status = str(registry.meta(PROMPT, "v1").get("status", "inactive")).split()[0]
+    status = str(registry.meta(PROMPT, VERSION).get("status", "inactive")).split()[0]
     if status != "active" and not settings.prompts_allow_inactive:
         # Fail at start-up, not on the first case (review, M4).
         raise ConfigError(
-            f"prompt {PROMPT}/v1 is {status}: set PROMPTS_ALLOW_INACTIVE=true only to "
+            f"prompt {PROMPT}/{VERSION} is {status}: set PROMPTS_ALLOW_INACTIVE=true only to "
             "knowingly test an un-evaluated prompt (docs/SETUP_FOUNDRY.md)"
         )
     reasoner = LlmReasoner(

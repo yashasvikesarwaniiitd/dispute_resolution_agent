@@ -10,7 +10,9 @@ So after the gateway hands back a well-formed answer, this checks what only the 
 knows: the action is on the menu, every cited id exists (threat T12 - a fabricated citation
 is how a model makes an unsupported claim look supported), each action carries the
 parameters it needs, and no pattern is claimed to have been considered when none was shown.
-A failure gets one identical retry, then `InvalidModelOutput` - and the case goes to a
+Since v2 (ADR 0043) it also holds requested items to the prompt's closed list, read from the
+schema itself, so the list is enforced in code even on a route that did not validate the
+schema. A failure gets one identical retry, then `InvalidModelOutput` - and the case goes to a
 person, never to the rules baseline (FLOW section 7b: a model that answered badly is not a
 model that was unavailable).
 
@@ -46,6 +48,8 @@ if TYPE_CHECKING:
 
 ADAPTER = "llm"
 PROMPT = "case_investigator"
+#: v2 closes the list of evidence a seller may be asked for (ADR 0043).
+VERSION = "v2"
 
 #: Spec section 4: one identical retry when a section-3 check fails.
 ATTEMPTS = 2
@@ -59,7 +63,7 @@ class LlmReasoner:
     gateway: ModelGateway
     ids: IdGenerator
     clock: Clock
-    version: str = "v1"
+    version: str = VERSION
     max_output_tokens: int = 1200
 
     def propose(self, briefing: CaseBriefing) -> Proposal:
@@ -75,6 +79,7 @@ class LlmReasoner:
         # be reproduced exactly from what the model was actually shown.
         briefing_hash = payload_hash(rendered.messages[-1].content)
 
+        allowed = allowed_items(rendered.output_schema)
         last: InvalidModelOutput | None = None
         for _ in range(ATTEMPTS):
             try:
@@ -88,7 +93,7 @@ class LlmReasoner:
                     f"proposal rejected, then the retry failed ({failed.code})"
                 ) from failed
             try:
-                check(response.output, briefing, view)
+                check(response.output, briefing, view, allowed_items=allowed)
                 return self._proposal(response, briefing, briefing_hash, rendered.hash)
             except InvalidModelOutput as invalid:
                 last = invalid
@@ -162,7 +167,24 @@ def to_proposal(
         raise InvalidModelOutput(f"not a valid proposal at {fields}") from None
 
 
-def check(output: Mapping[str, JsonValue], briefing: CaseBriefing, view: BriefingView) -> None:
+def allowed_items(schema: Mapping[str, Any]) -> frozenset[str] | None:
+    """The closed list a prompt's schema gives `requested_items`, or None when it is open (v1)."""
+    try:
+        enum = schema["properties"]["action_parameters"]["properties"]["requested_items"]["items"][
+            "enum"
+        ]
+    except (KeyError, TypeError):
+        return None
+    return frozenset(str(item) for item in enum)
+
+
+def check(
+    output: Mapping[str, JsonValue],
+    briefing: CaseBriefing,
+    view: BriefingView,
+    *,
+    allowed_items: frozenset[str] | None = None,
+) -> None:
     """agent-design.md section 3, checks 1-4. Raises InvalidModelOutput."""
     action = str(output.get("action"))
     if action not in {a.value for a in briefing.allowed_actions}:
@@ -182,6 +204,14 @@ def check(output: Mapping[str, JsonValue], briefing: CaseBriefing, view: Briefin
         1 <= len(params.get("requested_items") or []) <= 3
     ):
         raise InvalidModelOutput("request_seller_evidence needs 1-3 requested_items")
+    requested = params.get("requested_items") or []
+    if (
+        action == ProposalAction.REQUEST_SELLER_EVIDENCE
+        and allowed_items is not None
+        and any(str(item) not in allowed_items for item in requested)
+    ):
+        # Not quoted back: the item is model-written text (ADR 0043).
+        raise InvalidModelOutput("a requested item is not on the prompt's list")
     if action == ProposalAction.REQUEST_REMEASUREMENT and not params.get("remeasurement_question"):
         raise InvalidModelOutput("request_remeasurement without a remeasurement_question")
 
@@ -190,4 +220,4 @@ def check(output: Mapping[str, JsonValue], briefing: CaseBriefing, view: Briefin
         raise InvalidModelOutput("claims to have considered patterns, but none were shown")
 
 
-__all__ = ["ADAPTER", "PROMPT", "LlmReasoner", "check"]
+__all__ = ["ADAPTER", "PROMPT", "VERSION", "LlmReasoner", "allowed_items", "check"]
