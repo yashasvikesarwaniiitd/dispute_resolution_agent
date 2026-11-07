@@ -133,6 +133,11 @@ module = ["llama_index.*", "bm25s.*", "Stemmer.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+# pandas ships no type information; the console uses it only to style one table (ADR 0044).
+module = ["pandas.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 # MSAL ships no type information. The adapter confines it to one module and one method, and
 # `GraphAuth.token()` is annotated, so nothing untyped escapes past that boundary.
 module = ["msal", "msal.*", "msal_extensions", "msal_extensions.*"]

@@ -53,6 +53,7 @@ DEFAULTED = {
     "LLM_PRIMARY_SPEND_CAP_USD",
     "LLM_SECONDARY_SPEND_CAP_USD",
     "HTTP_TIMEOUT_S",
+    "CONSOLE_API_URL",  # the loopback API the console posts to (ADR 0044); not a secret
     "PROMPTS_ALLOW_INACTIVE",
 }
 

@@ -36,6 +36,9 @@ run-api:
 run-approvals:
 	$(PY) run-approvals
 
+run-console:
+	$(PY) run-console
+
 email-login:
 	$(PY) email-login
 

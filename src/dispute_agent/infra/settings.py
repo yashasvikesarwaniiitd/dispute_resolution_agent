@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     jira_email: str | None = None
     jira_project_key: str | None = None
     test_seller_email: str | None = None
+    #: Where the operations console posts a seller's dispute: the running API, loopback only
+    #: (threat T09). The console never writes a case itself (ADR 0044).
+    console_api_url: str = "http://127.0.0.1:8000"
 
     # --- model spending and the prototype prompt (D18, ADR 0029) --------------------------
     #: The last day of the Azure free credit. After it, model calls stop unless

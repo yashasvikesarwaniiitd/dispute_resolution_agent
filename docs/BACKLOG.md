@@ -323,3 +323,11 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **Sync the hosted agent to case_investigator v2.** Owner step: `make agents-sync` (ADR 0043). Until then the hosted route (`foundry_agent_service`, used by `--agent` and the live eval) sends cases to a person with `agent_drift`; the direct route already uses v2.
 - **case_investigator_agent v2 should copy the closed list** before the agentic engine is ever activated (ADR 0043).
 - **A claimed but absent attachment.** Live, after a simulated reply saying "photo attached" with no photo in the evidence, the AI re-requested the photos instead of going to the hub (S06's recorded path). Cautious and allowed; worth a scenario with a real attachment, and part of the per-dispute live evaluation.
+
+## Found while building the operations console (2026-11-07, ADR 0044)
+
+- **The API answers an unknown inbound source with HTTP 500.** `POST /events` with a `source` not in `INBOUND_SOURCES` raises `DomainValidationError` while building the event, and nothing maps it to 422. A client error should read as one. Small fix in `api/events.py`, with a test.
+- **A free-text complaint box for sellers.** Neither the form nor the console carries the seller's own words. Adding one is a safety decision (the text is untrusted input to the investigator, I5), not a UI change.
+- **Hallmark's own checks were not run.** Its `sloplint` and theme scripts target hand-written HTML and need Node; the console applied its Floor and app-screen rules by hand. A rendered-page review against its gates is possible later.
+- **Live reviewer flow in the browser.** The signed-in reviewer screen is tested with Streamlit's test runner and a test-made token; a click-through in a real browser needs the owner's own token.
+

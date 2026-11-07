@@ -115,5 +115,15 @@ class SqliteModelUsageLedger:
             ).scalar_one()
         return Decimal(int(micros)) / MICROS
 
+    def usage_for_case(self, case_id: CaseId) -> tuple[int, Decimal]:
+        """A case's model calls and what they cost. Read-only; the console (ADR 0044)."""
+        with self._engine.connect() as conn:
+            calls, micros = conn.execute(
+                select(func.count(), func.coalesce(func.sum(model_calls.c.cost_usd_micros), 0))
+                .select_from(model_calls)
+                .where(model_calls.c.case_id == str(case_id))
+            ).one()
+        return int(calls), Decimal(int(micros)) / MICROS
+
 
 __all__ = ["SqliteModelUsageLedger", "model_call_ddl", "open_model_call_log"]

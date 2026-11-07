@@ -202,6 +202,21 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 
 ---
 
+## The operations console
+
+Four screens over the running system (`make run-console`, beside `make run-api`), styled with the Hallmark design skill's Coral theme (ADR 0044):
+
+| Screen | Who | What it does |
+|---|---|---|
+| **Raise a ticket** | Seller | Shows the seller's shipments and bills, raises a dispute through the same route as the dispute form, and tracks their tickets. |
+| **Agent steps** | Anyone | Tells one case step by step, saying who did each step (code, AI, rules, a person, the seller, the hub): the evidence found and missing, code's recalculation, the AI's proposal and reasoning, policy's verdict, approvals, actions and the read-back that proved them. It refreshes live while the case is open. |
+| **Review** | The human in the loop | Shows the AI's recommendation beside exactly what will happen on approval, with every number's source. Approve or reject; cases handed to a person are listed with the reason. |
+| **Ledger** | Finance | Lists a seller's charges and credits. Each credit is traced to its case, who approved it, and whether it was proved by reading it back. |
+
+The console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
+
+---
+
 ## What's real and what's simulated
 
 | Part | Status |
@@ -259,6 +274,7 @@ make eval           # the 57 scenarios, the gates, and a report in data/eval/
 make demo ARGS="--offline calc_error_wrong_slab"   # one dispute end to end, printed as a timeline
 make run-api        # the web API and the background runner (offline: stand-ins, synthetic data)
 make run-approvals  # the review console, where a person approves credits and messages
+make run-console    # the four-screen operations console (seller, agent steps, review, ledger)
 make explain ARGS="<case_id> <question>"   # ask the read-only Case Explainer (Haiku; a fraction of a cent)
 ```
 
@@ -335,7 +351,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (43 decision records) |
+| Why each decision was made | `docs/adr/` (44 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

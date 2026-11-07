@@ -137,6 +137,15 @@ class SqliteAssessmentStore:
     def get(self, assessment_id: object) -> ChargeAssessment | None:
         return _get_assessment(self._conn, assessment_id)
 
+    def for_case(self, case_id: CaseId) -> list[ChargeAssessment]:
+        """Every round's assessment, oldest first. Read-only; the console's step view (ADR 0044)."""
+        rows = self._conn.execute(
+            select(assessments_table.c.result_json)
+            .where(assessments_table.c.case_id == str(case_id))
+            .order_by(assessments_table.c.gather_round, assessments_table.c.created_at)
+        ).mappings()
+        return [_to_assessment(json.loads(row["result_json"])) for row in rows]
+
 
 def _get_assessment(conn: Any, assessment_id: object) -> ChargeAssessment | None:
     row = (

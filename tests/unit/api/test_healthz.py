@@ -39,8 +39,11 @@ modules:
 
 
 @pytest.fixture
-def config_dir(tmp_path: Path) -> Path:
+def config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "modules.yaml").write_text(PHASE_0_FILE, encoding="utf-8")
+    # Run where no `data/cases.sqlite3` exists: `create_app` uses one if it finds it, and an
+    # owner who has run the app locally has one, which made these tests depend on the folder.
+    monkeypatch.chdir(tmp_path)
     return tmp_path
 
 

@@ -94,6 +94,12 @@ def run_api() -> int:
     )
 
 
+def run_console() -> int:
+    """The operations console (ADR 0044): seller tickets, agent steps, review, ledger.
+    Run beside `make run-api`; it reads the same stores and posts tickets to that service."""
+    return uv("streamlit", "run", "src/dispute_agent/ui/app.py")
+
+
 def run_approvals() -> int:
     """The review queue. A separate process from the API: it is a different audience and a
     different secret, and running it only when someone is reviewing is the point."""
@@ -195,6 +201,7 @@ TARGETS = {
     "gmail-login": gmail_login,
     "explain": explain,
     "run-approvals": run_approvals,
+    "run-console": run_console,
     "demo": demo,
     "eval": evaluate,
     "red-team": red_team,

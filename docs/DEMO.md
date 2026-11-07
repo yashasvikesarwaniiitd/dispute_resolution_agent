@@ -50,6 +50,16 @@ Decide approvals in the review console:
 make run-approvals
 ```
 
+Or use the operations console (ADR 0044), which covers all four roles in one app:
+
+```bash
+uv run alembic upgrade head   # once: creates data/cases.sqlite3
+make run-api                  # the dispute service and its runner
+make run-console              # seller, agent steps, review, ledger
+```
+
+Raise a ticket as the seller, watch the agent's steps fill in, then approve or reject it on the Review screen (the review console token). Credits appear on the Ledger screen once the read-back proves them. With your Gmail wired in through `config/modules.local.yaml`, an approved message is a real email to the test seller address.
+
 ## 4. With real accounts (optional)
 
 `make demo ARGS="calc_error_high_value"` (no `--offline`) runs the same sequence with real
