@@ -210,7 +210,7 @@ Four screens over the running system (`make run-console`, beside `make run-api`)
 |---|---|---|
 | **Raise a ticket** | Seller | Shows the seller's shipments and bills, raises a dispute through the same route as the dispute form, and tracks their tickets. |
 | **Agent steps** | Anyone | Tells one case step by step, saying who did each step (code, AI, rules, a person, the seller, the hub): the evidence found and missing, code's recalculation, the AI's proposal and reasoning, policy's verdict, approvals, actions and the read-back that proved them. It refreshes live while the case is open. |
-| **Review** | The human in the loop | Shows the AI's recommendation beside exactly what will happen on approval, with every number's source. Approve or reject; cases handed to a person are listed with the reason. |
+| **Review** | The human in the loop | Shows the AI's recommendation beside exactly what will happen on approval, with every number's source. Approve or reject. For cases handed to a person: take over, return to the agent with a note, or confirm a seller's withdrawal (ADR 0046). |
 | **Ledger** | Finance | Lists a seller's charges and credits. Each credit is traced to its case, who approved it, and whether it was proved by reading it back. |
 
 The console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
@@ -353,7 +353,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (45 decision records) |
+| Why each decision was made | `docs/adr/` (46 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

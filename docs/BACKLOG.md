@@ -337,3 +337,8 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 - **Throttle ticket raising.** A password holder can raise tickets that open Jira issues without approval; bounded by 14 shipments today, worth a per-session limit before more shipments exist.
 - **Publish the Google app (or move to a workspace account)** to end the 7-day Gmail renewal.
 
+## The case desk (2026-11-07, ADR 0046)
+
+- **Show a return reason to the investigator.** When a reviewer returns a case (T37), the reason is kept on the record but the briefing's reviewer notes come only from rejected approvals. Adding returned-case reasons to the briefing is a kernel change (briefing builder) with an ADR, and a prompt eval.
+- **Resolve an UNKNOWN action from the desk.** T37 accepts `unknown_action_resolutions`; the desk does not offer them yet, so a case with an unknown outcome must be taken over rather than returned.
+

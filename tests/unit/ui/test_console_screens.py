@@ -146,3 +146,44 @@ def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
     values = {m.label: m.value for m in at.metric}
     assert values["Credited back"] == "INR 0.00"  # nothing approved yet
     assert values["Charged"].startswith("INR ")
+
+
+@pytest.fixture
+def desk_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """SHP-000001 with a person (B5: image evidence), as on the hosted console."""
+    world = open_world(
+        "kurta_box_larger",
+        policy=PolicyConfig(),
+        clock=FakeClock(NOW),
+        ids=FakeIdGenerator(),
+        decide=lambda _a: None,
+    )
+    world.drive(20)
+    world.close()
+    data = tmp_path / "data"
+    data.mkdir()
+    _copy(world.folder / "cases.sqlite3", data / "cases.sqlite3")
+    token = secrets.token_hex(16)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("REVIEW_CONSOLE_TOKEN", token)
+    return {"token": token, "cases": data / "cases.sqlite3"}
+
+
+def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -> None:
+    at = AppTest.from_function(_review, default_timeout=60).run()
+    at.text_input[0].input(desk_case["token"])
+    at.text_input[1].input("asha")
+    at.button[0].click().run()
+    assert not at.exception
+    text = _text(at)
+    assert "Why it is with a person" in text and "proposal escalated" in text
+    assert "image evidence" in text  # the reason's detail, shown as text
+
+    take = next(b for b in at.button if b.label == "Take over")
+    take.click().run()
+    assert not at.exception
+    with sqlite3.connect(desk_case["cases"]) as conn:
+        rows = conn.execute(
+            "SELECT event_type, source, event_json FROM inbox WHERE event_type = 'HUMAN_TOOK_CASE'"
+        ).fetchall()
+    assert len(rows) == 1 and rows[0][1] == "ops_console" and "human:asha" in rows[0][2]

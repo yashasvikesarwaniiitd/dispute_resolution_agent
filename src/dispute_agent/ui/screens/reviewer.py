@@ -3,6 +3,10 @@
 Sign-in is the review console's own (ADR 0018): the token is checked once and only the
 reviewer's identity is kept for the session, never the token. The decision is recorded by
 `ReviewConsole`, bound to the stored text's hash; nothing is sent from this page (I2).
+
+Cases handed to a person can be taken over, returned to the agent or - when the seller asked
+- closed as withdrawn, through `CaseDesk` (ADR 0046): recorded as the signed-in reviewer and
+applied by the runner within a few seconds, through the engine's own transitions.
 """
 
 from __future__ import annotations
@@ -16,12 +20,15 @@ from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
 from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
 from dispute_agent.ui import data
+from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.review import Card, queue, with_a_person
 from dispute_agent.ui.theme import chip, escape
+from dispute_agent.ui.trail import recommendation
 
 if TYPE_CHECKING:
     from dispute_agent.kernel.domain.ids import ApprovalId
     from dispute_agent.kernel.domain.models import Actor
+    from dispute_agent.ui.seller import Ticket
 
 
 def page() -> None:
@@ -55,21 +62,8 @@ def page() -> None:
             st.markdown(
                 '<p class="muted">No case is waiting for a person.</p>', unsafe_allow_html=True
             )
-        else:
-            st.dataframe(
-                [
-                    {
-                        "Case": t.case_id,
-                        "Shipment": t.shipment_ref,
-                        "Why": (t.review_reason or "").replace("_", " "),
-                        "Since": t.updated_at,
-                    }
-                    for t in people
-                ],
-                hide_index=True,
-                width="stretch",
-                column_config={"Since": st.column_config.DatetimeColumn(format="D MMM, HH:mm")},
-            )
+        for person_case in people:
+            _person_card(person_case, reviewer)
 
 
 def _signed_in() -> Actor | None:
@@ -156,6 +150,77 @@ def _card(card: Card, reviewer: Actor) -> None:
             _decide(reviewer, item.approval.id, note, approving=True)
         if no.button("Reject", key=f"no-{item.approval.id}"):
             _decide(reviewer, item.approval.id, note, approving=False)
+
+
+def _person_card(ticket: Ticket, reviewer: Actor) -> None:
+    """One case with a person: why, what the agent last proposed, and the three decisions."""
+    with data.reader() as work:
+        case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
+        proposals = list(work.proposals.for_case(case.id))
+        paid = work.actions.has_verified_credit(case.id)
+    reason = case.review_reason
+    with st.container(border=True):
+        st.markdown(
+            f"**Shipment {escape(ticket.shipment_ref)}** &nbsp; {chip(ticket.label, ticket.tone)}"
+            f' &nbsp; <span class="muted">since {ticket.updated_at:%d %b %H:%M}</span>',
+            unsafe_allow_html=True,
+        )
+        if reason is not None:
+            why = reason.code.value.replace("_", " ")
+            st.markdown(f"Why it is with a person: **{escape(why)}**")
+            if reason.detail:
+                st.text(reason.detail)
+        if proposals:
+            rec = recommendation(proposals[-1])
+            st.markdown(
+                f'<span class="muted">Last proposal: {escape(rec.action)}, {escape(rec.by)}</span>',
+                unsafe_allow_html=True,
+            )
+        pages = st.session_state.get("pages")
+        if pages:  # absent only when a screen runs on its own, as in tests
+            st.page_link(
+                st.session_state["pages"]["trail"],
+                label="See every step of this case",
+                query_params={"case": ticket.case_id},
+            )
+        key = ticket.case_id
+        note = st.text_area(
+            "Your note (needed to return it to the agent)", key=f"person-note-{key}"
+        )
+        notify = st.checkbox(
+            "When taking over, tell the seller a person is handling it (the email goes "
+            "through review first)",
+            key=f"notify-{key}",
+        )
+        take, back, withdraw = st.columns(3)
+        if take.button("Take over", key=f"take-{key}", type="primary"):
+            _desk(reviewer, key, lambda desk, c: desk.take_over(c, notify_seller=notify, note=note))
+        if back.button("Return to the agent", key=f"back-{key}", disabled=paid):
+            _desk(
+                reviewer,
+                key,
+                lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
+            )
+        if can_confirm_withdrawal(case) and withdraw.button(
+            "Confirm withdrawal", key=f"withdraw-{key}"
+        ):
+            _desk(reviewer, key, lambda desk, c: desk.confirm_withdrawal(c, note))
+        if paid:
+            st.caption(
+                "A credit on this case is already verified, so it cannot go back to the agent."
+            )
+
+
+def _desk(reviewer: Actor, case_id: str, act: object) -> None:
+    try:
+        with data.writer() as work:
+            case = work.cases.get(case_id)  # type: ignore[arg-type]
+            act(CaseDesk(inbox=work.inbox, clock=SystemClock(), reviewer=reviewer), case)  # type: ignore[operator]
+    except DomainValidationError as refused:
+        st.error(str(refused))
+        return
+    st.toast("Recorded. The agent applies it within a few seconds.")
+    st.rerun()
 
 
 def _decide(reviewer: Actor, approval_id: ApprovalId, note: str, *, approving: bool) -> None:
