@@ -52,6 +52,12 @@ make run-approvals
 
 ## 4. With real accounts (optional)
 
-`make demo` without `--offline` sends a real email and opens a real Jira issue on the owner's
-test accounts, and verifies both by reading them back. It refuses to start without them:
-`docs/SETUP_CHANNELS.md`.
+`make demo ARGS="calc_error_high_value"` (no `--offline`) runs the same sequence with real
+email through the owner's Gmail (ADR 0038), to `TEST_SELLER_EMAIL` only, and verifies every
+send by reading it back from Sent. Add `--jira` to use the real Jira test project too, and
+`--agent` to let the Foundry agent decide. The ledger stays simulated and a scripted reviewer
+says yes. It refuses to start without the accounts or the Gmail sign-in:
+`docs/SETUP_CHANNELS.md` section 1-alt.
+
+To run the API and review console on real Gmail, copy `config/modules.yaml` to
+`config/modules.local.yaml` (git-ignored) and set the email adapter to `gmail_api`.

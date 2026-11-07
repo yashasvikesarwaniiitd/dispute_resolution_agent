@@ -202,6 +202,17 @@ def _build_jira(settings: Settings | None) -> TicketingSystem:
     )
 
 
+def build_live_channels(
+    settings: Settings, *, jira: bool
+) -> tuple[MessageChannel, TicketingSystem | None]:
+    """The live demo's real adapters: the owner's Gmail, and Jira only when asked for.
+
+    The same builders the running app uses, so the demo cannot drift from it. Both refuse
+    without their settings (I11).
+    """
+    return _build_gmail(settings), (_build_jira(settings) if jira else None)
+
+
 def shipment_keys(evidence: Any) -> Callable[[str], Mapping[str, str]]:
     """A shipment's cluster keys (scanner, hub, SKU), from the evidence adapter (P7-02).
 

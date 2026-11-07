@@ -14,13 +14,17 @@ ops finding or a decision through `World.runner.submit`. The steps are assembled
 The clock is a fake clock: when verification has to wait for Sent Items, the run moves time
 forward and advances again, as the real runner would.
 
-Nothing here reaches the network unless the caller passes real adapters in.
+Nothing here reaches the network unless the caller passes real adapters in. The live demo
+does (`scripts/demo.py` without `--offline`): a real email channel and, if asked, real Jira,
+with the owner's test seller address standing in for the fixture's unroutable one. Then the
+counts in the report come from the case's own verified actions, not from a fake's memory.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import tempfile
+import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -33,6 +37,7 @@ from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
 from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
 from dispute_agent.kernel.domain.case import CaseFacts
 from dispute_agent.kernel.domain.enums import (
+    ActionStatus,
     ActionType,
     ActorKind,
     ApprovalDecision,
@@ -69,7 +74,13 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.reasoning import Proposal
     from dispute_agent.kernel.orchestrator.dispatch import DispatchResult
     from dispute_agent.kernel.policy.config import PolicyConfig
-    from dispute_agent.kernel.ports import IdGenerator, Reasoner, ReplyInterpreter
+    from dispute_agent.kernel.ports import (
+        IdGenerator,
+        MessageChannel,
+        Reasoner,
+        ReplyInterpreter,
+        TicketingSystem,
+    )
 
 REVIEWER = Actor(kind=ActorKind.HUMAN, id="human:owner")
 #: How far the clock moves when verification has to wait; above the fakes' visibility delay.
@@ -111,6 +122,7 @@ def run_full(
     statement: str | None = None,
     notes: tuple[str, ...] | None = None,
     interpreter: ReplyInterpreter | None = None,
+    live: Live | None = None,
 ) -> FullReport:
     """`statement` and `notes` replace the fixture's own (the injection evals, P4-09).
 
@@ -129,11 +141,27 @@ def run_full(
         statement=statement,
         notes=notes,
         interpreter=interpreter,
+        live=live,
     )
     try:
         return world.drive(max_rounds)
     finally:
         world.close()
+
+
+@dataclass(frozen=True)
+class Live:
+    """Real adapters for the live demo. Anything left None stays the fake.
+
+    `seller_contact` replaces the fixture's unroutable address with the owner's test seller,
+    and becomes the only allowed recipient (I11). `wait_s` is real time to let a real mailbox
+    or project show what was just written before the next read-back.
+    """
+
+    seller_contact: str
+    channel: MessageChannel | None = None
+    tickets: TicketingSystem | None = None
+    wait_s: float = 2.0
 
 
 def open_world(
@@ -152,9 +180,13 @@ def open_world(
     evidence_faults: dict[str, str] | None = None,
     kill_switch: Any = None,
     status_known: bool = True,
+    live: Live | None = None,
 ) -> World:
     """A synthetic dispute opened on the whole line, ready to drive, reply to and tick."""
     built = fixture(name)
+    contact = live.seller_contact if live else SELLER_CONTACT
+    if live:
+        built = dataclasses.replace(built, seller_contact=contact)
     if statement is not None:
         built = dataclasses.replace(built, statement=statement)
     if notes is not None:
@@ -162,12 +194,14 @@ def open_world(
     policy = policy.model_copy(
         update={
             "messages": MessagesConfig.model_validate(
-                {**policy.messages.model_dump(), "allowed_recipients": [SELLER_CONTACT]}
+                {**policy.messages.model_dump(), "allowed_recipients": [contact]}
             )
         }
     )
-    channel = FakeMessageChannel(now=clock.now())
-    tickets = FakeTicketingSystem(now=clock.now())
+    fake_channel = FakeMessageChannel(now=clock.now())
+    fake_tickets = FakeTicketingSystem(now=clock.now())
+    channel: Any = (live.channel if live else None) or fake_channel
+    tickets: Any = (live.tickets if live else None) or fake_tickets
     folder = Path(tempfile.mkdtemp(prefix="full-run-"))
     ledger = SimulatedLedger(
         folder / "ledger.sqlite3", failure_mode=ledger_failure, clock=clock.now
@@ -182,8 +216,8 @@ def open_world(
             )
 
     def ports(case: Case, action_type: ActionType) -> Any:
-        channel.now = clock.now()
-        tickets.now = clock.now()
+        fake_channel.now = clock.now()
+        fake_tickets.now = clock.now()
         if action_type is ActionType.SEND_MESSAGE:
             return MessageWritePort(channel, case.id)
         if action_type is ActionType.UPSERT_ISSUE:
@@ -225,7 +259,7 @@ def open_world(
     )
     try:
         with SqliteUnitOfWork(engine, clock=clock) as work:
-            case, causation = _open_case(work, facts, name, clock.now(), ids)
+            case, causation = _open_case(work, facts, name, clock.now(), ids, contact)
     except Exception:
         engine.dispose()
         raise
@@ -243,6 +277,8 @@ def open_world(
         decide=decide,
         path=[case.state],
         source=source,
+        seller_contact=contact,
+        live_wait_s=live.wait_s if live else 0.0,
     )
 
 
@@ -255,8 +291,9 @@ class World:
     engine: Any
     folder: Path
     clock: FakeClock
-    channel: FakeMessageChannel
-    tickets: FakeTicketingSystem
+    #: The fakes unless the live demo passed real adapters in (`Live`).
+    channel: Any
+    tickets: Any
     ledger: SimulatedLedger
     case_id: CaseId
     causation: EventId
@@ -264,6 +301,9 @@ class World:
     path: list[CaseState] = field(default_factory=list)
     #: The synthetic evidence source, so a scenario can make the ops finding available.
     source: SyntheticShipmentSource | None = None
+    seller_contact: str = SELLER_CONTACT
+    #: Real seconds to wait before a read-back retry; 0 against the fakes.
+    live_wait_s: float = 0.0
 
     @property
     def runner(self) -> Runner:
@@ -292,6 +332,8 @@ class World:
                 case.state is CaseState.AWAITING_APPROVAL and not pending
             ):
                 self.clock.advance(WAIT_STEP)
+                if self.live_wait_s:
+                    time.sleep(self.live_wait_s)
                 continue
             if case.state is CaseState.AWAITING_APPROVAL and all(
                 self.decide(a) is None for a in pending
@@ -316,7 +358,7 @@ class World:
                 actor=Actor(kind=ActorKind.EXTERNAL, id="seller"),
                 payload=SellerReplyReceived(
                     external_message_id=mid,
-                    from_addr=SELLER_CONTACT,
+                    from_addr=self.seller_contact,
                     subject=UntrustedText.create(f"Re: {shipment}", "seller_email", mid),
                     body=UntrustedText.create(text, "seller_email", mid),
                     received_at=self.clock.now(),
@@ -341,16 +383,29 @@ class World:
     def _report(self, work: SqliteUnitOfWork) -> FullReport:
         case = work.cases.get(self.case_id)
         pending = list(work.approvals.pending(case.id))
+        verified = [a for a in work.actions.for_case(case.id) if a.status is ActionStatus.VERIFIED]
+        sent = [a for a in verified if a.action_type is ActionType.SEND_MESSAGE]
+        if isinstance(self.channel, FakeMessageChannel):
+            emails = self.channel.sent_count()
+            subjects = [s.message.subject for s in self.channel._all]
+        else:
+            # A real mailbox has its own history; what this run sent is its verified actions.
+            emails = len(sent)
+            subjects = [_subject(work.intents.get(a.intent_id).payload) for a in sent]
+        if isinstance(self.tickets, FakeTicketingSystem):
+            issues = self.tickets.issue_count()
+        else:
+            issues = sum(1 for a in verified if a.action_type is ActionType.UPSERT_ISSUE)
         return FullReport(
             fixture=self.name,
             case=case,
             path=list(self.path),
             approvals=list(work.approvals.for_case(case.id)),
             proposals=list(work.proposals.for_case(case.id)),
-            emails_sent=self.channel.sent_count(),
-            jira_issues=self.tickets.issue_count(),
+            emails_sent=emails,
+            jira_issues=issues,
             ledger_credits=self.ledger.credit_count(),
-            subjects=[s.message.subject for s in self.channel._all],
+            subjects=subjects,
             database=self.folder / "cases.sqlite3",
             pending_payloads=[work.intents.get(a.request.intent_id).payload for a in pending],
         )
@@ -370,8 +425,17 @@ class World:
         self.path = [CaseState.RECEIVED, *(s for s in moved if s is not CaseState.RECEIVED)]
 
 
+def _subject(payload: object) -> str:
+    return str(getattr(payload, "subject", ""))
+
+
 def _open_case(
-    work: SqliteUnitOfWork, facts: CaseFacts, name: str, now: Any, ids: IdGenerator
+    work: SqliteUnitOfWork,
+    facts: CaseFacts,
+    name: str,
+    now: Any,
+    ids: IdGenerator,
+    contact: str = SELLER_CONTACT,
 ) -> tuple[Case, EventId]:
     inbound = InboundEvent(
         type=InboundEventType.DISPUTE_RAISED,
@@ -384,7 +448,7 @@ def _open_case(
     SqliteInboxStore(work.connection).accept(inbound, now)
     input_id = EventId(ids.new_id("evt"))
     opened = Intake(
-        allowed_recipients=(SELLER_CONTACT,), reopen_window=timedelta(days=7)
+        allowed_recipients=(contact,), reopen_window=timedelta(days=7)
     ).open_or_get_case(
         work.cases,
         inbound,
@@ -420,4 +484,4 @@ _ALL_ON = dict.fromkeys(
     ("email", "ticketing", "ledger", "approvals", "evidence", "reasoning", "model_gateway"), True
 )
 
-__all__ = ["FullReport", "World", "open_world", "run_full"]
+__all__ = ["FullReport", "Live", "World", "open_world", "run_full"]

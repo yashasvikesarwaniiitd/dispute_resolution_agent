@@ -209,7 +209,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 | Disputes, customers, charges | **Synthetic.** Generated from a fixed seed, so every run is identical. |
 | Ledger (where credits are posted) | **Simulated**, as an independent store that can fail in realistic ways. |
 | Jira | **Real**: tested live against the owner's test project. A stand-in is used by default. |
-| Email | **Stand-in mailbox** for now. Real Gmail (ADR 0038) and Outlook connectors are built; going live needs the owner's sign-in. |
+| Email | **Real Gmail**: tested live through the owner's test Gmail, sending only to the owner's own test address. A stand-in is used by default. An Outlook connector is also built, not yet live. |
 | AI | **Real** when switched on (Microsoft Foundry); off by default. The Case Explainer uses Claude Haiku directly, read-only. |
 | Monitoring | Traces reach Azure Application Insights with **no message content**. |
 
@@ -230,6 +230,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 | Pattern analyst AI (live) | Passed 6 of 6 under a rule fixed before the run (`docs/evals/2026-11-04-pattern-analyst-live.md`). |
 | End to end on the running app | A dispute goes in over the web API, a person approves, and the case ends credited, confirmed and recorded. |
 | Live Jira | The pattern job opened a real investigation ticket, confirmed it by reading it back, and made no duplicate on a second run. |
+| Live Gmail | A whole dispute ran through real Gmail (`scripts/demo.py` without `--offline`): credit approved and posted, confirmation email sent, found in Sent, checked against the approved text, and the case closed as credited. One email, to the owner's own test address. |
 
 Building it this way caught real bugs before any user could. For example, the running app couldn't send anything because of a database lock in the kill-switch check, and a duplicate check crashed on Jira's newer search. Each fix came with a test that would catch it again.
 
@@ -342,4 +343,4 @@ flowchart LR
 
 ## Status
 
-The engine and its first domain pack are built and approved through Phase 7, with all safety reviews done. Live today: the AI route (on demand), Jira and monitoring. Next: the Gmail sign-in and the live email test. Possible next steps: a second domain pack (after making the core's names neutral), and a hosted read-only demo using only synthetic data.
+The engine and its first domain pack are built and approved through Phase 7, with all safety reviews done. Live today: the AI route (on demand), Jira, Gmail and monitoring. Possible next steps: a second domain pack (after making the core's names neutral), and a hosted read-only demo using only synthetic data.
