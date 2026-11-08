@@ -1,5 +1,7 @@
 # Design brief: Dispute Desk, the operations console for an AI dispute resolution agent
 
+> **Superseded (8 Nov 2026) by [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md)**, with [SCREENS.pdf](SCREENS.pdf) and [CLAUDE_DESIGN_PROMPT.md](CLAUDE_DESIGN_PROMPT.md). This brief predates the UX pass (the stepper's "not needed"/"not reached", Why and Next, the timeline, ₹ in the Ledger) and ADR 0047 (hosted Review asks only for a name). Kept for history.
+
 **For:** Claude Design
 **Design system:** use **Hallmark** (github.com/Nutlope/hallmark), **Coral** theme, app-screen scope (details in section 9).
 **Time box:** **30 to 45 minutes.** Section 11 says what to build first and what to leave out.
