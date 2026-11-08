@@ -35,6 +35,20 @@ NO_STORE = (
 )
 
 
+#: The project's config folder - the one `app.py` builds the engine from.
+CONFIG = Path(__file__).resolve().parents[3] / "config"
+
+
+def approvers() -> list[str]:
+    """Who may decide, by name, exactly as the engine checks it (policy.yaml,
+    `approvals.approver_ids`; T09, R10, R13). A decision by anyone else is not acted on, so
+    Review offers only these names (ADR 0047)."""
+    from dispute_agent.infra.policy import load_policy
+
+    ids = load_policy(CONFIG).approvals.approver_ids
+    return sorted(i.removeprefix("human:") for i in ids if i.startswith("human:"))
+
+
 def has_store() -> bool:
     return CASES.is_file()
 

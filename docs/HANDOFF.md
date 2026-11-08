@@ -105,6 +105,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D66 | (2026-11-07) The hosted console is live (owner deployed it). The owner asked for actions on cases handed to a person; built as the case desk (ADR 0046): existing transitions only, recorded as the signed-in reviewer because POST /inbound refuses people's decisions. No kernel change. |
 | D67 | (2026-11-08) The owner asked to remove the review login. Hosted only: the site password stands in for the review token, and Review asks for a name, still recorded on every decision (ADR 0047). Local runs keep the token. No kernel change. |
 | D68 | (2026-11-08) Live bug: raising a ticket failed with a pydantic ValidationError after a push. Streamlit unloads every watched module on a file change; the cached in-process service kept the old classes, and strict models refused the new `CaseFacts`. Fixed in `streamlit_app.py`: one service per loaded copy of the code, the old one stopped first. Reproduced and proved fixed with a reload script; test in `test_hosted.py`. No kernel change. |
+| D69 | (2026-11-08) Correction to ADR 0047, found by the design-pack session: Review accepted any typed name, but the engine acts only on decisions by `approvals.approver_ids` (T09, R10, R13), so approvals under other names were set aside (failed safe). Owner chose "Review as a listed approver": both sign-in forms now offer only the policy's approvers. A test now drives a Review-screen approval through the line to the ledger. No kernel change. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

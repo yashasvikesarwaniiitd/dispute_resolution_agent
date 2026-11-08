@@ -60,7 +60,7 @@ They are drawn from research on activity timelines, human-in-the-loop approval s
 | **Visitor** | Get into the app | The **site password** (one shared password, hosted) | See any screen without it |
 | **Seller** | "I was overcharged; get it fixed and tell me where it stands" | Site password | See the "correct" charge before the agent works it out; type free text (a seller's words are untrusted input to the AI) |
 | **Observer** (recruiter, PM, auditor) | "Show me how the agent thinks, step by step, and why" | Site password | Change anything |
-| **Reviewer** (human in the loop) | "Approve or reject what the agent wants to do; handle what it handed over" | Hosted: site password, then **only their name** (ADR 0047). Run locally: the **review console token** and their name | Approve something different from what they saw; act without their name being recorded |
+| **Reviewer** (human in the loop) | "Approve or reject what the agent wants to do; handle what it handed over" | Hosted: site password, then they **choose a listed approver** to review as (ADR 0047). Run locally: the **review console token**, then the same choice | Approve something different from what they saw; act without their name being recorded |
 | **Finance** | "What did this seller pay, what did we credit back, and can I trust each credit?" | Site password | Edit the ledger |
 
 ---
@@ -247,8 +247,8 @@ flowchart TD
     B -- right --> C[Raise a ticket, Agent steps, Ledger open]
     C --> D[Review]
     D --> E{Hosted?}
-    E -- yes --> F[Your name only: recorded on every decision]
-    E -- no, local --> G[Review console token + your name]
+    E -- yes --> F[Review as: a listed approver, recorded on every decision]
+    E -- no, local --> G[Review console token + Review as]
 ```
 
 ### 4.9 How the screens connect
@@ -301,7 +301,7 @@ UC numbers are stable. **P** is priority: 1 is a must for the prototype, 2 shoul
 
 | UC | P | Use case | Success looks like |
 |---|---|---|---|
-| UC-18 | 1 | Get in | Hosted: past the site password, type a name. Local: token and name. The name shows after sign-in. |
+| UC-18 | 1 | Get in | Hosted: past the site password, choose a listed approver ("Review as"). Local: token, then the same choice. The approver shows after sign-in. |
 | UC-19 | 1 | Know my queue | One line, for example *"2 waiting for your decision: a ₹152.00 credit, 1 email. 2 cases with a person."*, then two tabs with counts. |
 | UC-20 | 1 | Approve a credit, informed | **What the agent recommends** (action, confidence, who proposed, reasoning, findings) **beside** **If you approve** (the exact amount, its reason, how code derived it, code's figures). The note is optional; Approve is primary. |
 | UC-21 | 1 | Approve an email, informed | Recipient, subject and the full body as written, plus **every number in it and where it came from**. |
@@ -446,10 +446,10 @@ Read top to bottom, it answers the questions in this order.
 ### Screen 3: Review (the human in the loop). PDF shots 14–17.
 
 - **Sign-in:**
-  - **Hosted:** *"Type your name to review. It is recorded against each decision you make."*, a **Your name** field and **Start reviewing**. Error: *"Type your name: letters, digits, spaces, dots, dashes or underscores, up to 40."*
-  - **Local:** *"Sign in with the review console token to see the queue."*, with **Review console token** and **Your name** fields and a **Sign in** button. Error: *"the review console token is not correct"*.
+  - **Hosted:** *"Choose who you are reviewing as. That approver is recorded against each decision you make."*, a **Review as** list (only the approvers in `config/policy.yaml`, today "owner") and **Start reviewing**. No free-text name: the engine acts only on decisions by listed approvers (ADR 0047, D69). *The sign-in shot in the PDF predates this and shows a "Your name" field; follow this text.*
+  - **Local:** *"Sign in with the review console token to see the queue."*, with a **Review console token** field, the same **Review as** list and a **Sign in** button. Error: *"the review console token is not correct"*.
 - **Signed in:**
-  - the caption *"Signed in as asha. Your name is recorded against each decision, bound to the exact amount or text shown."*;
+  - the caption *"Signed in as owner. Your name is recorded against each decision, bound to the exact amount or text shown."*;
   - the **count line**;
   - two tabs, **Awaiting your approval (N)** and **With a person (N)**.
 - **Approval card:**
@@ -570,7 +570,7 @@ Controls need eight states: default, hover, focus-visible, active, disabled, loa
 
 ## 10. Sample data (synthetic; it is what SCREENS.pdf shows)
 
-**Seller:** SELL-0001. **Reviewer:** asha (or owner).
+**Seller:** SELL-0001. **Reviewer:** owner (the one listed approver).
 
 | Shipment | State | Story |
 |---|---|---|
@@ -663,7 +663,7 @@ These map to the system's invariants. A design that breaks one is wrong, however
 4. **The AI's and the seller's words are text, never formatting** (I5). Always escaped, always labelled *"exactly as recorded"*, never rendered as markdown or HTML.
 5. **No "correct charge" on the seller screen.**
 6. **Unknown means a person** (I4). "Could not prove it happened" is never shown as success.
-7. **Every decision carries a name** (ADR 0047). Hosted: the site password, then a name. Local: the token and a name.
+7. **Every decision carries a listed approver** (ADR 0047). Hosted: the site password, then "Review as". Local: the token, then "Review as". Never a free-text name: the engine ignores decisions by anyone not on the approver list.
 8. **No invented figures anywhere** (I9). Totals are sums of rows.
 9. **Synthetic only** (I11). Emails go only to the test address. Say so where a seller acts.
 
@@ -697,7 +697,7 @@ These map to the system's invariants. A design that breaks one is wrong, however
 
 ## 15. Acceptance checklist
 
-- [ ] Gate plus four tabs. Review asks for a name when hosted (the token only locally).
+- [ ] Gate plus four tabs. Review offers "Review as" (listed approvers) when hosted; the token too, locally.
 - [ ] Agent steps opens with **case header → headline → Why/Next → stepper (with words) → figures (eligible only) → timeline by round**.
 - [ ] Every step shows **who** did it and **when**; bookkeeping steps are quiet.
 - [ ] The stepper uses **not needed** and **not reached**, never a strike-through.

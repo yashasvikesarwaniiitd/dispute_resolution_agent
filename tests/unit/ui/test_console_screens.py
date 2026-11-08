@@ -12,6 +12,7 @@ from __future__ import annotations
 import secrets
 import sqlite3
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -143,7 +144,7 @@ def test_a_reviewer_signs_in_sees_the_recommendation_and_approves(desk: dict[str
     at = AppTest.from_function(_review, default_timeout=60).run()
     assert not at.exception
     at.text_input[0].input(desk["token"])
-    at.text_input[1].input("asha")
+    assert at.selectbox[0].label == "Review as" and at.selectbox[0].options == ["owner"]
     at.button[0].click().run()
     assert not at.exception
     text = _text(at)
@@ -157,7 +158,7 @@ def test_a_reviewer_signs_in_sees_the_recommendation_and_approves(desk: dict[str
         case = work.cases.list_in_states(list(CaseState))[0]
         decided = list(work.approvals.for_case(case.id))
     assert [(a.decision, a.decided_by.id if a.decided_by else "") for a in decided] == [
-        (ApprovalDecision.APPROVED, "human:asha")
+        (ApprovalDecision.APPROVED, "human:owner")
     ]
 
 
@@ -202,7 +203,6 @@ def desk_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]
 def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -> None:
     at = AppTest.from_function(_review, default_timeout=60).run()
     at.text_input[0].input(desk_case["token"])
-    at.text_input[1].input("asha")
     at.button[0].click().run()
     assert not at.exception
     text = _text(at)
@@ -216,46 +216,98 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
         rows = conn.execute(
             "SELECT event_type, source, event_json FROM inbox WHERE event_type = 'HUMAN_TOOK_CASE'"
         ).fetchall()
-    assert len(rows) == 1 and rows[0][1] == "ops_console" and "human:asha" in rows[0][2]
+    assert len(rows) == 1 and rows[0][1] == "ops_console" and "human:owner" in rows[0][2]
 
 
 class TestHostedReviewSignIn:
-    """ADR 0047: past the hosted site password, a name stands in for the review token."""
+    """ADR 0047: past the hosted site password, the reviewer chooses a listed approver."""
 
-    def test_past_the_site_password_a_name_opens_the_queue(self, desk: dict[str, Any]) -> None:
+    def test_past_the_site_password_only_listed_approvers_are_offered(
+        self, desk: dict[str, Any]
+    ) -> None:
         at = AppTest.from_function(_review, default_timeout=60)
         at.session_state["gate_passed"] = True  # set only by the hosted gate, after the password
         at.run()
-        assert [t.label for t in at.text_input] == ["Your name"]  # no token field
-        at.text_input[0].input("asha")
+        assert not at.text_input  # no token, and no free-text name
+        assert at.selectbox[0].label == "Review as" and at.selectbox[0].options == ["owner"]
         at.button[0].click().run()
         assert not at.exception
         assert "What the agent recommends" in _text(at)
-
-        next(b for b in at.button if b.label == "Approve").click().run()
-        with SqliteUnitOfWork(create_sqlite_engine(desk["cases"]), clock=SystemClock()) as work:
-            case = work.cases.list_in_states(list(CaseState))[0]
-            decided = list(work.approvals.for_case(case.id))
-        assert [a.decided_by.id if a.decided_by else "" for a in decided] == ["human:asha"]
-
-    @pytest.mark.parametrize("name", ["", "   ", "system", "<b>x</b>", "a" * 41])
-    def test_a_blank_or_odd_name_is_refused(self, desk: dict[str, Any], name: str) -> None:
-        at = AppTest.from_function(_review, default_timeout=60)
-        at.session_state["gate_passed"] = True
-        at.run()
-        at.text_input[0].input(name)
-        at.button[0].click().run()
-        if name == "system":  # a plain word is a name; the human: prefix keeps it a person
-            assert "What the agent recommends" in _text(at)
-            assert at.session_state["reviewer"].id == "human:system"
-        else:
-            assert at.error and "Type your name" in at.error[0].value
-            assert "What the agent recommends" not in _text(at)
+        assert at.session_state["reviewer"].id == "human:owner"
 
     def test_run_locally_the_token_is_still_required(self, desk: dict[str, Any]) -> None:
         at = AppTest.from_function(_review, default_timeout=60).run()
         assert at.text_input[0].label == "Review console token"
-        at.text_input[1].input("asha")
         at.button[0].click().run()  # no token typed
         assert at.error and "not correct" in at.error[0].value
         assert "What the agent recommends" not in _text(at)
+
+
+class TestAnApprovalIsActedOn:
+    """The step the first ADR 0047 tests skipped: after the click, the engine must act.
+
+    The engine accepts decisions only from `approvals.approver_ids` (T09, R13). Review once
+    let a reviewer type any name, and a credit approved as "asha" was recorded and then not
+    acted on - the case went to a person. Driven here through the real line to the ledger.
+    """
+
+    @pytest.fixture
+    def world(self, monkeypatch: pytest.MonkeyPatch) -> Any:
+        from dispute_agent.ui import data as console_data
+
+        world = open_world(
+            "calc_error_high_value",
+            policy=PolicyConfig(),
+            clock=FakeClock(NOW),
+            ids=FakeIdGenerator(),
+            decide=lambda _a: None,  # the decision comes from the Review screen
+        )
+        world.drive(20)
+        monkeypatch.setattr(console_data, "CASES", world.folder / "cases.sqlite3")
+        monkeypatch.setenv("REVIEW_CONSOLE_TOKEN", "t-" + secrets.token_hex(8))
+        yield world
+        world.close()
+
+    def _state(self, world: Any) -> CaseState:
+        with SqliteUnitOfWork(world.engine, clock=world.clock) as work:
+            return work.cases.get(world.case_id).state
+
+    def test_a_credit_approved_on_the_review_screen_reaches_the_ledger(self, world: Any) -> None:
+        import os
+
+        at = AppTest.from_function(_review, default_timeout=60).run()
+        at.text_input[0].input(os.environ["REVIEW_CONSOLE_TOKEN"])
+        at.button[0].click().run()
+        next(b for b in at.button if b.label == "Approve").click().run()
+        assert not at.exception
+
+        world.drive(20)  # the runner picks the decision up, as the hosted service does
+        posted = [e for e in world.ledger.get_entries("SHP-000002") if str(e.type) == "CREDIT"]
+        assert [e.amount.amount for e in posted] == [Decimal("1820.00")]  # posted, read back
+        # Next, the email telling the seller waits for its own approval (I13).
+        assert self._state(world) is CaseState.AWAITING_APPROVAL
+
+    def test_a_decision_by_an_unlisted_name_is_not_acted_on(self, world: Any) -> None:
+        """Why Review offers no other name: the engine would set the decision aside."""
+        from dispute_agent.modules.approvals.streamlit_ui.console import (
+            ReviewConsole,
+            reviewer_named,
+        )
+
+        with SqliteUnitOfWork(world.engine, clock=world.clock) as work:
+            console = ReviewConsole(
+                store=work.approvals, clock=world.clock, reviewer=reviewer_named("asha")
+            )
+            console.approve(console.queue()[0].id, "")
+        world.drive(20)
+        assert self._state(world) is CaseState.NEEDS_HUMAN_REVIEW
+        assert not [e for e in world.ledger.get_entries("SHP-000002") if str(e.type) == "CREDIT"]
+
+
+@pytest.mark.parametrize("name", ["", "   ", "<b>x</b>", "a" * 41])
+def test_an_odd_approver_name_is_refused(name: str) -> None:
+    from dispute_agent.kernel.domain.errors import DomainValidationError
+    from dispute_agent.modules.approvals.streamlit_ui.console import reviewer_named
+
+    with pytest.raises(DomainValidationError):
+        reviewer_named(name)
