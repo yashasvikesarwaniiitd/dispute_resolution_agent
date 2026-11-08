@@ -217,3 +217,45 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
             "SELECT event_type, source, event_json FROM inbox WHERE event_type = 'HUMAN_TOOK_CASE'"
         ).fetchall()
     assert len(rows) == 1 and rows[0][1] == "ops_console" and "human:asha" in rows[0][2]
+
+
+class TestHostedReviewSignIn:
+    """ADR 0047: past the hosted site password, a name stands in for the review token."""
+
+    def test_past_the_site_password_a_name_opens_the_queue(self, desk: dict[str, Any]) -> None:
+        at = AppTest.from_function(_review, default_timeout=60)
+        at.session_state["gate_passed"] = True  # set only by the hosted gate, after the password
+        at.run()
+        assert [t.label for t in at.text_input] == ["Your name"]  # no token field
+        at.text_input[0].input("asha")
+        at.button[0].click().run()
+        assert not at.exception
+        assert "What the agent recommends" in _text(at)
+
+        next(b for b in at.button if b.label == "Approve").click().run()
+        with SqliteUnitOfWork(create_sqlite_engine(desk["cases"]), clock=SystemClock()) as work:
+            case = work.cases.list_in_states(list(CaseState))[0]
+            decided = list(work.approvals.for_case(case.id))
+        assert [a.decided_by.id if a.decided_by else "" for a in decided] == ["human:asha"]
+
+    @pytest.mark.parametrize("name", ["", "   ", "system", "<b>x</b>", "a" * 41])
+    def test_a_blank_or_odd_name_is_refused(self, desk: dict[str, Any], name: str) -> None:
+        at = AppTest.from_function(_review, default_timeout=60)
+        at.session_state["gate_passed"] = True
+        at.run()
+        at.text_input[0].input(name)
+        at.button[0].click().run()
+        if name == "system":  # a plain word is a name; the human: prefix keeps it a person
+            assert "What the agent recommends" in _text(at)
+            assert at.session_state["reviewer"].id == "human:system"
+        else:
+            assert at.error and "Type your name" in at.error[0].value
+            assert "What the agent recommends" not in _text(at)
+
+    def test_run_locally_the_token_is_still_required(self, desk: dict[str, Any]) -> None:
+        at = AppTest.from_function(_review, default_timeout=60).run()
+        assert at.text_input[0].label == "Review console token"
+        at.text_input[1].input("asha")
+        at.button[0].click().run()  # no token typed
+        assert at.error and "not correct" in at.error[0].value
+        assert "What the agent recommends" not in _text(at)

@@ -7,7 +7,7 @@ Status: accepted (D65). Deployed by the owner on Streamlit Community Cloud from 
 
 The owner chose a hosted console that does the real things: real email through their Gmail and real issues in their Jira test project. The alternative was a stand-in demo. The two choices that came with it:
 
-- **One password in front of every screen** (`CONSOLE_PASSWORD`). Approvals still also need the review console token.
+- **One password in front of every screen** (`CONSOLE_PASSWORD`). Approvals still also need the review console token. *Amended by ADR 0047: hosted, the password stands in for the token and Review asks only for a name.*
 - **Gmail renewed weekly.** While the Google app is in Testing status, its sign-in lasts 7 days.
 
 ## How

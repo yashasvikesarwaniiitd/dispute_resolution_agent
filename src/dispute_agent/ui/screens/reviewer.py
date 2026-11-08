@@ -1,7 +1,8 @@
 """Screen 3: the human in the loop. Layout over `ui.review` and `ReviewConsole` (ADR 0044).
 
 Sign-in is the review console's own (ADR 0018): the token is checked once and only the
-reviewer's identity is kept for the session, never the token. The decision is recorded by
+reviewer's identity is kept for the session, never the token. Hosted, the site password has
+already decided who may be here, so the screen asks only for a name (ADR 0047). The decision is recorded by
 `ReviewConsole`, bound to the stored text's hash; nothing is sent from this page (I2).
 
 Cases handed to a person can be taken over, returned to the agent or - when the seller asked
@@ -18,7 +19,11 @@ import streamlit as st
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
-from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
+from dispute_agent.modules.approvals.streamlit_ui.console import (
+    ReviewConsole,
+    reviewer_named,
+    sign_in,
+)
 from dispute_agent.ui import data
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import when
@@ -79,6 +84,20 @@ def _signed_in() -> Actor | None:
         )
         return actor
     narrow, _ = st.columns([2, 3])
+    if st.session_state.get("gate_passed"):
+        # Hosted: the site password already decided who may be here (ADR 0047), so the
+        # review token would be a second lock on the same door. A name is still required:
+        # every decision is recorded against a named person (I3, I13).
+        with narrow, st.form("sign-in"):
+            st.markdown("Type your name to review. It is recorded against each decision you make.")
+            name = st.text_input("Your name")
+            if st.form_submit_button("Start reviewing", type="primary"):
+                try:
+                    st.session_state["reviewer"] = reviewer_named(name)
+                    st.rerun()
+                except DomainValidationError as refused:
+                    st.error(str(refused))
+        return None
     with narrow, st.form("sign-in"):
         st.markdown("Sign in with the review console token to see the queue.")
         token = st.text_input("Review console token", type="password")

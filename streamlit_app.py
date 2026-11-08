@@ -7,8 +7,8 @@ intake, the allowlist (I11), dedupe, the runner. The console's four screens sit 
 
 Configuration comes from the host's secret store, which Streamlit also exposes as
 environment variables: MODULES_FILE=modules.hosted.yaml (real Gmail and Jira), the account
-settings, CONSOLE_PASSWORD (the gate; without it nothing opens) and REVIEW_CONSOLE_TOKEN
-(approvals). No secret lives in the repository. The case store and the simulated ledger are
+settings and CONSOLE_PASSWORD (the gate; without it nothing opens, and past it the Review
+screen asks only for the reviewer's name, ADR 0047). No secret lives in the repository. The case store and the simulated ledger are
 created on first start and are lost when the host restarts the app; real email and Jira are
 not.
 

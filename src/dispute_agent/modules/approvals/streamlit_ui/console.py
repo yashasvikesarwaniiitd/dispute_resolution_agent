@@ -23,6 +23,7 @@ outside world, bypassing the executor and everything it guarantees (I2).
 from __future__ import annotations
 
 import hmac
+import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -63,6 +64,26 @@ def sign_in(provided: str | None, expected: str | None, reviewer_id: str) -> Act
     if not provided or not hmac.compare_digest(provided, expected):
         raise AuthPortError("the review console token is not correct")
     return Actor(kind=ActorKind.HUMAN, id=f"{HUMAN_PREFIX}{reviewer_id}")
+
+
+#: A reviewer's name as typed: letters, digits, spaces, dot, dash and underscore, up to 40.
+#: The recorded actor id then reads as a name and can never pass for "system" or a source.
+_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}")
+
+
+def reviewer_named(name: str) -> Actor:
+    """The reviewer, when a gate in front of the whole console already decided who may be
+    here (ADR 0047: the hosted site password stands in for the review token).
+
+    Still a named person on every decision (I3, I13): the name is required and recorded as
+    the approver, with the same `human:` prefix R10 checks before any send.
+    """
+    cleaned = " ".join(name.split())
+    if not _NAME.fullmatch(cleaned):
+        raise DomainValidationError(
+            "Type your name: letters, digits, spaces, dots, dashes or underscores, up to 40."
+        )
+    return Actor(kind=ActorKind.HUMAN, id=f"{HUMAN_PREFIX}{cleaned}")
 
 
 @dataclass(frozen=True)
@@ -240,4 +261,11 @@ class ReviewConsole:
         )
 
 
-__all__ = ["HUMAN_PREFIX", "UNKNOWN_SOURCE", "PendingItem", "ReviewConsole", "sign_in"]
+__all__ = [
+    "HUMAN_PREFIX",
+    "UNKNOWN_SOURCE",
+    "PendingItem",
+    "ReviewConsole",
+    "reviewer_named",
+    "sign_in",
+]

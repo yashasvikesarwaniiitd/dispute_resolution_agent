@@ -72,6 +72,7 @@ Add one line per ADR: number, title, status.
 | 0044 | An operations console: seller, agent steps, review and ledger screens (Hallmark Coral) | accepted (D64) |
 | 0045 | The console hosted live on Streamlit Community Cloud: real Gmail and Jira behind one password | accepted (D65) |
 | 0046 | The case desk: a reviewer takes over, returns or closes a case handed to a person | accepted (D66) |
+| 0047 | Hosted, the site password stands in for the review token; a name is still required | accepted (D67) |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 

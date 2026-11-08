@@ -103,6 +103,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D64 | (2026-11-07) Owner asked for a 4-screen Streamlit UI (seller tickets, the AI's step-by-step process, a reviewer screen with the AI recommendation, a finance ledger), designed with the Hallmark repo. Built as `src/dispute_agent/ui/` (ADR 0044), `make run-console`: a shell that reads stores and posts to the API, writes nothing of its own, and shows model text literally. Hallmark's Coral theme at app scope (markdown guidance only; its scripts were not downloaded or run). |
 | D65 | (2026-11-07) Owner wants the console on the web doing the real things (real Gmail and Jira), with one password for the whole app and Gmail renewed weekly. Built for Streamlit Community Cloud (ADR 0045): `streamlit_app.py` runs the dispute service in-process; secrets only in the host's store; fails closed. The owner deploys (Claude Code never signs in to a host); steps in docs/DEPLOY_STREAMLIT.md. |
 | D66 | (2026-11-07) The hosted console is live (owner deployed it). The owner asked for actions on cases handed to a person; built as the case desk (ADR 0046): existing transitions only, recorded as the signed-in reviewer because POST /inbound refuses people's decisions. No kernel change. |
+| D67 | (2026-11-08) The owner asked to remove the review login. Hosted only: the site password stands in for the review token, and Review asks for a name, still recorded on every decision (ADR 0047). Local runs keep the token. No kernel change. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

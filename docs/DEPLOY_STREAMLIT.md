@@ -29,7 +29,7 @@ This builds the whole block from your `.env` and Gmail sign-in and copies it to 
 4. **Deploy.** The first start takes a few minutes while it installs.
 5. Copy something else to clear the clipboard.
 
-Open the app, enter the console password, and you are in. On the Review screen, sign in with your review console token.
+Open the app, enter the console password, and you are in. On the Review screen, type your name: it is recorded against each decision. The review console token is not needed on the hosted app (ADR 0047), and if your Secrets still hold `REVIEW_CONSOLE_TOKEN` you can delete that line.
 
 ## Every 7 days: renew Gmail
 

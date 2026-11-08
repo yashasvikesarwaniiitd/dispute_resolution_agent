@@ -23,7 +23,6 @@ from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError
 NEEDED = (
     "MODULES_FILE",
     "CONSOLE_PASSWORD",
-    "REVIEW_CONSOLE_TOKEN",
     "TEST_SELLER_EMAIL",
     "GMAIL_CLIENT_ID",
     "GMAIL_CLIENT_SECRET",
@@ -55,7 +54,6 @@ def collect(
     values = {
         "MODULES_FILE": "modules.hosted.yaml",
         "CONSOLE_PASSWORD": password,
-        "REVIEW_CONSOLE_TOKEN": plain(settings.review_console_token),
         "TEST_SELLER_EMAIL": plain(settings.test_seller_email),
         "GMAIL_CLIENT_ID": plain(settings.gmail_client_id),
         "GMAIL_CLIENT_SECRET": plain(settings.gmail_client_secret),
