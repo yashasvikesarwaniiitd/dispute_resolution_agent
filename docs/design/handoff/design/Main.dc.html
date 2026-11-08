@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: site password</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+.btn-primary{transition:background-color .15s ease}
+.btn-primary:hover{background:var(--color-ink-2)!important}
+.btn-primary:active{transform:translateY(1px)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<main style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 16px">
+<div style="width: 100%; max-width: 30rem; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: center; gap: 12px">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6M9 16h3"></path></svg>
+<h1 style="font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em">Dispute desk</h1>
+</div>
+<section style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 32px; display: flex; flex-direction: column; gap: 20px">
+<p style="color: var(--color-ink-2); max-width: 60ch">A live dispute resolution agent on synthetic data. It sends real email to a test address and opens real Jira issues in a test project, so it is behind a password.</p>
+<sc-if value="{{ showForm }}" hint-placeholder-val="{{ true }}">
+<form style="display: flex; flex-direction: column; gap: 8px" onSubmit="{{ noSubmit }}">
+<label for="pw" style="font-weight: 600; font-size: var(--text-sm)">Site password</label>
+<input id="pw" type="password" autocomplete="current-password" aria-describedby="pw-msg" aria-invalid="{{ invalid }}" style="{{ inputStyle }}">
+<sc-if value="{{ wrong }}" hint-placeholder-val="{{ false }}">
+<p id="pw-msg" role="alert" style="color: var(--color-error); font-size: var(--text-sm); display: flex; gap: 6px; align-items: center"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path></svg>That password is not correct.</p>
+</sc-if>
+<a class="btn-primary" href="RaiseTicket.dc.html" style="margin-top: 8px; display: inline-flex; align-items: center; justify-content: center; height: var(--control-h); padding: 0 20px; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); text-decoration: none; font-weight: 600; align-self: flex-start; min-width: 120px">Enter</a>
+</form>
+</sc-if>
+<sc-if value="{{ notConfigured }}" hint-placeholder-val="{{ false }}">
+<div role="status" style="display: flex; gap: 12px; padding: 16px; border-radius: var(--radius-control); background: var(--color-paper-2); color: var(--color-ink)">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+<p>This hosted console has no password set (<span style="font-family: var(--font-figure); font-size: var(--text-sm)">CONSOLE_PASSWORD</span>), so it stays closed. It sends real email and opens real Jira issues.</p>
+</div>
+</sc-if>
+<sc-if value="{{ failed }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="display: flex; gap: 12px; padding: 16px; border-radius: var(--radius-control); background: var(--color-paper-2); color: var(--color-error)">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex: none; margin-top: 2px"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path></svg>
+<p>The dispute service could not start: <span style="font-family: var(--font-figure); font-size: var(--text-sm)">[the missing setting]</span> is not set.</p>
+</div>
+</sc-if>
+</section>
+<p style="color: var(--color-muted); font-size: var(--text-sm)">Synthetic data only: 14 made-up shipments and one test seller.</p>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"gateState":{"editor":"enum","options":["Default","Wrong password","Not configured","Service failed to start"],"default":"Default"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = this.props.gateState ?? 'Default';
+    const wrong = s === 'Wrong password';
+    const base = 'height: var(--control-h); padding: 0 12px; border-radius: var(--radius-control); background: var(--color-cotton); font-size: var(--text-md);';
+    return {
+      showForm: s === 'Default' || wrong,
+      wrong: wrong,
+      invalid: wrong ? 'true' : 'false',
+      notConfigured: s === 'Not configured',
+      failed: s === 'Service failed to start',
+      inputStyle: base + (wrong ? ' border: 1.5px solid var(--color-error);' : ' border: 1px solid var(--color-rule-2);'),
+      noSubmit: (e) => { if (e && e.preventDefault) e.preventDefault(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

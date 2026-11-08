@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from dispute_agent.kernel.domain.external import LedgerEntry
+    from dispute_agent.kernel.policy.config import PolicyConfig
 
 DATA = Path("data")
 CASES = DATA / "cases.sqlite3"
@@ -37,6 +38,13 @@ NO_STORE = (
 
 #: The project's config folder - the one `app.py` builds the engine from.
 CONFIG = Path(__file__).resolve().parents[3] / "config"
+
+
+def policy() -> PolicyConfig:
+    """The policy the engine runs on (config/policy.yaml): timers, limits, approvers."""
+    from dispute_agent.infra.policy import load_policy
+
+    return load_policy(CONFIG)
 
 
 def approvers() -> list[str]:

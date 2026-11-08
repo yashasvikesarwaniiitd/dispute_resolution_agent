@@ -23,7 +23,7 @@ from dispute_agent.kernel.domain.enums import (
     CaseState,
 )
 from dispute_agent.kernel.policy.numbers import render_fact
-from dispute_agent.ui.labels import Tone, state, words
+from dispute_agent.ui.labels import Tone, handed_over, state, words
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -66,6 +66,12 @@ class Journey:
     #: Why the case is where it is, when the state alone does not say: the review reason, or
     #: which check found the shipment ineligible.
     why: str = ""
+    #: The rule code behind `why` ("B5", "R21"), shown small after it; empty when none.
+    why_code: str = ""
+    #: The label of the figure the case turns on (the overcharge, a duplicate debit).
+    lead: str = ""
+    #: A sentence under the figures when they could be misread (a duplicate charge).
+    figure_note: str = ""
 
 
 WORKING = frozenset(
@@ -93,17 +99,37 @@ def journey(work: SqliteUnitOfWork, case: Case) -> Journey:
     latest = work.assessments.latest(case.id)
     proved_ineligible = latest is not None and latest.eligible == "ineligible"
     headline, why, next_step = _words(case, pending, credited, issues, proved_ineligible)
+    why_code = ""
+    if case.state is CaseState.NEEDS_HUMAN_REVIEW and case.review_reason is not None:
+        why, why_code = handed_over(case.review_reason.code, case.review_reason.detail)
     facts = {f.fact_id: render_fact(f.value) for f in (latest.facts if latest else ())}
     figures = (
         ()
         if proved_ineligible
         else tuple((label, facts[key]) for key, label in FIGURES if key in facts)
     )
+    lead, note = ("Overcharged" if latest and latest.definite_errors else ""), ""
+    duplicate = latest.duplicate_debit_total if latest is not None else None
+    if figures and latest and "duplicate_charge" in latest.definite_errors and duplicate:
+        # The weight charge was right; the credit's basis is the second debit (HANDOFF 4.2).
+        lead = "Duplicate debit (the credit's basis)"
+        figures = (
+            (lead, render_fact(duplicate)),
+            ("Weight charge", facts.get("f_charged", "")),
+            ("Correct weight charge", facts.get("f_recalculated", "")),
+        )
+        note = (
+            "The weight charge itself was right. The seller was billed for it twice, so the "
+            "credit returns the second debit."
+        )
     return Journey(
         headline=headline,
         next_step=next_step,
         tone=state(case.state)[1],
         why=why,
+        why_code=why_code,
+        lead=lead,
+        figure_note=note,
         phases=_phases(
             case,
             # Looking at the evidence is investigating, whether or not a proposal followed.

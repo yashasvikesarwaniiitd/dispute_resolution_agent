@@ -313,9 +313,97 @@ class TestTheStepsAtAGlance:
         assert story.round_titles == {1: "First look"}
         assert {s.round for s in story.steps} == {0, 1}
         evidence = next(s for s in story.steps if s.title == "Gathered the evidence")
-        assert evidence.summary.startswith("Found ") and "missing: parcel image" in evidence.summary
+        assert (
+            evidence.summary.startswith("Found ")
+            and "Not on file: parcel image" in evidence.summary
+        )
+        assert "Not needed this round: hub finding" in evidence.summary
         recalc = next(s for s in story.steps if s.title == "Recalculated the charge")
         assert recalc.summary == (
             "Charged ₹2,800.00, correct ₹980.00, overcharged ₹1,820.00. "
-            "Code proved calculation error."
+            "Code proved a calculation error."
         )
+
+
+class TestTheDesignHandoff:
+    """ADR 0048: the redesigned console's parts, and the safety rules they must keep."""
+
+    def test_the_email_is_shown_escaped_with_each_cited_number_marked(self) -> None:
+        from dispute_agent.ui.review_view import marked_body
+
+        body = "Charged <b>\u20b9190.00</b> on 2,244 g.\n\nThanks"
+        shown = marked_body(body, (("2,244 g", "chargeable weight"), ("\u20b9190.00", "charged")))
+        assert "<b>" not in shown and "&lt;b&gt;" in shown  # recorded text never becomes markup
+        assert '<span class="num-mark">2,244 g</span><sup>1</sup>' in shown
+        assert '<span class="num-mark">\u20b9190.00</span><sup>2</sup>' in shown
+        assert "\n" not in shown  # a blank line would end the HTML block in Markdown
+
+    def test_the_clickable_component_never_writes_markup_from_data(self) -> None:
+        from dispute_agent.ui.picker import JS
+
+        assert "innerHTML" not in JS and "insertAdjacentHTML" not in JS
+        assert "textContent" in JS
+
+    def test_recorded_text_is_escaped_in_its_quote(self) -> None:
+        from dispute_agent.ui.theme import recorded
+
+        shown = recorded("Its reasoning, exactly as recorded", "<script>x</script>\n\nnext")
+        assert "<script>" not in shown and "&lt;script&gt;" in shown
+        assert "\n" not in shown
+
+    @pytest.mark.parametrize(
+        ("code", "detail", "says", "rule"),
+        [
+            (
+                "proposal_escalated",
+                "B5: the round contains image evidence, which needs judgement",
+                "Proposal escalated: the round contains a parcel photo",
+                "B5",
+            ),
+            (
+                "manipulation_suspected",
+                "R21: manipulation_suspected: flagged by a screen (instruction_like)",
+                "The input screen flagged it: the seller's text read like instructions",
+                "R21",
+            ),
+            ("ops_timeout", "", "The hub did not answer in time.", ""),
+        ],
+    )
+    def test_a_handed_over_case_says_why_in_words_and_keeps_the_code(
+        self, code: str, detail: str, says: str, rule: str
+    ) -> None:
+        from dispute_agent.kernel.domain.enums import ReviewCode
+
+        sentence, found = labels.handed_over(ReviewCode(code), detail)
+        assert sentence.startswith(says) and found == rule
+
+    def test_a_duplicate_charge_leads_with_the_debit_it_returns(self) -> None:
+        from dispute_agent.ui.journey import journey
+
+        world = _world("duplicate_debit", approve=False)
+        try:
+            with _work(world) as work:
+                case = work.cases.get(world.case_id)
+                where = journey(work, case)
+                story = trail.build(work, case)
+        finally:
+            world.close()
+        assert where.lead == "Duplicate debit (the credit's basis)"
+        assert where.figures[0] == (where.lead, "\u20b9152.00")
+        assert "billed for it twice" in where.figure_note
+        recalc = next(s for s in story.steps if s.title == "Recalculated the charge")
+        assert "billed twice" in recalc.summary and "overcharged \u20b90.00" not in recalc.summary
+        assert story.steps[-1].title.startswith(
+            "Now: waiting for a reviewer to approve the \u20b9152.00 credit"
+        )
+
+    def test_every_step_says_which_email_and_hides_ids_in_details(self, credited: World) -> None:
+        with _work(credited) as work:
+            story = trail.build(work, work.cases.get(credited.case_id))
+        titles = [s.title for s in story.steps]
+        assert "owner approved the credit confirmation email" in titles
+        assert "Sent the credit confirmation email" in titles
+        posted = next(s for s in story.steps if s.title == "Posted a credit to the ledger")
+        assert posted.summary == "\u20b91,820.00 for calculation error."
+        assert any(line.startswith("Transaction ") for line in posted.lines)  # the id, folded
+        assert story.steps[-2].tag == "Credited"

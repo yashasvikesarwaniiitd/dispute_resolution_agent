@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: empty, loading and error states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,dl,dd,ul,ol{margin:0}
+ul,ol{padding:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<main style="max-width: 76rem; margin: 0 auto; padding: 40px 24px 64px; display: flex; flex-direction: column; gap: 28px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font-size: var(--text-2xl); font-weight: 700">Empty, loading and error states</h1>
+<p style="color: var(--color-muted)">Each data region, in the states it can be in. Wording is from the brief.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 28px">
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Agent steps · case card loading</h2>
+<div role="status" aria-label="Loading the case" style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; gap: 12px; align-items: center"><span style="width: 140px; height: 24px; border-radius: 4px; background: var(--color-paper-3)"></span><span style="width: 110px; height: 24px; border-radius: 999px; background: var(--color-paper-2)"></span></div>
+<span style="width: 70%; height: 12px; border-radius: 4px; background: var(--color-paper-2)"></span>
+<span style="width: 85%; height: 18px; border-radius: 4px; background: var(--color-paper-3); margin-top: 6px"></span>
+<span style="width: 60%; height: 12px; border-radius: 4px; background: var(--color-paper-2)"></span>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: 10px">
+<span style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-paper-3)"></span><span style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-paper-3)"></span><span style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-paper-3)"></span><span style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-paper-3)"></span><span style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-paper-3)"></span>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Loading the case…</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Agent steps · no cases yet</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 40px 32px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start">
+<svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-muted)"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>
+<p style="max-width: 50ch">No cases yet. Raise a ticket on the seller screen and its steps appear here.</p>
+<a href="RaiseTicket.dc.html" style="font-weight: 600; min-height: 40px; display: inline-flex; align-items: center">Raise a ticket</a>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Agent steps · timeline loading</h2>
+<div role="status" aria-label="Loading the steps" style="display: flex; flex-direction: column; gap: 18px; padding: 8px 0">
+<div style="display: grid; grid-template-columns: 24px 1fr 120px; gap: 14px; align-items: center"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-paper-3); justify-self: center"></span><span style="height: 14px; width: 60%; border-radius: 4px; background: var(--color-paper-3)"></span><span style="height: 12px; border-radius: 4px; background: var(--color-paper-2)"></span></div>
+<div style="display: grid; grid-template-columns: 24px 1fr 120px; gap: 14px; align-items: center"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-paper-3); justify-self: center"></span><span style="height: 14px; width: 75%; border-radius: 4px; background: var(--color-paper-3)"></span><span style="height: 12px; border-radius: 4px; background: var(--color-paper-2)"></span></div>
+<div style="display: grid; grid-template-columns: 24px 1fr 120px; gap: 14px; align-items: center"><span style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-paper-3); justify-self: center"></span><span style="height: 14px; width: 50%; border-radius: 4px; background: var(--color-paper-3)"></span><span style="height: 12px; border-radius: 4px; background: var(--color-paper-2)"></span></div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Loading the steps…</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Raise a ticket · your tickets, empty and error</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+<p style="color: var(--color-muted)">No tickets yet. Choose a shipment above and raise a dispute; it appears here with its status.</p>
+<p role="alert" style="color: var(--color-error); border-top: 1px solid var(--color-rule); padding-top: 18px">There is no case store yet. It is created when the dispute service starts.</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Raise a ticket · the result line after Raise a dispute</h2>
+<ul style="list-style: none; background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 8px 32px">
+<li style="padding: 14px 0; border-bottom: 1px solid var(--color-rule)">Ticket raised. The agent has started on it. <a href="AgentSteps.dc.html" style="font-weight: 600">Watch the agent work on it</a></li>
+<li style="padding: 14px 0; border-bottom: 1px solid var(--color-rule)">This ticket was already raised; showing the existing case. <a href="AgentSteps.dc.html" style="font-weight: 600">Watch the agent work on it</a></li>
+<li style="padding: 14px 0; border-bottom: 1px solid var(--color-rule); color: var(--color-error)">This seller address is not on the test allowlist. Use the test seller address and try again.</li>
+<li style="padding: 14px 0; border-bottom: 1px solid var(--color-rule); color: var(--color-error)">The dispute service is not running, so the ticket was not raised. Try again in a minute.</li>
+<li style="padding: 14px 0; color: var(--color-error)">The dispute service refused the ticket (HTTP [code]). Nothing was raised.</li>
+</ul>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Review · empty queues</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; gap: 12px; align-items: flex-start"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px; color: var(--color-muted)"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><p>Nothing is waiting. Every credit and message has been decided.</p></div>
+<div style="display: flex; gap: 12px; align-items: flex-start; border-top: 1px solid var(--color-rule); padding-top: 18px"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px; color: var(--color-muted)"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><p>No case is waiting for a person.</p></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Review · refusals that replace or disable an action</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+<div role="alert" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-control); border: 1.5px solid var(--color-error); color: var(--color-error)">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>
+<p><strong>The stored text has changed since approval was requested.</strong> It cannot be approved. Report this.</p>
+</div>
+<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+<button type="button" disabled style="height: var(--control-h); padding: 0 18px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); opacity: .55; cursor: not-allowed">Return to the agent</button>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">A credit on this case is already verified, so it cannot go back to the agent.</p>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-ink-2); padding: 12px 14px; background: var(--color-paper-2); border-radius: var(--radius-control)">No one approved it within 72 hours. The approval expired and the case is now with a person.</p>
+<p style="font-size: var(--text-sm); color: var(--color-error)">The review console token is not correct.</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Ledger · empty</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 18px">
+<p style="color: var(--color-muted)">The ledger has no entries yet. It is created and seeded with the synthetic charges when the dispute service starts.</p>
+<p style="color: var(--color-muted); border-top: 1px solid var(--color-rule); padding-top: 18px">No credits yet. When a reviewer approves a credit and the agent posts it, it appears here with who approved it and whether it was proved.</p>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; grid-column: 1 / -1">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Controls · the eight states</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Default</span><button type="button" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600">Approve</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Hover</span><button type="button" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-ink-2); color: var(--color-board-type); font-weight: 600">Approve</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Focus visible</span><button type="button" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; outline: 2px solid var(--color-focus); outline-offset: 2px">Approve</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Active</span><button type="button" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-ink-2); color: var(--color-board-type); font-weight: 600; transform: translateY(1px)">Approve</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Disabled</span><button type="button" disabled style="height: var(--control-h); border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); opacity: .55">Reject</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Loading</span><button type="button" aria-busy="true" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>Recording</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Error</span><button type="button" style="height: var(--control-h); border: 1.5px solid var(--color-error); border-radius: var(--radius-control); background: var(--color-cotton); color: var(--color-error); font-weight: 600">Not recorded. Retry</button></div>
+<div style="display: flex; flex-direction: column; gap: 8px"><span style="font-size: var(--text-sm); color: var(--color-muted)">Success</span><button type="button" style="height: var(--control-h); border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-paper-2); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Recorded</button></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 10px; grid-column: 1 / -1">
+<h2 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Status chips · six tones, always with words</h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 24px 32px; display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center">
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px solid var(--color-rule-2); color: var(--color-ink-2); font-weight: 500">Investigating</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px dashed var(--color-ink-2); color: var(--color-ink-2); font-weight: 500">Waiting for the hub</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1.5px solid var(--color-ink); font-weight: 700">With a person</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px solid var(--color-rule-2); background: var(--color-paper-2); color: var(--color-ink-2); font-weight: 500">Resolved: charge upheld</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px solid var(--color-rule); color: var(--color-muted); font-weight: 500">Closed: no reply</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1.5px solid var(--color-paid); color: var(--color-paid); font-weight: 700">Resolved: credited</span>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">working · waiting · attention · done · closed · settled (the only coral)</span>
+</div>
+</section>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

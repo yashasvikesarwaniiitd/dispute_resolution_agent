@@ -1,41 +1,49 @@
-"""Screen 3: the human in the loop. Layout over `ui.review` and `ReviewConsole` (ADR 0044).
+"""Screen 3: the human in the loop (design handoff 4, Screen 3; ADR 0044, 0046, 0047, 0048).
 
 Sign-in is the review console's own (ADR 0018): the token is checked once and only the
 reviewer's identity is kept for the session, never the token. Hosted, the site password has
 already decided who may be here, so the screen skips the token (ADR 0047). Either way the
-reviewer chooses one of the approvers the engine accepts (policy.yaml): no other name is offered. The decision is recorded by
-`ReviewConsole`, bound to the stored text's hash; nothing is sent from this page (I2).
+reviewer chooses one of the approvers the engine accepts (policy.yaml): no other name is
+offered.
 
-Cases handed to a person can be taken over, returned to the agent or - when the seller asked
-- closed as withdrawn, through `CaseDesk` (ADR 0046): recorded as the signed-in reviewer and
-applied by the runner within a few seconds, through the engine's own transitions.
+Each decision card shows what the agent recommends beside exactly what happens on approval -
+the exact credit, or the exact email with every number's source - and records the decision
+through `ReviewConsole`, bound to the stored text's hash. Nothing is sent from this page (I2).
+Cases with a person are taken over or returned through `CaseDesk` (ADR 0046).
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import streamlit as st
 
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.settings import Settings
+from dispute_agent.kernel.domain.actions import CreditPayload
+from dispute_agent.kernel.domain.enums import ActionStatus
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
+from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.approvals.streamlit_ui.console import (
     ReviewConsole,
     reviewer_named,
     sign_in,
 )
 from dispute_agent.ui import data
+from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
-from dispute_agent.ui.labels import when
+from dispute_agent.ui.labels import money, when
 from dispute_agent.ui.review import Card, queue, with_a_person
-from dispute_agent.ui.theme import chip, escape, pairs
+from dispute_agent.ui.theme import chip, escape, line
 from dispute_agent.ui.trail import recommendation
 
 if TYPE_CHECKING:
     from dispute_agent.kernel.domain.ids import ApprovalId
     from dispute_agent.kernel.domain.models import Actor
     from dispute_agent.ui.seller import Ticket
+
+LINES = "review_lines"  # what was decided this session, said in a line each
 
 
 def page() -> None:
@@ -46,11 +54,11 @@ def page() -> None:
     if not data.has_store():
         st.info(data.NO_STORE)
         return
-
     with data.reader() as work:
         console = ReviewConsole(store=work.approvals, clock=SystemClock(), reviewer=reviewer)
         cards = queue(work, console)
         people = with_a_person(work)
+        extra = {c.item.approval.id: _credit_basis(work, c) for c in cards if c.item.is_credit}
 
     st.markdown(
         f'<p class="count">{escape(_count(cards, len(people)))}</p>', unsafe_allow_html=True
@@ -59,14 +67,15 @@ def page() -> None:
         [f"Awaiting your approval ({len(cards)})", f"With a person ({len(people)})"]
     )
     with waiting:
+        for said in st.session_state.get(LINES, []):
+            st.markdown(line(said), unsafe_allow_html=True)
         if not cards:
             st.markdown(
-                '<p class="muted">Nothing is waiting. Every credit and message has been '
-                "decided.</p>",
+                '<p class="muted">Nothing is waiting. Every credit and message has been decided.</p>',
                 unsafe_allow_html=True,
             )
         for card in cards:
-            _card(card, reviewer)
+            _card(card, reviewer, extra.get(card.item.approval.id, (None, money(Decimal(0)))))
     with handed:
         if not people:
             st.markdown(
@@ -79,48 +88,48 @@ def page() -> None:
 def _signed_in() -> Actor | None:
     if "reviewer" in st.session_state:
         actor: Actor = st.session_state["reviewer"]
-        st.caption(
-            f"Signed in as {actor.id.removeprefix('human:')}. Your name is recorded "
-            "against each decision, bound to the exact amount or text shown."
+        note, switch = st.columns([5, 1], vertical_alignment="center")
+        note.caption(
+            f"Signed in as {actor.id.removeprefix('human:')}. Your name is recorded against each "
+            "decision, bound to the exact amount or text shown."
         )
+        if switch.button("Switch approver", type="tertiary", key="switch"):
+            del st.session_state["reviewer"]
+            st.rerun()
         return actor
-    narrow, _ = st.columns([2, 3])
-    # Only the approvers the engine accepts (policy.yaml): a decision recorded under any other
-    # name would not be acted on - the case would go to a person instead (T09) - so no other
-    # name is offered (ADR 0047).
     names = data.approvers()
+    narrow, _ = st.columns([2, 3])
     if not names:
-        st.error("No approver is listed in config/policy.yaml (approvals.approver_ids).")
+        narrow.error("No approver is listed in config/policy.yaml (approvals.approver_ids).")
         return None
-    if st.session_state.get("gate_passed"):
-        # Hosted: the site password already decided who may be here (ADR 0047), so the
-        # review token would be a second lock on the same door. The approver is still named
-        # on every decision (I3, I13).
-        with narrow, st.form("sign-in"):
-            st.markdown(
-                "Choose who you are reviewing as. That approver is recorded against each "
-                "decision you make."
-            )
-            name = st.selectbox("Review as", names)
-            if st.form_submit_button("Start reviewing", type="primary"):
-                try:
-                    st.session_state["reviewer"] = reviewer_named(name or "")
-                    st.rerun()
-                except DomainValidationError as refused:
-                    st.error(str(refused))
-        return None
-    with narrow, st.form("sign-in"):
-        st.markdown("Sign in with the review console token to see the queue.")
-        token = st.text_input("Review console token", type="password")
-        name = st.selectbox("Review as", names)
-        if st.form_submit_button("Sign in", type="primary"):
+    hosted = bool(st.session_state.get("gate_passed"))
+    with narrow, st.container(key="card-signin"), st.form("sign-in", border=False):
+        st.markdown(
+            "Choose who you are reviewing as. That approver is recorded against each decision you make."
+            if hosted
+            else "Sign in with the review console token to see the queue."
+        )
+        token = "" if hosted else st.text_input("Review console token", type="password")
+        name = st.selectbox(
+            "Review as",
+            names,
+        )
+        st.caption(
+            "Only approvers listed in the policy appear here. The agent ignores decisions by anyone else."
+        )
+        if st.form_submit_button("Start reviewing" if hosted else "Sign in", type="primary"):
             try:
-                expected = Settings().review_console_token
-                st.session_state["reviewer"] = sign_in(
-                    token, expected.get_secret_value() if expected else None, name or ""
-                )
+                if hosted:  # the site password stands in for the token (ADR 0047)
+                    st.session_state["reviewer"] = reviewer_named(name or "")
+                else:
+                    expected = Settings().review_console_token
+                    st.session_state["reviewer"] = sign_in(
+                        token, expected.get_secret_value() if expected else None, name or ""
+                    )
                 st.rerun()
-            except (AuthPortError, ConfigError) as refused:
+            except AuthPortError:
+                st.error("The review console token is not correct.")
+            except (ConfigError, DomainValidationError) as refused:
                 st.error(str(refused))
     return None
 
@@ -141,177 +150,171 @@ def _count(cards: list[Card], people: int) -> str:
     return waiting + handed
 
 
-def _card(card: Card, reviewer: Actor) -> None:
-    item, case = card.item, card.case
-    with st.container(border=True, key=f"stock-{item.approval.id}"):
-        st.markdown(
-            f"**{escape('Credit' if item.is_credit else 'Message: ' + item.kind.replace('_', ' '))}**"
-            f" &nbsp; shipment {escape(case.shipment_ref)} &nbsp; {chip(case.label, case.tone)}"
-            f' &nbsp; <span class="muted">requested '
-            f"{when(item.approval.request.requested_at)}</span>",
-            unsafe_allow_html=True,
+def _credit_basis(work: object, card: Card) -> tuple[str | None, str]:
+    """The duplicate debit a duplicate-charge credit returns, and what is already credited."""
+    case_id = card.item.approval.request.case_id
+    latest = work.assessments.latest(case_id)  # type: ignore[attr-defined]
+    dup = latest.duplicate_debit_total if latest is not None else None
+    already = Decimal(0)
+    for action in work.actions.for_case(case_id):  # type: ignore[attr-defined]
+        if action.status is not ActionStatus.VERIFIED:
+            continue
+        try:
+            payload = work.intents.get(action.intent_id).payload  # type: ignore[attr-defined]
+        except Exception:  # a plan that cannot be read adds nothing it cannot prove
+            continue
+        if isinstance(payload, CreditPayload):
+            already += payload.amount.amount
+    duplicate = (
+        render_fact(dup)
+        if dup is not None and card.item.credit_reason == "duplicate_charge"
+        else None
+    )
+    return duplicate, money(already)
+
+
+def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
+    left, right = st.columns([3, 1], vertical_alignment="center")
+    left.markdown(
+        f'<div class="card-headrow"><h2 class="card-kind">{escape(kind)}</h2>'
+        f'<span class="mono">{escape(ticket.shipment_ref)}</span>{chip(ticket.label, ticket.tone)}'
+        f'<span class="muted">{escape(since)}</span></div>',
+        unsafe_allow_html=True,
+    )
+    pages = st.session_state.get("pages")
+    if pages:  # absent only when a screen runs on its own, as in tests
+        with right:
+            st.page_link(
+                pages["trail"],
+                label="See every step of this case",
+                icon=":material/route:",
+                query_params={"case": case_id},
+            )
+
+
+def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
+    item, ticket = card.item, card.case
+    aid = item.approval.id
+    request = item.approval.request
+    with st.container(key=f"card-{aid}"):
+        hours = round((request.expires_at - request.requested_at).total_seconds() / 3600)
+        _header(
+            view.kind_title(item),
+            ticket,
+            f"requested {when(request.requested_at)} · expires after {hours} h",
+            ticket.case_id,
         )
-        _steps_link(case.case_id)
-        ai, act = st.columns(2, gap="large")
-        with ai:
-            st.markdown("**What the agent recommends**")
-            rec = card.recommendation
-            if rec is None:
-                st.markdown(
-                    '<p class="muted">No proposal is recorded for this item.</p>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                found = "".join(
-                    f"<li>{_said(f'{kind}: {statement}')}"
-                    + (
-                        f' <span class="muted">(cites {escape(", ".join(refs))})</span>'
-                        if refs
-                        else ""
-                    )
-                    + "</li>"
-                    for kind, statement, refs in rec.findings
+        st.markdown('<hr class="rule">', unsafe_allow_html=True)
+        left, right = st.columns(2, gap="large")
+        left.markdown(view.recommends(card.recommendation), unsafe_allow_html=True)
+        with right, st.container(key=f"panel-{aid}"):
+            if item.is_credit:
+                proposer = (
+                    "AI"
+                    if card.recommendation and card.recommendation.by.startswith("AI")
+                    else "rules engine"
                 )
                 st.markdown(
-                    f"<p><b>{escape(rec.action)}</b>, {escape(rec.confidence)} confidence<br>"
-                    f'<span class="muted">{escape(rec.by)}</span></p>'
-                    '<p class="said-label">Reasoning, exactly as recorded:</p>'
-                    f'<blockquote class="said">{_said(rec.rationale)}</blockquote>'
-                    + (
-                        '<p class="said-label">Findings, as recorded:</p>'
-                        f'<ul class="findings">{found}</ul>'
-                        if found
-                        else ""
+                    view.if_approve_credit(
+                        item, proposer=proposer, duplicate=basis[0], already=basis[1]
                     ),
                     unsafe_allow_html=True,
                 )
-        with act:
-            st.markdown("**If you approve**")
-            if not item.matches_approval:
-                st.error(
-                    "The stored text has changed since approval was requested. It cannot "
-                    "be approved. Report this."
-                )
-                return
-            if item.is_credit:
-                st.markdown(
-                    f"A credit of **{escape(item.credit_amount)}** is posted to the ledger "
-                    f"for {escape((item.credit_reason or '').replace('_', ' '))}."
-                )
-                st.caption(item.body)
-                st.markdown("**Code's figures behind it**")
-                st.markdown(
-                    pairs([(label.capitalize(), value) for label, value in item.evidence]),
-                    unsafe_allow_html=True,
-                )
             else:
-                st.markdown(f"An email to {escape(item.to)}")
-                st.text(f"Subject: {item.subject}")
-                st.text(item.body)
-                st.markdown("**Every number in it, and where it came from**")
-                st.markdown(
-                    pairs(list(item.numbers) or [("None", "this message has no figures")]),
-                    unsafe_allow_html=True,
-                )
+                st.markdown(view.if_approve_email(item), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
-        note = st.text_area(
-            "Note, or your reason for rejecting", key=f"note-{item.approval.id}", height=68
+        if not item.matches_approval:
+            st.markdown(
+                '<div class="integrity" role="alert"><p><strong>The stored text has changed since '
+                "approval was requested.</strong> It cannot be approved. Report this.</p></div>",
+                unsafe_allow_html=True,
+            )
+            return
+        note = st.text_area("Note, or your reason for rejecting", key=f"note-{aid}", height=68)
+        st.caption(
+            "Approving keeps this as a note. Rejecting sends it to the agent as your reason."
+            if note.strip()
+            else "A note is optional to approve. A reason is needed to reject."
         )
         row = st.container(horizontal=True, gap="small")
-        yes, no = row, row
-        if yes.button("Approve", key=f"yes-{item.approval.id}", type="primary"):
-            _decide(reviewer, item.approval.id, note, approving=True)
-        if no.button("Reject", key=f"no-{item.approval.id}"):
-            _decide(reviewer, item.approval.id, note, approving=False)
+        if row.button(view.approve_label(item), key=f"yes-{aid}", type="primary"):
+            _decide(reviewer, card, note, approving=True)
+        if row.button("Reject", key=f"no-{aid}", disabled=not note.strip()):
+            _decide(reviewer, card, note, approving=False)
 
 
 def _person_card(ticket: Ticket, reviewer: Actor) -> None:
-    """One case with a person: why, what the agent last proposed, and the three decisions."""
+    """One case with a person: why, what the agent last proposed, and the decisions."""
     with data.reader() as work:
         case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
         proposals = list(work.proposals.for_case(case.id))
         paid = work.actions.has_verified_credit(case.id)
-    reason = case.review_reason
-    with st.container(border=True, key=f"stock-person-{ticket.case_id}"):
-        st.markdown(
-            f"**Shipment {escape(ticket.shipment_ref)}** &nbsp; {chip(ticket.label, ticket.tone)}"
-            f' &nbsp; <span class="muted">since {when(ticket.updated_at)}</span>',
-            unsafe_allow_html=True,
-        )
-        if reason is not None:
-            why = reason.code.value.replace("_", " ")
-            st.markdown(f"Why it is with a person: **{escape(why)}**")
-            if reason.detail:
-                st.markdown(
-                    f'<blockquote class="said">{_said(reason.detail)}</blockquote>',
-                    unsafe_allow_html=True,
-                )
-        if proposals:
-            rec = recommendation(proposals[-1])
-            st.markdown(
-                f'<span class="muted">Last proposal: {escape(rec.action)}, {escape(rec.by)}</span>',
-                unsafe_allow_html=True,
-            )
-        _steps_link(ticket.case_id)
-        key = ticket.case_id
+    review = case.review_reason
+    rec = recommendation(proposals[-1]) if proposals else None
+    key = ticket.case_id
+    with st.container(key=f"card-person-{key}"):
+        _header("Shipment", ticket, f"since {when(ticket.updated_at)}", key)
+        st.markdown('<hr class="rule">', unsafe_allow_html=True)
+        left, right = st.columns(2, gap="large")
+        if review is not None:
+            left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
+        with right, st.container(key=f"panel-person-{key}"):
+            st.markdown(view.choices(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
         note = st.text_area(
             "Your note (needed to return it to the agent)", key=f"person-note-{key}", height=68
         )
         notify = st.checkbox(
-            "When taking over, tell the seller a person is handling it (the email goes "
-            "through review first)",
+            "When taking over, tell the seller a person is handling it (the email goes through review first)",
             key=f"notify-{key}",
         )
-        row = st.container(horizontal=True, gap="small")
-        take, back, withdraw = row, row, row
-        if take.button("Take over", key=f"take-{key}", type="primary"):
-            _desk(reviewer, key, lambda desk, c: desk.take_over(c, notify_seller=notify, note=note))
-        if back.button("Return to the agent", key=f"back-{key}", disabled=paid):
+        row = st.container(horizontal=True, gap="small", vertical_alignment="center")
+        if row.button("Take over", key=f"take-{key}", type="primary"):
             _desk(
                 reviewer,
-                key,
+                ticket,
+                lambda desk, c: desk.take_over(c, notify_seller=notify, note=note),
+                notify=notify,
+            )
+        if row.button("Return to the agent", key=f"back-{key}", disabled=paid or not note.strip()):
+            _desk(
+                reviewer,
+                ticket,
                 lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
             )
-        if can_confirm_withdrawal(case) and withdraw.button(
-            "Confirm withdrawal", key=f"withdraw-{key}"
-        ):
-            _desk(reviewer, key, lambda desk, c: desk.confirm_withdrawal(c, note))
+        if can_confirm_withdrawal(case) and row.button("Confirm withdrawal", key=f"withdraw-{key}"):
+            _desk(reviewer, ticket, lambda desk, c: desk.confirm_withdrawal(c, note))
         if paid:
-            st.caption(
+            row.caption(
                 "A credit on this case is already verified, so it cannot go back to the agent."
             )
+        elif not note.strip():
+            row.caption("Write a note to return it.")
 
 
-def _said(text: str) -> str:
-    """Model-written text, escaped, line breaks kept: shown as written, never as markup."""
-    return escape(text).replace("\n", "<br>")
+def _said(text: str) -> None:
+    st.session_state.setdefault(LINES, []).insert(0, text)
 
 
-def _steps_link(case_id: str) -> None:
-    pages = st.session_state.get("pages")
-    if pages:  # absent only when a screen runs on its own, as in tests
-        st.page_link(
-            pages["trail"],
-            label="See every step of this case",
-            icon=":material/route:",
-            query_params={"case": case_id},
-        )
-
-
-def _desk(reviewer: Actor, case_id: str, act: object) -> None:
+def _desk(reviewer: Actor, ticket: Ticket, act: object, *, notify: bool = False) -> None:
     try:
         with data.writer() as work:
-            case = work.cases.get(case_id)  # type: ignore[arg-type]
+            case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
             act(CaseDesk(inbox=work.inbox, clock=SystemClock(), reviewer=reviewer), case)  # type: ignore[operator]
     except DomainValidationError as refused:
         st.error(str(refused))
         return
+    who = reviewer.id.removeprefix("human:")
+    tail = " The handed-to-a-person email to the seller now waits for approval." if notify else ""
+    _said(
+        f"{who} acted on {ticket.shipment_ref}. Recorded; the agent applies it within a few seconds.{tail}"
+    )
     st.toast("Recorded. The agent applies it within a few seconds.")
     st.rerun()
 
 
-def _decide(reviewer: Actor, approval_id: ApprovalId, note: str, *, approving: bool) -> None:
+def _decide(reviewer: Actor, card: Card, note: str, *, approving: bool) -> None:
+    approval_id: ApprovalId = card.item.approval.id
     try:
         with data.writer() as work:
             console = ReviewConsole(store=work.approvals, clock=SystemClock(), reviewer=reviewer)
@@ -322,5 +325,13 @@ def _decide(reviewer: Actor, approval_id: ApprovalId, note: str, *, approving: b
     except DomainValidationError as refused:
         st.error(str(refused))
         return
+    who = reviewer.id.removeprefix("human:")
+    thing = f"{view.what(card.item)} on {card.case.shipment_ref}"
+    _said(
+        f"{who} approved {thing}. Recorded. The agent picks it up from here."
+        if approving
+        else f"{who} rejected {thing}. Reason: “{note.strip()}”. The agent re-plans. A case "
+        "allows two rejections before it goes to a person."
+    )
     st.toast("Recorded. The agent picks it up from here.")
     st.rerun()

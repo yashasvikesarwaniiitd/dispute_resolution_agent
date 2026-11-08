@@ -76,24 +76,31 @@ def _through_the_gate() -> bool:
     if st.session_state.get("gate_passed"):
         return True
     expected = Settings().console_password
-    st.title("Dispute desk")
-    if expected is None:
-        st.error(
-            "This hosted console has no password set (CONSOLE_PASSWORD), so it stays closed. "
-            "It sends real email and opens real Jira issues."
-        )
-        return False
-    st.markdown(
-        "A live dispute resolution agent on synthetic data. It sends real email to a test "
-        "address and opens real Jira issues in a test project, so it is behind a password."
-    )
-    with st.form("gate"):
-        given = st.text_input("Password", type="password")
-        if st.form_submit_button("Enter", type="primary"):
-            if opens(given, expected.get_secret_value()):
-                st.session_state["gate_passed"] = True
-                st.rerun()
-            st.error("That password is not correct.")
+    # A centred column, then one card (design handoff, Screen 0).
+    _, middle, _ = st.columns([1, 1.6, 1])
+    with middle:
+        st.title("Dispute desk")
+        if expected is None:  # no form: the console stays closed and says why
+            st.error(
+                "This hosted console has no password set (CONSOLE_PASSWORD), so it stays "
+                "closed. It sends real email and opens real Jira issues."
+            )
+            return False
+        with st.container(key="card-gate"):
+            st.markdown(
+                "A live dispute resolution agent on synthetic data. It sends real email to a test "
+                "address and opens real Jira issues in a test project, so it is behind a password."
+            )
+            with st.form("gate", border=False):
+                given = st.text_input(
+                    "Site password", type="password", autocomplete="current-password"
+                )
+                if st.form_submit_button("Enter", type="primary"):
+                    if opens(given, expected.get_secret_value()):
+                        st.session_state["gate_passed"] = True
+                        st.rerun()
+                    st.error("That password is not correct.")
+        st.caption("Synthetic data only: 14 made-up shipments and one test seller.")
     return False
 
 

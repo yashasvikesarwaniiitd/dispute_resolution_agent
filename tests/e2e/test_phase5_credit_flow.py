@@ -53,7 +53,7 @@ class TestS01ACreditIsPostedVerifiedAndTold:
 
     def test_the_confirmation_cites_the_credited_amount(self) -> None:
         report = full("calc_error_wrong_slab")
-        assert any("credit posted" in s for s in report.subjects)
+        assert any("credit posted" in s.lower() for s in report.subjects)
 
     def test_the_proposal_that_started_it_is_on_the_record(self) -> None:
         report = full("calc_error_wrong_slab")

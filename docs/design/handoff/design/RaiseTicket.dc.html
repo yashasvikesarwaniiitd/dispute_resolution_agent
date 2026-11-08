@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: raise a ticket</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,dl,dd,ul,ol{margin:0}
+ul,ol{padding:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+.tab{transition:background-color .15s ease}
+.tab:hover{background:var(--color-paper-2)}
+.shiprow{transition:background-color .12s ease}
+.shiprow:hover{background:var(--color-paper-2)!important}
+.shiprow[aria-pressed="true"]:hover{background:var(--color-paper-3)!important}
+.btn-primary{transition:background-color .15s ease}
+.btn-primary:hover{background:var(--color-ink-2)!important}
+.btn-primary:active{transform:translateY(1px)}
+.seg:hover{background:var(--color-paper-2)}
+.trow:hover{background:var(--color-paper-2)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-paper)">
+<header style="background: var(--color-cotton); border-bottom: 1px solid var(--color-rule)">
+<div style="max-width: 76rem; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 12px 40px; flex-wrap: wrap">
+<a href="RaiseTicket.dc.html" style="font-weight: 700; font-size: var(--text-lg); text-decoration: none; color: var(--color-ink)">Dispute desk</a>
+<nav aria-label="Main" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a class="tab" href="RaiseTicket.dc.html" aria-current="page" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-ink); background: var(--color-paper-3); font-size: var(--text-sm); font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6"></path></svg>Raise a ticket</a>
+<a class="tab" href="AgentSteps.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>Agent steps</a>
+<a class="tab" href="Review.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"></path></svg>Review</a>
+<a class="tab" href="Ledger.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"></path></svg>Ledger</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 76rem; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em">Raise a ticket</h1>
+<p style="color: var(--color-muted); font-size: var(--text-sm)">Signed in as seller SELL-0001. Every shipment here is synthetic; emails about your tickets go to the test seller address.</p>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start">
+
+<section aria-labelledby="ys" style="flex: 3 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap">
+<h2 id="ys" style="font-size: var(--text-xl); font-weight: 700">Your shipments</h2>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Click a row to see its bill.</p>
+</div>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow-x: auto">
+<div style="min-width: 560px">
+<div aria-hidden="true" style="display: grid; grid-template-columns: 28px 1.2fr 1.4fr 0.6fr 0.9fr 1.5fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--color-rule); font-size: var(--text-sm); color: var(--color-muted)">
+<span></span><span>Shipment</span><span>Status</span><span>Zone</span><span style="text-align: right">Charged</span><span>Your ticket</span>
+</div>
+<ul aria-label="Shipments" style="list-style: none">
+<sc-for list="{{ ships }}" as="s" hint-placeholder-count="14">
+<li>
+<button class="shiprow" type="button" aria-pressed="{{ s.pressed }}" aria-label="{{ s.aria }}" onClick="{{ s.pick }}" style="{{ s.rowStyle }}">
+<span aria-hidden="true" style="{{ s.radioStyle }}"><span style="{{ s.radioDot }}"></span></span>
+<span style="font-family: var(--font-figure); font-size: var(--text-sm); font-weight: 500">{{ s.id }}</span>
+<span style="{{ s.statusStyle }}">{{ s.status }}</span>
+<span style="{{ s.zoneStyle }}">{{ s.zone }}</span>
+<span style="{{ s.chargedStyle }}">{{ s.charged }}</span>
+<span><sc-if value="{{ s.ticket }}" hint-placeholder-val="{{ false }}"><span style="{{ s.ticketStyle }}">{{ s.ticket }}</span></sc-if></span>
+</button>
+</li>
+</sc-for>
+</ul>
+</div>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Values in [brackets] were not in the sample data this prototype was built from.</p>
+</section>
+
+<section aria-labelledby="dc" style="flex: 2 1 360px; min-width: 0; background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 24px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px">
+<h2 id="dc" style="font-size: var(--text-xl); font-weight: 700">Dispute a charge</h2>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="ship-sel" style="font-size: var(--text-sm); font-weight: 600">Shipment</label>
+<select id="ship-sel" value="{{ selValue }}" onChange="{{ onSelect }}" style="height: var(--control-h); padding: 0 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-family: var(--font-figure); font-size: var(--text-sm)">
+<option value="">Choose a shipment</option>
+<sc-for list="{{ ships }}" as="o" hint-placeholder-count="14">
+<option value="{{ o.id }}">{{ o.id }}</option>
+</sc-for>
+</select>
+</div>
+
+<sc-if value="{{ none }}" hint-placeholder-val="{{ true }}">
+<p style="color: var(--color-muted); max-width: 46ch">Choose a shipment to see its bill: what you were charged, what you declared and what the hub measured.</p>
+</sc-if>
+
+<sc-if value="{{ chosen }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 4px">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Charged for zone {{ b.zone }}</p>
+<p style="font-family: var(--font-figure); font-size: var(--text-2xl); font-weight: 600; font-variant-numeric: tabular-nums">{{ b.charged }}</p>
+</div>
+<dl style="display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 12px; padding: 14px 0; border-top: 1px solid var(--color-rule); border-bottom: 1px solid var(--color-rule)">
+<dt style="color: var(--color-muted); font-size: var(--text-sm); padding-top: 2px">You declared</dt>
+<dd style="font-variant-numeric: tabular-nums">{{ b.declared }}</dd>
+<dt style="color: var(--color-muted); font-size: var(--text-sm); padding-top: 2px">The hub measured</dt>
+<dd style="font-variant-numeric: tabular-nums; font-weight: 600">{{ b.measured }}</dd>
+</dl>
+<sc-if value="{{ b.notDelivered }}" hint-placeholder-val="{{ false }}">
+<p role="alert" style="display: flex; gap: 10px; color: var(--color-error); font-size: var(--text-sm)"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 1px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg><span>Its status is “{{ b.status }}”, not delivered. Only delivered shipments can be disputed, so a ticket on it would close as not eligible.</span></p>
+</sc-if>
+<sc-if value="{{ b.hasOpen }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<p style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">You already have an open ticket on this shipment: <span style="{{ b.openStyle }}">{{ b.openTicket }}</span></p>
+<a href="AgentSteps.dc.html" style="font-size: var(--text-sm); align-self: flex-start; min-height: 40px; display: inline-flex; align-items: center">See what the agent has done on it</a>
+</div>
+</sc-if>
+<sc-if value="{{ b.canRaise }}" hint-placeholder-val="{{ true }}">
+<button class="btn-primary" type="button" onClick="{{ raise }}" style="height: var(--control-h); border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; cursor: pointer">Raise a dispute</button>
+</sc-if>
+<sc-if value="{{ result.show }}" hint-placeholder-val="{{ false }}">
+<p role="status" aria-live="polite" style="{{ result.style }}"><span>{{ result.text }}</span><sc-if value="{{ result.link }}" hint-placeholder-val="{{ false }}"> <a href="AgentSteps.dc.html" style="font-weight: 600">Watch the agent work on it</a></sc-if></p>
+</sc-if>
+</sc-if>
+<p style="font-size: var(--text-sm); color: var(--color-muted); border-top: 1px solid var(--color-rule); padding-top: 12px">The agent checks the charge in code and a person approves any credit. You will get an email at the test seller address.</p>
+</section>
+</div>
+
+<section aria-labelledby="yt" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="yt" style="font-size: var(--text-xl); font-weight: 700">Your tickets</h2>
+<div role="group" aria-label="Show tickets" style="display: inline-flex; padding: 3px; border-radius: var(--radius-control); background: var(--color-paper-3)">
+<sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+<button class="seg" type="button" aria-pressed="{{ f.pressed }}" onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }} <span style="font-family: var(--font-figure); color: var(--color-muted)">{{ f.n }}</span></button>
+</sc-for>
+</div>
+</div>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow-x: auto">
+<table style="width: 100%; min-width: 760px; border-collapse: collapse; font-size: var(--text-sm)">
+<thead>
+<tr style="text-align: left; color: var(--color-muted)">
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Shipment</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">What is happening</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Opened</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Last update</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Steps</span></th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{ tickets }}" as="t" hint-placeholder-count="9">
+<tr class="trow" style="{{ t.rowStyle }}">
+<td style="padding: 12px 16px; font-family: var(--font-figure); font-weight: 500; white-space: nowrap; vertical-align: top">{{ t.id }}</td>
+<td style="padding: 12px 16px; vertical-align: top"><div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start"><span style="{{ t.chipStyle }}">{{ t.status }}</span><span style="color: var(--color-ink-2); font-size: var(--text-md)">{{ t.sentence }}</span></div></td>
+<td style="padding: 12px 16px; white-space: nowrap; color: var(--color-ink-2); vertical-align: top">{{ t.opened }}</td>
+<td style="padding: 12px 16px; white-space: nowrap; color: var(--color-ink-2); vertical-align: top">{{ t.updated }}</td>
+<td style="padding: 8px 16px; text-align: right; vertical-align: top"><a href="AgentSteps.dc.html" aria-label="{{ t.stepsAria }}" style="display: inline-flex; align-items: center; gap: 6px; min-height: 40px; white-space: nowrap; font-weight: 500">Open the steps<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+<sc-if value="{{ noTickets }}" hint-placeholder-val="{{ false }}">
+<p style="padding: 32px 16px; text-align: center; color: var(--color-muted)">{{ emptyText }}</p>
+</sc-if>
+</div>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"raiseResult":{"editor":"enum","options":["Ticket raised","Already raised","Not on the allowlist","Service not running","Refused"],"default":"Ticket raised"},"startShipment":{"editor":"enum","options":["None","SHP-000003","SHP-000007","SHP-000009"],"default":"SHP-000003"},"$preview":{"width":1440,"height":1650}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: null, raised: {}, filter: 'all', lastResult: null };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const startShip = this.props.startShipment ?? 'SHP-000003';
+    const sel = st.sel !== null ? st.sel : (startShip === 'None' ? '' : startShip);
+    const P = (t) => '[' + t + ']';
+    const D_STD = '20 x 15 x 10 cm, 0.48 kg';
+    const base = [
+      ['SHP-000001', 'Delivered', 'B', '₹152.00', 'With a person', 'attention'],
+      ['SHP-000002', 'Delivered', 'E', '₹2,800.00', '', ''],
+      ['SHP-000003', 'Delivered', 'B', '₹380.00', '', '', D_STD, '40 x 30 x 20 cm, 1.10 kg'],
+      ['SHP-000004', 'Delivered', 'B', '₹152.00', '', ''],
+      ['SHP-000005', 'Delivered', 'B', '₹190.00', 'Awaiting approval', 'waiting'],
+      ['SHP-000006', 'Delivered', 'B', '₹152.00', 'With a person', 'attention'],
+      ['SHP-000007', 'Returned to origin', 'B', '₹152.00', '', '', D_STD, '30 x 22 x 15 cm, 1.10 kg'],
+      ['SHP-000008', 'Delivered', 'B', '₹152.00', '', ''],
+      ['SHP-000009', 'Delivered', 'B', '₹152.00', 'Awaiting approval', 'waiting'],
+      ['SHP-000010', P('status'), P('zone'), P('charge'), '', ''],
+      ['SHP-000011', 'Delivered', P('zone'), '₹152.00', '', ''],
+      ['SHP-000012', P('status'), P('zone'), P('charge'), '', ''],
+      ['SHP-000013', 'Delivered', P('zone'), '₹114.00', 'Waiting for the seller', 'waiting'],
+      ['SHP-000014', 'Delivered', P('zone'), '₹980.00', '', '']
+    ];
+    const chipBase = 'display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; font-weight: 500; ';
+    const TONES = {
+      working: 'border: 1px solid var(--color-rule-2); color: var(--color-ink-2);',
+      waiting: 'border: 1px dashed var(--color-ink-2); color: var(--color-ink-2);',
+      attention: 'border: 1.5px solid var(--color-ink); color: var(--color-ink); font-weight: 700;',
+      done: 'border: 1px solid var(--color-rule-2); color: var(--color-ink-2); background: var(--color-paper-2);',
+      closed: 'border: 1px solid var(--color-rule); color: var(--color-muted);',
+      settled: 'border: 1.5px solid var(--color-paid); color: var(--color-paid); font-weight: 700;'
+    };
+    const chip = (t) => chipBase + (TONES[t] || TONES.working);
+    const isPh = (v) => typeof v === 'string' && v.charAt(0) === '[';
+
+    const ships = base.map((r) => {
+      const raisedNow = !!st.raised[r[0]];
+      const ticket = raisedNow ? 'Received' : r[4];
+      const tone = raisedNow ? 'working' : r[5];
+      const on = r[0] === sel;
+      return {
+        id: r[0], status: r[1], zone: r[2], charged: r[3], ticket: ticket,
+        declared: r[6] || P('declared size and weight'), measured: r[7] || P('hub measurement'),
+        ticketStyle: chip(tone),
+        pressed: on ? 'true' : 'false',
+        aria: r[0] + ', ' + r[1] + ', charged ' + r[3] + (ticket ? ', ticket ' + ticket : ''),
+        rowStyle: 'width: 100%; display: grid; grid-template-columns: 28px 1.2fr 1.4fr 0.6fr 0.9fr 1.5fr; gap: 12px; align-items: center; padding: 0 16px; min-height: 44px; border: 0; border-bottom: 1px solid var(--color-rule); text-align: left; cursor: pointer; font-size: var(--text-sm); ' + (on ? 'background: var(--color-paper-3);' : 'background: transparent;'),
+        radioStyle: 'width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; ' + (on ? 'border: 2px solid var(--color-ink);' : 'border: 1.5px solid var(--color-rule-2);'),
+        radioDot: on ? 'width: 8px; height: 8px; border-radius: 50%; background: var(--color-ink);' : 'display: none;',
+        statusStyle: r[1] === 'Returned to origin' ? 'color: var(--color-error); font-weight: 500;' : isPh(r[1]) ? 'color: var(--color-muted);' : 'color: var(--color-ink-2);',
+        zoneStyle: isPh(r[2]) ? 'color: var(--color-muted);' : 'color: var(--color-ink-2);',
+        chargedStyle: 'text-align: right; font-family: var(--font-figure); font-variant-numeric: tabular-nums; ' + (isPh(r[3]) ? 'color: var(--color-muted); font-family: var(--font-body);' : ''),
+        pick: () => this.setState({ sel: r[0], lastResult: null })
+      };
+    });
+
+    const s = ships.find((x) => x.id === sel);
+    const result = this.props.raiseResult ?? 'Ticket raised';
+    const RES = {
+      'Ticket raised': ['Ticket raised. The agent has started on it.', true, false],
+      'Already raised': ['This ticket was already raised; showing the existing case.', true, false],
+      'Not on the allowlist': ['This seller address is not on the test allowlist. Use the test seller address and try again.', false, true],
+      'Service not running': ['The dispute service is not running, so the ticket was not raised. Try again in a minute.', false, true],
+      'Refused': ['The dispute service refused the ticket (HTTP [code]). Nothing was raised.', false, true]
+    };
+    const showResult = s && st.lastResult === s.id;
+    const r = RES[result];
+    const hasOpen = !!(s && s.ticket) && !showResult;
+
+    const tBase = [
+      ['SHP-000011', 'Not eligible', 'closed', 'Closed: this shipment could not be disputed.', '16:09', false],
+      ['SHP-000006', 'With a person', 'attention', 'The agent stopped and handed this case to a person.', '15:16', true],
+      ['SHP-000001', 'With a person', 'attention', 'The agent stopped and handed this case to a person.', '14:23', true],
+      ['SHP-000005', 'Awaiting approval', 'waiting', 'Waiting for a reviewer to approve an email to the seller (evidence request).', '13:30', true],
+      ['SHP-000009', 'Awaiting approval', 'waiting', 'Waiting for a reviewer to approve a ₹152.00 credit.', '12:37', true],
+      ['SHP-000013', 'Waiting for the seller', 'waiting', 'Waiting for the seller to reply.', '11:44', true],
+      ['SHP-000007', 'Not eligible', 'closed', 'Closed: this shipment could not be disputed.', '10:51', false],
+      ['SHP-000002', 'Resolved: credited', 'settled', 'Resolved: the seller was credited ₹1,820.00.', '09:58', false],
+      ['SHP-000014', 'Resolved: charge upheld', 'done', 'Resolved: the charge was correct, and the seller was told why.', '09:05', false]
+    ];
+    const fresh = Object.keys(st.raised).map((id) => [id, 'Received', 'working', 'The agent is working on it.', 'just now', true, true]);
+    const allT = fresh.concat(tBase).map((t) => ({
+      id: t[0], status: t[1], chipStyle: chip(t[2]), sentence: t[3],
+      opened: t[4] === 'just now' ? 'Just now' : '7 Nov 2026, ' + t[4] + ' UTC',
+      updated: t[4] === 'just now' ? 'Just now' : '7 Nov 2026, ' + t[4] + ' UTC',
+      isOpen: t[5],
+      stepsAria: 'Open the agent’s steps for ' + t[0],
+      rowStyle: 'border-bottom: 1px solid var(--color-rule);' + (t[6] ? ' background: var(--color-paper-2);' : '')
+    }));
+    const nOpen = allT.filter((t) => t.isOpen).length;
+    const nClosed = allT.length - nOpen;
+    const f = st.filter;
+    const tickets = allT.filter((t) => f === 'all' || (f === 'open' ? t.isOpen : !t.isOpen));
+    const segStyle = (on) => 'height: 34px; padding: 0 12px; border: 0; border-radius: 4px; cursor: pointer; font-size: var(--text-sm); ' + (on ? 'background: var(--color-cotton); font-weight: 600; box-shadow: 0 1px 2px rgba(29,22,20,.1);' : 'background: transparent; font-weight: 500;');
+
+    return {
+      ships: ships,
+      selValue: sel,
+      onSelect: (e) => this.setState({ sel: e.target.value, lastResult: null }),
+      none: !s, chosen: !!s,
+      b: s ? {
+        zone: s.zone, charged: s.charged, declared: s.declared, measured: s.measured, status: s.status,
+        notDelivered: s.status === 'Returned to origin',
+        hasOpen: hasOpen, openTicket: s.ticket, openStyle: s.ticketStyle,
+        canRaise: !s.ticket
+      } : {},
+      raise: () => {
+        if (!s) return;
+        const raised = Object.assign({}, st.raised);
+        if (result === 'Ticket raised') raised[s.id] = true;
+        this.setState({ raised: raised, lastResult: s.id });
+      },
+      result: {
+        show: !!showResult,
+        text: r[0], link: r[1],
+        style: 'display: flex; flex-wrap: wrap; gap: 4px; font-size: var(--text-md); ' + (r[2] ? 'color: var(--color-error);' : 'color: var(--color-ink);')
+      },
+      filters: [
+        { label: 'Open', n: nOpen, key: 'open' },
+        { label: 'Closed', n: nClosed, key: 'closed' },
+        { label: 'All', n: allT.length, key: 'all' }
+      ].map((x) => ({ label: x.label, n: x.n, pressed: f === x.key ? 'true' : 'false', style: segStyle(f === x.key), go: () => this.setState({ filter: x.key }) })),
+      tickets: tickets,
+      noTickets: tickets.length === 0,
+      emptyText: allT.length === 0 ? 'No tickets yet. Choose a shipment above and raise a dispute; it appears here with its status.' : 'No tickets in this view.'
+    };
+  }
+}
+</script>
+</body>
+</html>

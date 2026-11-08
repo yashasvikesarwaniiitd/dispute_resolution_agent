@@ -1,15 +1,16 @@
-"""Screen 2: a case's trail, step by step, with who did each step (ADR 0044).
+"""Screen 2: a case's trail, step by step, with who did each step (ADR 0044, ADR 0048).
 
 Built only from what the case recorded: its events (I8: every state change with its cause),
-each round's evidence, assessment and proposal, its approvals and its actions. Nothing is
-inferred. A step that has no record behind it is not shown.
+each round's evidence, assessment and proposal, its approvals, its action plans and actions.
+Nothing is inferred. A step that has no record behind it is not shown. How each step is said
+lives in `trail_words`; this module walks the record.
 
 Rounds line up one to one: the n-th `gather_evidence` step is evidence round n, and the
 n-th `investigate` step is the n-th proposal. Approvals pair with `apply_approval` steps in
 the order they were decided, and actions with `execute` and `verify` steps in action order.
 
 Model-written text (the rationale and findings) is carried as data. The screen shows it as
-plain text, never as markup.
+escaped plain text, "exactly as recorded", never as markup.
 """
 
 from __future__ import annotations
@@ -21,24 +22,23 @@ from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.enums import (
     ActionStatus,
-    ActionType,
     ApprovalDecision,
     CaseState,
     InboundEventType,
     InternalEventType,
 )
-from dispute_agent.kernel.policy.numbers import render_fact
-from dispute_agent.ui.labels import ACTION, EVIDENCE, FINDING, Tone, state, words
+from dispute_agent.ui import trail_words as said
+from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, words
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime
 
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
-    from dispute_agent.kernel.domain.actions import Action, Approval
-    from dispute_agent.kernel.domain.evidence import ChargeAssessment
+    from dispute_agent.kernel.domain.actions import Action, ActionPayload, Approval
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.domain.reasoning import Proposal
+    from dispute_agent.kernel.policy.config import PolicyConfig
 
 
 class Actor(StrEnum):
@@ -51,21 +51,46 @@ class Actor(StrEnum):
     SYSTEM = "System"
 
 
+class Mark(StrEnum):
+    """The step's mark on the timeline (HANDOFF 3.4)."""
+
+    DONE = "done"
+    PROPOSE = "propose"
+    PERSON = "person"
+    CREDITED = "credited"
+    CLOSED = "closed"
+    ATTENTION = "attention"
+    PENDING = "pending"
+    MINOR = "minor"
+
+
+#: The tag a step may carry, by its tone: words, never colour alone.
+TAG = {Tone.SETTLED: "Credited", Tone.ATTENTION: "Needs a person", Tone.CLOSED: "Not eligible"}
+
+
 @dataclass(frozen=True)
 class Step:
     at: datetime
     actor: Actor
     title: str
+    #: Details: ids, rule codes and facts an investigator needs, folded away.
     lines: tuple[str, ...] = ()
-    #: Model-written text, shown literally (never as markdown).
+    #: Model-written text, shown literally: the rationale first, then each finding.
     quoted: tuple[str, ...] = ()
     tone: Tone = Tone.DONE
-    #: One line a reader takes in at a glance; `lines` and `quoted` are the details.
+    #: One line a reader takes in at a glance.
     summary: str = ""
     #: The evidence round this step belongs to; 0 is before the first look.
     round: int = 0
-    #: The service's own bookkeeping, not a decision about the case: shown quietly.
+    #: The service's own bookkeeping, or the closing "Now: …" line: shown quietly, unnumbered.
     minor: bool = False
+    mark: Mark = Mark.DONE
+    #: Who proposed, in full, for a proposal's "proposed by" caption.
+    proposer: str = ""
+
+    @property
+    def tag(self) -> str:
+        return "" if self.minor else TAG.get(self.tone, "")
 
 
 #: Why a shipment was found ineligible, by the pack's reason code (eligibility.py).
@@ -74,6 +99,13 @@ INELIGIBLE = {
         "The scan history shows the shipment was not delivered. Only delivered shipments "
         "can be disputed."
     ),
+}
+#: Shipment statuses as a seller reads them (the pack's own codes).
+STATUS = {
+    "DELIVERED": "Delivered",
+    "RTO": "Returned to origin",
+    "LOST": "Lost",
+    "CANCELLED": "Cancelled",
 }
 
 
@@ -122,72 +154,15 @@ def recommendation(proposal: Proposal) -> Recommendation:
     )
 
 
-def _evidence(work: SqliteUnitOfWork, case: Case, round_no: int) -> tuple[str, tuple[str, ...]]:
-    """A one-line count with what is missing, and each item as a detail line."""
-    try:
-        bundle = work.evidence.bundle(case.id, round_no)
-    except Exception:  # NotFound and its kin: a round with no stored evidence shows nothing
-        return "", ()
-    lines, missing, failed = [], [], []
-    for item in bundle.items:
-        key = item.result.requirement_key
-        name = EVIDENCE.get(key, key)
-        status = item.result.status.value.lower()
-        lines.append(f"{name}: {status}")
-        if status == "missing":
-            missing.append(name.lower())
-        elif status == "failed":
-            failed.append(name.lower())
-    found = len(bundle.items) - len(missing) - len(failed)
-    summary = f"Found {found} of {len(bundle.items)}"
-    if missing:
-        summary += "; missing: " + ", ".join(missing)
-    if failed:
-        summary += "; could not fetch: " + ", ".join(failed)
-    return summary, tuple(lines)
-
-
-def _assessment_summary(found: ChargeAssessment | None) -> str:
-    """Charged, correct and over, in code's own figures; the definite errors it proved."""
-    if found is None:
-        return ""
-    facts = {fact.fact_id: render_fact(fact.value) for fact in found.facts}
-    parts = []
-    if "f_charged" in facts:
-        parts.append(f"Charged {facts['f_charged']}")
-    if "f_recalculated" in facts:
-        parts.append(f"correct {facts['f_recalculated']}")
-    if "f_discrepancy" in facts:
-        parts.append(f"overcharged {facts['f_discrepancy']}")
-    errors = (
-        "code proved " + ", ".join(words(e) for e in found.definite_errors)
-        if found.definite_errors
-        else "no definite error proved by code"
-    )
-    return (", ".join(parts) + ". " if parts else "") + errors.capitalize() + "."
-
-
-def _assessment(found: ChargeAssessment | None) -> tuple[str, ...]:
-    if found is None:
-        return ()
-    lines = [f"{fact.label.capitalize()}: {render_fact(fact.value)}" for fact in found.facts]
-    if found.definite_errors:
-        lines.append("Definite errors: " + ", ".join(words(e) for e in found.definite_errors))
-    else:
-        lines.append("Definite errors: none found by code")
-    return tuple(lines)
-
-
-def _outcome(to_state: CaseState | None, reason: Any) -> tuple[str, Tone]:
-    if to_state is CaseState.NEEDS_HUMAN_REVIEW and reason is not None:
-        detail = f" ({reason.detail})" if getattr(reason, "detail", None) else ""
-        return f"Policy sent it to a person: {words(reason.code.value)}{detail}", Tone.ATTENTION
+def _policy_note(to_state: CaseState | None, review: Any, message: bool) -> tuple[str, Tone]:
+    if to_state is CaseState.NEEDS_HUMAN_REVIEW and review is not None:
+        sentence, _code = handed_over(review.code, getattr(review, "detail", "") or "")
+        return f"Policy sent it to a person. {sentence}", Tone.ATTENTION
     if to_state is CaseState.AWAITING_APPROVAL:
-        return "Policy: allowed, but a person must approve first", Tone.WAITING
+        what = "the email " if message else ""
+        return f"Policy allows it, but a person must approve {what}first.", Tone.WAITING
     if to_state is CaseState.EXECUTING:
-        return "Policy: allowed without approval", Tone.DONE
-    if to_state is not None:
-        return f"Next: {state(to_state)[0]}", Tone.DONE
+        return "Policy allows it without approval.", Tone.DONE
     return "", Tone.DONE
 
 
@@ -196,45 +171,46 @@ def _decided(approvals: Sequence[Approval]) -> list[Approval]:
     return sorted(done, key=lambda a: a.decided_at)  # type: ignore[arg-type, return-value]
 
 
-def _action_line(action: Action) -> str:
-    what = {
-        ActionType.SEND_MESSAGE: "Sent an email",
-        ActionType.UPSERT_ISSUE: "Opened a ticket for the hub",
-        ActionType.POST_CREDIT: "Posted a credit to the ledger",
-    }[action.action_type]
-    ref = f" ({action.external_ref})" if action.external_ref else ""
-    return f"{what}{ref}"
+def build(
+    work: SqliteUnitOfWork,
+    case: Case,
+    *,
+    usage: tuple[int, Decimal] | None = None,
+    policy: PolicyConfig | None = None,
+) -> Trail:
+    from dispute_agent.ui.labels import state
 
-
-def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | None = None) -> Trail:
     label, tone = state(case.state)
-    trail = Trail(
-        case_id=str(case.id),
-        shipment_ref=case.facts.shipment_ref,
-        label=label,
-        tone=tone,
-        is_open=case.closed_at is None,
-    )
+    trail = Trail(str(case.id), case.facts.shipment_ref, label, tone, case.closed_at is None)
     if usage is not None:
         trail.ai_calls, trail.ai_cost = usage
     proposals = list(work.proposals.for_case(case.id))
     assessments = work.assessments.for_case(case.id)
-    approvals = _decided(work.approvals.for_case(case.id))
+    every = list(work.approvals.for_case(case.id))
+    approvals = _decided(every)
     actions = sorted(work.actions.for_case(case.id), key=lambda a: a.action_seq)
+    plans: dict[str, ActionPayload] = {}
+    for taken in actions:
+        try:
+            plans[str(taken.id)] = work.intents.get(taken.intent_id).payload
+        except Exception:  # a plan that cannot be read: the step says less, never guesses
+            continue
+    asked_hub = any(type(p).__name__ == "IssuePayload" for p in plans.values())
     rounds = investigations = decisions = executions = verifications = 0
-    #: What the next round will be "after"; set by the input that starts it.
     after = "Looked again"
 
     def add(step: Step) -> None:
         trail.steps.append(replace(step, round=rounds))
 
+    def plan(action: Action | None) -> ActionPayload | None:
+        return plans.get(str(action.id)) if action is not None else None
+
     for event in work.events.list_for_case(case.id):
-        at, kind, cause = event.occurred_at, event.type, event.cause
-        payload = event.payload
+        at, kind, cause, payload = event.occurred_at, event.type, event.cause, event.payload
         if kind == InboundEventType.DISPUTE_RAISED:
             add(Step(at, Actor.SELLER, f"Dispute raised on {case.facts.shipment_ref}"))
         elif kind == InboundEventType.SELLER_REPLY_RECEIVED:
-            add(Step(at, Actor.SELLER, "The seller replied", tone=Tone.DONE))
+            add(Step(at, Actor.SELLER, "The seller replied"))
             after = "After the seller replied"
         elif kind == InboundEventType.OPS_FINDING_RECEIVED:
             add(Step(at, Actor.HUB, "The hub sent its finding"))
@@ -242,82 +218,53 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
         elif kind == InboundEventType.TIMER_FIRED:
             add(Step(at, Actor.SYSTEM, "A deadline passed", tone=Tone.WAITING))
             after = "After a deadline passed"
-        elif kind in (
-            InboundEventType.HUMAN_TOOK_CASE,
-            InboundEventType.HUMAN_RETURNED_CASE,
-            InboundEventType.HUMAN_REOPENED_CASE,
-            InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL,
-        ):
-            add(Step(at, Actor.PERSON, PERSON_STEP.get(kind, words(kind.value).capitalize())))
+        elif kind in PERSON_STEP:
+            add(Step(at, Actor.PERSON, PERSON_STEP[kind]))
             if kind == InboundEventType.HUMAN_RETURNED_CASE:
                 after = "After a person returned it"
         elif kind == InternalEventType.CASE_OUTCOME_RECORDED:
-            add(Step(at, Actor.SYSTEM, "Outcome recorded for pattern detection", minor=True))
+            add(
+                Step(
+                    at,
+                    Actor.SYSTEM,
+                    "Outcome recorded for pattern detection",
+                    minor=True,
+                    mark=Mark.MINOR,
+                )
+            )
         elif kind == InternalEventType.STATE_CHANGED and cause.kind.value == "STEP":
             to_state = getattr(payload, "to_state", None)
-            reason = getattr(payload, "review_reason", None)
+            review = getattr(payload, "review_reason", None)
             step = cause.ref
             if step == "eligibility":
-                if to_state is CaseState.REJECTED_INELIGIBLE:
-                    add(
-                        Step(
-                            at,
-                            Actor.CODE,
-                            "Checked eligibility: not eligible",
-                            tone=Tone.CLOSED,
-                            summary="The shipment's status shows it was not delivered. Only "
-                            "delivered shipments can be disputed, so the case closed.",
-                        )
-                    )
-                elif to_state is CaseState.NEEDS_HUMAN_REVIEW:
-                    note, t = _outcome(to_state, reason)
-                    add(
-                        Step(
-                            at,
-                            Actor.CODE,
-                            "Checked eligibility: unsure",
-                            (note,),
-                            tone=t,
-                            summary="The shipment's status could not be read, so a person decides.",
-                        )
-                    )
-                else:
-                    add(
-                        Step(
-                            at,
-                            Actor.CODE,
-                            "Checked eligibility: eligible",
-                            summary="Its status says delivered. The evidence is checked next "
-                            "and can still prove otherwise.",
-                        )
-                    )
+                add(_eligibility(at, case, to_state, review))
             elif step == "gather_evidence":
                 rounds += 1
                 trail.round_titles[rounds] = "First look" if rounds == 1 else after
-                summary, lines = _evidence(work, case, rounds)
+                try:
+                    bundle = work.evidence.bundle(case.id, rounds)
+                    summary, lines = said.evidence(bundle, asked_later=asked_hub or rounds > 1)
+                except Exception:  # a round with no stored evidence says nothing about it
+                    summary, lines = "", ()
                 add(Step(at, Actor.CODE, "Gathered the evidence", lines, summary=summary))
             elif step == "assess":
                 found = next((a for a in assessments if a.gather_round == rounds), None)
-                add(
-                    Step(
-                        at,
-                        Actor.CODE,
-                        "Recalculated the charge",
-                        _assessment(found),
-                        summary=_assessment_summary(found),
-                    )
-                )
-                if to_state is CaseState.REJECTED_INELIGIBLE:
-                    # T05: the evidence proved what intake could not see. Said as its own
-                    # step, or the trail reads "eligible" and then simply stops.
+                closed = to_state is CaseState.REJECTED_INELIGIBLE
+                summary, lines = said.recalculation(found, closed_ineligible=closed)
+                add(Step(at, Actor.CODE, "Recalculated the charge", lines, summary=summary))
+                if closed:  # T05: the evidence proved what intake could not see
                     codes = found.reason_codes if found else ()
                     add(
                         Step(
                             at,
                             Actor.CODE,
                             "Closed: not eligible",
-                            tuple(f"Reason code: {c}" for c in codes),
+                            (
+                                "Rule T05: the scan history overrides the delivered status",
+                                *tuple(f"Reason code: {c}" for c in codes),
+                            ),
                             tone=Tone.CLOSED,
+                            mark=Mark.CLOSED,
                             summary=" ".join(
                                 INELIGIBLE.get(c, words(c).capitalize()) for c in codes
                             )
@@ -327,97 +274,143 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
             elif step == "investigate":
                 proposal = proposals[investigations] if investigations < len(proposals) else None
                 investigations += 1
-                note, t = _outcome(to_state, reason)
-                if proposal is None:
-                    add(
-                        Step(
-                            at,
-                            Actor.SYSTEM,
-                            "Investigation ended without a proposal",
-                            (note,),
-                            tone=t,
-                        )
-                    )
-                    continue
-                rec = recommendation(proposal)
-                proposer = Actor.AI if proposal.reasoner == "llm" else Actor.RULES
-                said = (f"Confidence: {rec.confidence}", f"By: {rec.by}")
-                quoted = (
-                    rec.rationale,
-                    *tuple(f"{kind_}: {text}" for kind_, text, _refs in rec.findings),
-                )
-                add(
-                    Step(
-                        at,
-                        proposer,
-                        f"Proposed: {rec.action}",
-                        said,
-                        quoted,
-                        tone=t,
-                        summary=f"{rec.confidence.capitalize()} confidence. {note}".strip(),
-                    )
-                )
+                add(_proposed(at, proposal, to_state, review))
             elif step == "apply_approval":
                 approval = approvals[decisions] if decisions < len(approvals) else None
                 decisions += 1
-                if approval is None:
-                    continue
-                approver = (
-                    approval.decided_by.id.removeprefix("human:") if approval.decided_by else ""
-                )
-                what = approval.request.subject.value.lower()
-                amount = (
-                    f" of {render_fact(approval.request.amount)}" if approval.request.amount else ""
-                )
-                noted: tuple[str, ...] = ()
-                add(
-                    Step(
-                        at,
-                        Actor.PERSON,
-                        f"{approver or 'A person'} {approval.decision.value.lower()} "
-                        f"the {what}{amount}",
-                        noted,
-                        tone=Tone.DONE,
-                        summary=f"Note: {approval.note}" if approval.note else "",
-                    )
-                )
+                if approval is not None:
+                    add(_approval(at, approval))
             elif step == "execute":
                 action = actions[executions] if executions < len(actions) else None
                 executions += 1
                 if action is not None:
-                    add(Step(at, Actor.CODE, _action_line(action)))
+                    title, summary, lines = said.executed(action, plan(action))
+                    add(Step(at, Actor.CODE, title, lines, summary=summary))
             elif step == "verify":
                 action = actions[verifications] if verifications < len(actions) else None
                 verifications += 1
-                if action is None:
-                    continue
-                if action.status is ActionStatus.VERIFIED:
-                    settled = to_state is CaseState.RESOLVED_CREDITED
-                    add(
-                        Step(
-                            at,
-                            Actor.CODE,
-                            "Proved it happened by reading it back",
-                            (),
-                            tone=Tone.SETTLED if settled else Tone.DONE,
-                            summary=f"Next: {state(to_state)[0]}" if to_state else "",
-                        )
-                    )
-                else:
-                    note, t = _outcome(to_state, reason)
-                    add(
-                        Step(
-                            at,
-                            Actor.CODE,
-                            "Could not prove it happened",
-                            (note,),
-                            tone=Tone.ATTENTION,
-                        )
-                    )
+                if action is not None:
+                    add(_verified(at, action, plan(action), to_state, review))
             elif to_state is CaseState.NEEDS_HUMAN_REVIEW:
-                note, t = _outcome(to_state, reason)
-                add(Step(at, Actor.SYSTEM, "Handed to a person", (note,), tone=t))
+                note, _t = _policy_note(to_state, review, message=False)
+                add(
+                    Step(
+                        at, Actor.SYSTEM, "Handed to a person", (note,), minor=True, mark=Mark.MINOR
+                    )
+                )
+    if trail.is_open and trail.steps:
+        pending = next((a for a in every if a.decision is ApprovalDecision.PENDING), None)
+        line = said.waiting(case.state, pending, policy)
+        add(Step(trail.steps[-1].at, Actor.SYSTEM, line, minor=True, mark=Mark.PENDING))
     return trail
+
+
+def _eligibility(at: datetime, case: Case, to_state: CaseState | None, review: Any) -> Step:
+    if to_state is CaseState.REJECTED_INELIGIBLE:
+        status = str(case.facts.pack_facts.get("shipment_status", ""))
+        shown = (
+            f'Its status is "{STATUS.get(status, status)}", not delivered.'
+            if status
+            else ("The shipment's status shows it was not delivered.")
+        )
+        return Step(
+            at,
+            Actor.CODE,
+            "Checked eligibility: not eligible",
+            ("Rule T02: checked at intake",),
+            tone=Tone.CLOSED,
+            mark=Mark.CLOSED,
+            summary=f"{shown} Only delivered shipments can be disputed, so the case closed.",
+        )
+    if to_state is CaseState.NEEDS_HUMAN_REVIEW:
+        note, tone = _policy_note(to_state, review, message=False)
+        return Step(
+            at,
+            Actor.CODE,
+            "Checked eligibility: unsure",
+            (note,),
+            tone=tone,
+            mark=Mark.PERSON,
+            summary="The shipment's status could not be read, so a person decides.",
+        )
+    return Step(
+        at,
+        Actor.CODE,
+        "Checked eligibility: eligible",
+        summary="Its status says delivered. The evidence is checked next and can still prove otherwise.",
+    )
+
+
+def _proposed(
+    at: datetime, proposal: Proposal | None, to_state: CaseState | None, review: Any
+) -> Step:
+    message = proposal is not None and proposal.action.value in (
+        "request_seller_evidence",
+        "uphold_charge",
+    )
+    note, tone = _policy_note(to_state, review, message=message)
+    if proposal is None:
+        return Step(at, Actor.SYSTEM, "Investigation ended without a proposal", (note,), tone=tone)
+    rec = recommendation(proposal)
+    code = rec.rationale.partition(":")[0].strip()
+    lines = ((f"Rule {code}",) if code[:1] == "B" and code[1:].isdigit() else ()) + tuple(
+        f"{kind}: cites {', '.join(refs)}" for kind, _text, refs in rec.findings if refs
+    )
+    return Step(
+        at,
+        Actor.AI if proposal.reasoner == "llm" else Actor.RULES,
+        f"Proposed: {rec.action}",
+        lines,
+        (rec.rationale, *tuple(f"{kind}: {text}" for kind, text, _refs in rec.findings)),
+        tone=tone,
+        mark=Mark.PERSON if tone is Tone.ATTENTION else Mark.PROPOSE,
+        summary=f"{rec.confidence.capitalize()} confidence. {note}".strip(),
+        proposer=rec.by,
+    )
+
+
+def _approval(at: datetime, approval: Approval) -> Step:
+    approver = approval.decided_by.id.removeprefix("human:") if approval.decided_by else ""
+    return Step(
+        at,
+        Actor.PERSON,
+        said.approved(approval, approver),
+        (
+            f"Approver: {approver} (listed in config/policy.yaml)",
+            "Bound to the exact text or amount shown on the Review screen",
+        ),
+        summary=f"Note: {approval.note}" if approval.note else "",
+    )
+
+
+def _verified(
+    at: datetime,
+    action: Action,
+    payload: ActionPayload | None,
+    to_state: CaseState | None,
+    review: Any,
+) -> Step:
+    if action.status is ActionStatus.VERIFIED:
+        settled = to_state is CaseState.RESOLVED_CREDITED
+        return Step(
+            at,
+            Actor.CODE,
+            "Proved it happened by reading it back",
+            tone=Tone.SETTLED if settled else Tone.DONE,
+            mark=Mark.CREDITED if settled else Mark.DONE,
+            summary=said.proved(payload, to_state),
+        )
+    note, _tone = _policy_note(to_state, review, message=False)
+    # Never shown as success: no coral, no check (safety rule 6).
+    return Step(
+        at,
+        Actor.CODE,
+        "Could not prove it happened",
+        (note,) if note else (),
+        tone=Tone.ATTENTION,
+        mark=Mark.ATTENTION,
+        summary="The read-back did not find it, so a person checks.",
+    )
 
 
 PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
@@ -428,4 +421,15 @@ PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
 }
 
 
-__all__ = ["INELIGIBLE", "Actor", "Recommendation", "Step", "Trail", "build", "recommendation"]
+__all__ = [
+    "INELIGIBLE",
+    "STATUS",
+    "TAG",
+    "Actor",
+    "Mark",
+    "Recommendation",
+    "Step",
+    "Trail",
+    "build",
+    "recommendation",
+]

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: review</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,dl,dd,ul,ol,figure{margin:0}
+ul,ol{padding:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+.tab{transition:background-color .15s ease}
+.tab:hover{background:var(--color-paper-2)}
+.btn-primary{transition:background-color .15s ease}
+.btn-primary:hover:not([disabled]){background:var(--color-ink-2)!important}
+.btn-primary:active:not([disabled]){transform:translateY(1px)}
+.btn-secondary{transition:background-color .15s ease}
+.btn-secondary:hover:not([disabled]){background:var(--color-paper-2)!important}
+button[disabled]{cursor:not-allowed;opacity:.55}
+.qtab:hover{color:var(--color-ink)!important}
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-paper)">
+<header style="background: var(--color-cotton); border-bottom: 1px solid var(--color-rule)">
+<div style="max-width: 76rem; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 12px 40px; flex-wrap: wrap">
+<a href="RaiseTicket.dc.html" style="font-weight: 700; font-size: var(--text-lg); text-decoration: none; color: var(--color-ink)">Dispute desk</a>
+<nav aria-label="Main" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a class="tab" href="RaiseTicket.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6"></path></svg>Raise a ticket</a>
+<a class="tab" href="AgentSteps.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>Agent steps</a>
+<a class="tab" href="Review.dc.html" aria-current="page" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-ink); background: var(--color-paper-3); font-size: var(--text-sm); font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"></path></svg>Review</a>
+<a class="tab" href="Ledger.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"></path></svg>Ledger</a>
+</nav>
+<sc-if value="{{ signedIn }}" hint-placeholder-val="{{ true }}">
+<p style="margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--color-muted)"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-board)"></span>Reviewing as <strong style="color: var(--color-ink)">owner</strong></p>
+</sc-if>
+</div>
+</header>
+
+<main style="max-width: 76rem; margin: 0 auto; padding: 32px 24px 96px; display: flex; flex-direction: column; gap: 20px">
+<h1 style="font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em">Review</h1>
+
+<sc-if value="{{ signedOut }}" hint-placeholder-val="{{ false }}">
+<section aria-label="Sign in" style="max-width: 32rem; background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px; display: flex; flex-direction: column; gap: 18px">
+<p style="color: var(--color-ink-2)">{{ signInIntro }}</p>
+<sc-if value="{{ isLocal }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="tok" style="font-weight: 600; font-size: var(--text-sm)">Review console token</label>
+<input id="tok" type="password" aria-describedby="tok-msg" style="{{ tokenStyle }}">
+<sc-if value="{{ tokenError }}" hint-placeholder-val="{{ false }}"><p id="tok-msg" role="alert" style="font-size: var(--text-sm); color: var(--color-error)">The review console token is not correct.</p></sc-if>
+</div>
+</sc-if>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="as" style="font-weight: 600; font-size: var(--text-sm)">Review as</label>
+<select id="as" style="height: var(--control-h); padding: 0 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton)">
+<option>owner</option>
+</select>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Only approvers listed in the policy appear here. The agent ignores decisions by anyone else.</p>
+</div>
+<button class="btn-primary" type="button" onClick="{{ signIn }}" style="align-self: flex-start; height: var(--control-h); padding: 0 20px; border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; cursor: pointer">{{ signInLabel }}</button>
+</section>
+</sc-if>
+
+<sc-if value="{{ signedIn }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Signed in as owner. Your name is recorded against each decision, bound to the exact amount or text shown. <button type="button" onClick="{{ signOut }}" style="border: 0; background: none; padding: 0; color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; font-size: var(--text-sm)">Switch approver</button></p>
+<p style="font-size: var(--text-lg); font-weight: 600">{{ countLine }}</p>
+</div>
+
+<div role="tablist" aria-label="Queues" style="display: flex; gap: 24px; border-bottom: 1px solid var(--color-rule)">
+<button class="qtab" type="button" role="tab" aria-selected="{{ tabA.sel }}" onClick="{{ tabA.go }}" style="{{ tabA.style }}">Awaiting your approval <span style="font-family: var(--font-figure)">({{ tabA.n }})</span></button>
+<button class="qtab" type="button" role="tab" aria-selected="{{ tabP.sel }}" onClick="{{ tabP.go }}" style="{{ tabP.style }}">With a person <span style="font-family: var(--font-figure)">({{ tabP.n }})</span></button>
+</div>
+
+<sc-if value="{{ showA }}" hint-placeholder-val="{{ true }}">
+<div role="tabpanel" style="display: flex; flex-direction: column; gap: 24px">
+
+<sc-if value="{{ cr.open }}" hint-placeholder-val="{{ true }}">
+<article aria-labelledby="cr-h" style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow: hidden">
+<header style="padding: 20px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border-bottom: 1px solid var(--color-rule)">
+<h2 id="cr-h" style="font-size: var(--text-lg); font-weight: 700">Credit</h2>
+<span style="font-family: var(--font-figure); font-size: var(--text-md); font-weight: 600">SHP-000009</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px dashed var(--color-ink-2); color: var(--color-ink-2); font-weight: 500">Awaiting approval</span>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">requested 7 Nov 2026, 12:37 UTC · expires after 72 h</span>
+<a href="AgentSteps.dc.html" style="margin-left: auto; font-size: var(--text-sm); display: inline-flex; align-items: center; gap: 6px; min-height: 40px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>See every step of this case</a>
+</header>
+<div style="display: flex; flex-wrap: wrap">
+<section aria-label="What the agent recommends" style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">What the agent recommends</h3>
+<div>
+<p style="font-size: var(--text-lg)"><strong>Credit the seller</strong>, high confidence</p>
+<p style="font-size: var(--text-sm); color: var(--color-muted); display: flex; align-items: center; gap: 6px; margin-top: 4px"><span aria-hidden="true" style="width: 7px; height: 7px; border: 1.5px solid var(--color-ink); transform: rotate(45deg)"></span>Proposed by the Rules engine (the AI was off or not needed)</p>
+</div>
+<figure style="display: flex; flex-direction: column; gap: 6px">
+<figcaption style="font-size: var(--text-sm); color: var(--color-muted)">Reasoning, exactly as recorded:</figcaption>
+<blockquote style="margin: 0; padding: 12px 14px; background: var(--color-paper-2); border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); white-space: pre-wrap">B3: one definite error proved by code: duplicate_charge</blockquote>
+</figure>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Findings, as recorded:</p>
+<ul style="list-style: none; display: flex; flex-direction: column; gap: 8px">
+<li style="display: flex; gap: 10px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 4px"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span>Verified fact: code proved one definite error, a duplicate charge.</span></li>
+</ul>
+<details>
+<summary style="display: inline-flex; min-height: 32px; align-items: center; font-size: var(--text-sm); color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px">Codes behind the findings</summary>
+<p style="font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-ink-2); padding: 6px 0; overflow-wrap: anywhere">B3 · cites f_chargeable_grams, f_recalculated, f_charged, f_discrepancy</p>
+</details>
+</div>
+</section>
+<section aria-label="If you approve" style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; background: var(--color-paper-2); display: flex; flex-direction: column; gap: 14px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">If you approve</h3>
+<p style="font-size: var(--text-lg); line-height: 1.4">A credit of <strong style="font-family: var(--font-figure); font-size: var(--text-xl)">₹152.00</strong> is posted to the ledger for duplicate charge.</p>
+<p style="font-size: var(--text-sm); color: var(--color-ink-2); max-width: 60ch">Code set the amount: the second debit of the same weight charge, less anything already credited on this shipment. The rules engine chose to propose a credit; it did not choose the amount.</p>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h4 style="font-size: var(--text-sm); font-weight: 600">Code's figures behind it</h4>
+<dl style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; font-size: var(--text-sm); max-width: 26rem">
+<dt style="font-weight: 600">Duplicate debit</dt><dd style="font-family: var(--font-figure); text-align: right; font-weight: 600">₹152.00</dd>
+<dt style="color: var(--color-ink-2)">Already credited on this shipment</dt><dd style="font-family: var(--font-figure); text-align: right">₹0.00</dd>
+<dt style="grid-column: 1 / -1; border-top: 1px solid var(--color-rule-2); padding-top: 8px; margin-top: 2px; color: var(--color-muted)">The weight charge itself was correct:</dt>
+<dt style="color: var(--color-ink-2)">Chargeable weight</dt><dd style="font-family: var(--font-figure); text-align: right">1,980 g</dd>
+<dt style="color: var(--color-ink-2)">Recalculated charge</dt><dd style="font-family: var(--font-figure); text-align: right">₹152.00</dd>
+<dt style="color: var(--color-ink-2)">Amount charged</dt><dd style="font-family: var(--font-figure); text-align: right">₹152.00</dd>
+<dt style="color: var(--color-ink-2)">Overcharge on the weight</dt><dd style="font-family: var(--font-figure); text-align: right">₹0.00</dd>
+</dl>
+</div>
+</section>
+</div>
+<footer style="padding: 20px 28px 24px; border-top: 1px solid var(--color-rule); display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{ cr.integrity }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-control); border: 1.5px solid var(--color-error); color: var(--color-error); background: var(--color-cotton)">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>
+<p><strong>The stored text has changed since approval was requested.</strong> It cannot be approved. Report this.</p>
+</div>
+</sc-if>
+<sc-if value="{{ cr.buttons }}" hint-placeholder-val="{{ true }}">
+<label for="cr-note" style="font-size: var(--text-sm); font-weight: 600">Note, or your reason for rejecting</label>
+<textarea id="cr-note" rows="2" value="{{ cr.note }}" onChange="{{ cr.onNote }}" aria-describedby="cr-help" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); resize: vertical"></textarea>
+<p id="cr-help" style="{{ cr.helpStyle }}">{{ cr.help }}</p>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+<button class="btn-primary" type="button" onClick="{{ cr.approve }}" style="height: var(--control-h); padding: 0 20px; border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; cursor: pointer">Approve the ₹152.00 credit</button>
+<button class="btn-secondary" type="button" disabled="{{ cr.rejectOff }}" onClick="{{ cr.reject }}" style="height: var(--control-h); padding: 0 18px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-weight: 500; cursor: pointer">Reject</button>
+</div>
+</sc-if>
+</footer>
+</article>
+</sc-if>
+<sc-if value="{{ cr.doneLine }}" hint-placeholder-val="{{ false }}">
+<p role="status" style="padding: 14px 18px; border-radius: var(--radius-control); border: 1px solid var(--color-rule-2); color: var(--color-ink-2); font-size: var(--text-sm)">{{ cr.doneLine }}</p>
+</sc-if>
+
+<sc-if value="{{ em.open }}" hint-placeholder-val="{{ true }}">
+<article aria-labelledby="em-h" style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow: hidden">
+<header style="padding: 20px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border-bottom: 1px solid var(--color-rule)">
+<h2 id="em-h" style="font-size: var(--text-lg); font-weight: 700">Message: evidence request</h2>
+<span style="font-family: var(--font-figure); font-size: var(--text-md); font-weight: 600">SHP-000005</span>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1px dashed var(--color-ink-2); color: var(--color-ink-2); font-weight: 500">Awaiting approval</span>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">requested 7 Nov 2026, 13:30 UTC · expires after 72 h</span>
+<a href="AgentSteps.dc.html" style="margin-left: auto; font-size: var(--text-sm); display: inline-flex; align-items: center; gap: 6px; min-height: 40px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>See every step of this case</a>
+</header>
+<div style="display: flex; flex-wrap: wrap">
+<section aria-label="What the agent recommends" style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">What the agent recommends</h3>
+<div>
+<p style="font-size: var(--text-lg)"><strong>Ask the seller for evidence</strong>, high confidence</p>
+<p style="font-size: var(--text-sm); color: var(--color-muted); display: flex; align-items: center; gap: 6px; margin-top: 4px"><span aria-hidden="true" style="width: 7px; height: 7px; border: 1.5px solid var(--color-ink); transform: rotate(45deg)"></span>Proposed by the Rules engine (the AI was off or not needed)</p>
+</div>
+<figure style="display: flex; flex-direction: column; gap: 6px">
+<figcaption style="font-size: var(--text-sm); color: var(--color-muted)">Reasoning, exactly as recorded:</figcaption>
+<blockquote style="margin: 0; padding: 12px 14px; background: var(--color-paper-2); border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); white-space: pre-wrap">B7: measured size exceeds declared by more than 5%</blockquote>
+</figure>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Findings, as recorded:</p>
+<ul style="list-style: none; display: flex; flex-direction: column; gap: 8px">
+<li style="display: flex; gap: 10px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 4px"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span>Verified fact: the hub’s measured size is more than 5% larger than the size the seller declared.</span></li>
+</ul>
+<details>
+<summary style="display: inline-flex; min-height: 32px; align-items: center; font-size: var(--text-sm); color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px">Codes behind the findings</summary>
+<p style="font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-ink-2); padding: 6px 0; overflow-wrap: anywhere">B7 · cites evi_01M6XNTS96FG7GE29TYR9QHPFP, evi_01M6XNTS96FG7GE29TYR9QHPFQ</p>
+</details>
+</div>
+</section>
+<section aria-label="If you approve" style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; background: var(--color-paper-2); display: flex; flex-direction: column; gap: 14px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">If you approve, this exact email is sent</h3>
+<dl style="display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px 12px; font-size: var(--text-sm)">
+<dt style="color: var(--color-muted)">To</dt><dd style="font-family: var(--font-figure)">seller+1@example.invalid <span style="font-family: var(--font-body); color: var(--color-muted)">(the test seller address)</span></dd>
+<dt style="color: var(--color-muted)">Subject</dt><dd style="font-weight: 600">The weight charge on your shipment SHP-000005</dd>
+</dl>
+<div style="background: var(--color-cotton); border: 1px solid var(--color-rule); border-radius: var(--radius-control); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; font-size: var(--text-md); color: var(--color-ink); max-width: 64ch">
+<p>Hello,</p>
+<p>You disputed the charge on shipment SHP-000005.</p>
+<p>We charge on the greater of a parcel’s actual weight and its size-based weight. Our hub recorded a size-based weight of <span style="font-family: var(--font-figure); background: var(--color-paper-3); border-radius: 3px; padding: 0 4px">2,244 g</span><sup style="font-family: var(--font-figure); color: var(--color-muted)">1</sup> for this parcel, and the charge of <span style="font-family: var(--font-figure); background: var(--color-paper-3); border-radius: 3px; padding: 0 4px">₹190.00</span><sup style="font-family: var(--font-figure); color: var(--color-muted)">2</sup> was calculated from it.</p>
+<p style="white-space: pre-line">Before we decide, please send:
+- Photo of the packed box beside a tape measure
+- Packaging dimensions at dispatch</p>
+<p>Reply to this email with the photos attached. We will decide as soon as your reply arrives.</p>
+<p style="white-space: pre-line">Thank you,
+Seller Support</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h4 style="font-size: var(--text-sm); font-weight: 600">Every number in it, and where it came from</h4>
+<ol style="list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm)">
+<li style="display: grid; grid-template-columns: 20px 80px minmax(0, 1fr); gap: 8px"><span style="font-family: var(--font-figure); color: var(--color-muted)">1</span><span style="font-family: var(--font-figure); font-weight: 600">2,244 g</span><span>Chargeable weight in grams, from the hub’s measurement, worked out by code</span></li>
+<li style="display: grid; grid-template-columns: 20px 80px minmax(0, 1fr); gap: 8px"><span style="font-family: var(--font-figure); color: var(--color-muted)">2</span><span style="font-family: var(--font-figure); font-weight: 600">₹190.00</span><span>Amount charged, from the billing entries</span></li>
+</ol>
+</div>
+</section>
+</div>
+<footer style="padding: 20px 28px 24px; border-top: 1px solid var(--color-rule); display: flex; flex-direction: column; gap: 10px">
+<sc-if value="{{ em.integrity }}" hint-placeholder-val="{{ false }}">
+<div role="alert" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-control); border: 1.5px solid var(--color-error); color: var(--color-error); background: var(--color-cotton)">
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.01"></path></svg>
+<p><strong>The stored text has changed since approval was requested.</strong> It cannot be approved. Report this.</p>
+</div>
+</sc-if>
+<sc-if value="{{ em.buttons }}" hint-placeholder-val="{{ true }}">
+<label for="em-note" style="font-size: var(--text-sm); font-weight: 600">Note, or your reason for rejecting</label>
+<textarea id="em-note" rows="2" value="{{ em.note }}" onChange="{{ em.onNote }}" aria-describedby="em-help" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); resize: vertical"></textarea>
+<p id="em-help" style="{{ em.helpStyle }}">{{ em.help }}</p>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+<button class="btn-primary" type="button" onClick="{{ em.approve }}" style="height: var(--control-h); padding: 0 20px; border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; cursor: pointer">Approve and send this email</button>
+<button class="btn-secondary" type="button" disabled="{{ em.rejectOff }}" onClick="{{ em.reject }}" style="height: var(--control-h); padding: 0 18px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-weight: 500; cursor: pointer">Reject</button>
+</div>
+</sc-if>
+</footer>
+</article>
+</sc-if>
+<sc-if value="{{ em.doneLine }}" hint-placeholder-val="{{ false }}">
+<p role="status" style="padding: 14px 18px; border-radius: var(--radius-control); border: 1px solid var(--color-rule-2); color: var(--color-ink-2); font-size: var(--text-sm)">{{ em.doneLine }}</p>
+</sc-if>
+<sc-if value="{{ aEmpty }}" hint-placeholder-val="{{ false }}">
+<p style="padding: 40px 0; text-align: center; color: var(--color-muted)">Nothing is waiting. Every credit and message has been decided.</p>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ showP }}" hint-placeholder-val="{{ false }}">
+<div role="tabpanel" style="display: flex; flex-direction: column; gap: 24px">
+<sc-for list="{{ people }}" as="p" hint-placeholder-count="2">
+<div>
+<sc-if value="{{ p.open }}" hint-placeholder-val="{{ true }}">
+<article style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow: hidden">
+<header style="padding: 20px 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; border-bottom: 1px solid var(--color-rule)">
+<h2 style="font-size: var(--text-lg); font-weight: 700">Shipment <span style="font-family: var(--font-figure)">{{ p.id }}</span></h2>
+<span style="display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); border: 1.5px solid var(--color-ink); font-weight: 700">With a person</span>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">since 7 Nov 2026, {{ p.since }} UTC</span>
+<a href="AgentSteps.dc.html" style="margin-left: auto; font-size: var(--text-sm); display: inline-flex; align-items: center; gap: 6px; min-height: 40px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>See every step of this case</a>
+</header>
+<div style="display: flex; flex-wrap: wrap">
+<section style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 12px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Why it is with a person</h3>
+<p style="font-size: var(--text-lg); font-weight: 600">{{ p.reason }}</p>
+<p style="color: var(--color-ink-2); max-width: 60ch">{{ p.plain }}</p>
+<figure style="display: flex; flex-direction: column; gap: 6px">
+<figcaption style="font-size: var(--text-sm); color: var(--color-muted)">The detail, exactly as recorded:</figcaption>
+<blockquote style="margin: 0; padding: 12px 14px; background: var(--color-paper-2); border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); white-space: pre-wrap; overflow-wrap: anywhere">{{ p.detail }}</blockquote>
+</figure>
+</section>
+<section style="flex: 1 1 400px; min-width: 0; padding: 24px 28px; background: var(--color-paper-2); display: flex; flex-direction: column; gap: 12px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted)">Last proposal</h3>
+<p><strong>Hand to a person</strong>, by the Rules engine (the AI was off or not needed)</p>
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-muted); margin-top: 8px">What each choice does</h3>
+<dl style="display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 12px; font-size: var(--text-sm)">
+<dt style="font-weight: 600">Take over</dt><dd style="color: var(--color-ink-2)">You handle it from here. The agent stops.</dd>
+<dt style="font-weight: 600">Return to the agent</dt><dd style="color: var(--color-ink-2)">The agent starts a new round from fresh evidence. Needs a note.</dd>
+</dl>
+</section>
+</div>
+<footer style="padding: 20px 28px 24px; border-top: 1px solid var(--color-rule); display: flex; flex-direction: column; gap: 10px">
+<label for="{{ p.noteId }}" style="font-size: var(--text-sm); font-weight: 600">Your note (needed to return it to the agent)</label>
+<textarea id="{{ p.noteId }}" rows="2" value="{{ p.note }}" onChange="{{ p.onNote }}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); resize: vertical"></textarea>
+<label style="display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: var(--text-sm); cursor: pointer"><input type="checkbox" checked="{{ p.tell }}" onChange="{{ p.onTell }}" style="width: 18px; height: 18px; accent-color: var(--color-board)">When taking over, tell the seller a person is handling it (the email goes through review first)</label>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+<button class="btn-primary" type="button" onClick="{{ p.takeOver }}" style="height: var(--control-h); padding: 0 20px; border: 0; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600; cursor: pointer">Take over</button>
+<button class="btn-secondary" type="button" disabled="{{ p.returnOff }}" onClick="{{ p.giveBack }}" style="height: var(--control-h); padding: 0 18px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-weight: 500; cursor: pointer">Return to the agent</button>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">{{ p.returnHelp }}</span>
+</div>
+</footer>
+</article>
+</sc-if>
+<sc-if value="{{ p.doneLine }}" hint-placeholder-val="{{ false }}">
+<p role="status" style="padding: 14px 18px; border-radius: var(--radius-control); border: 1px solid var(--color-rule-2); color: var(--color-ink-2); font-size: var(--text-sm)">{{ p.doneLine }}</p>
+</sc-if>
+</div>
+</sc-for>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Confirm withdrawal appears on a card only when the seller has written that they withdraw. Neither case here has.</p>
+</div>
+</sc-if>
+</sc-if>
+</main>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+<div role="status" aria-live="polite" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-size: var(--text-sm); box-shadow: 0 10px 30px -10px rgba(29,22,20,.45); max-width: calc(100% - 32px)">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+<span>{{ toast }}</span>
+<button type="button" onClick="{{ closeToast }}" aria-label="Dismiss" style="border: 0; background: none; color: var(--color-board-type); cursor: pointer; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startSignedIn":{"editor":"boolean","default":true},"run":{"editor":"enum","options":["Hosted","Local"],"default":"Hosted"},"tokenError":{"editor":"boolean","default":false},"integrity":{"editor":"enum","options":["None","Credit card","Email card"],"default":"None"},"startTab":{"editor":"enum","options":["Awaiting your approval","With a person"],"default":"Awaiting your approval"},"$preview":{"width":1440,"height":2700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { signed: null, tab: null, cr: { note: '', dec: null }, em: { note: '', dec: null }, p1: { note: '', tell: false, dec: null }, p2: { note: '', tell: false, dec: null }, toast: '' };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const signed = st.signed ?? (this.props.startSignedIn ?? true);
+    const local = (this.props.run ?? 'Hosted') === 'Local';
+    const integ = this.props.integrity ?? 'None';
+    const tab = st.tab ?? ((this.props.startTab ?? 'Awaiting your approval') === 'With a person' ? 'p' : 'a');
+    const set = (k, v) => this.setState({ [k]: Object.assign({}, st[k], v) });
+
+    const approval = (k, label, isIntegrity, amountWords) => {
+      const s = st[k];
+      const hasNote = s.note.trim().length > 0;
+      return {
+        open: !s.dec,
+        integrity: isIntegrity,
+        buttons: !isIntegrity,
+        note: s.note,
+        onNote: (e) => set(k, { note: e.target.value }),
+        rejectOff: !hasNote,
+        help: hasNote ? 'Approving keeps this as a note. Rejecting sends it to the agent as your reason.' : 'A note is optional to approve. A reason is needed to reject.',
+        helpStyle: 'font-size: var(--text-sm); color: var(--color-muted);',
+        approve: () => this.setState({ [k]: Object.assign({}, s, { dec: 'approved' }), toast: 'Recorded. The agent picks it up from here.' }),
+        reject: () => { if (hasNote) this.setState({ [k]: Object.assign({}, s, { dec: 'rejected' }), toast: 'Recorded. The agent picks it up from here.' }); },
+        doneLine: s.dec === 'approved' ? 'owner approved ' + amountWords + '. Recorded. The agent picks it up from here.' : s.dec === 'rejected' ? 'owner rejected ' + amountWords + ', with the reason: “' + s.note + '”. The agent re-plans. A case allows two rejections before it goes to a person.' : ''
+      };
+    };
+    const cr = approval('cr', 'credit', integ === 'Credit card', 'the ₹152.00 credit on SHP-000009');
+    const em = approval('em', 'email', integ === 'Email card', 'the evidence request email on SHP-000005');
+
+    const person = (k, d) => {
+      const s = st[k];
+      const hasNote = s.note.trim().length > 0;
+      return Object.assign({}, d, {
+        open: !s.dec,
+        note: s.note, noteId: k + '-note',
+        onNote: (e) => set(k, { note: e.target.value }),
+        tell: s.tell, onTell: (e) => set(k, { tell: e.target.checked }),
+        returnOff: !hasNote,
+        returnHelp: hasNote ? '' : 'Write a note to return it.',
+        takeOver: () => this.setState({ [k]: Object.assign({}, s, { dec: 'took' }), toast: 'Recorded. The agent applies it within a few seconds.' }),
+        giveBack: () => { if (hasNote) this.setState({ [k]: Object.assign({}, s, { dec: 'returned' }), toast: 'Recorded. The agent applies it within a few seconds.' }); },
+        doneLine: s.dec === 'took' ? ('owner took over ' + d.id + '. The agent has stopped.' + (s.tell ? ' The handed-to-a-person email to the seller now waits for approval.' : '')) : s.dec === 'returned' ? ('owner returned ' + d.id + ' to the agent. A new round starts from fresh evidence.') : ''
+      });
+    };
+    const people = [
+      person('p1', { id: 'SHP-000001', since: '14:23', reason: 'Proposal escalated', plain: 'The round contains a parcel photo, and images need a person’s judgement.', detail: 'B5: the round contains image evidence, which needs judgement' }),
+      person('p2', { id: 'SHP-000006', since: '15:16', reason: 'The input screen flagged it', plain: 'The seller’s text read like instructions to the agent. It was treated as data and not followed.', detail: 'R21: manipulation_suspected: flagged by a screen (instruction_like)' })
+    ];
+
+    const crLeft = !st.cr.dec, emLeft = !st.em.dec;
+    const nA = (crLeft ? 1 : 0) + (emLeft ? 1 : 0);
+    const nP = people.filter((p) => p.open).length;
+    const parts = [];
+    if (crLeft) parts.push('a ₹152.00 credit');
+    if (emLeft) parts.push('1 email');
+    const countLine = (nA ? nA + ' waiting for your decision: ' + parts.join(', ') + '.' : 'Nothing waiting for your decision.') + ' ' + (nP ? nP + (nP === 1 ? ' case' : ' cases') + ' with a person.' : 'No case with a person.');
+
+    const tabStyle = (on) => 'height: 44px; padding: 0 2px; border: 0; background: none; cursor: pointer; font-size: var(--text-md); margin-bottom: -1px; ' + (on ? 'color: var(--color-ink); font-weight: 600; border-bottom: 2px solid var(--color-ink);' : 'color: var(--color-muted); font-weight: 500; border-bottom: 2px solid transparent;');
+
+    return {
+      signedIn: signed, signedOut: !signed,
+      isLocal: local,
+      signInIntro: local ? 'Sign in with the review console token to see the queue.' : 'Choose who you are reviewing as. That approver is recorded against each decision you make.',
+      signInLabel: local ? 'Sign in' : 'Start reviewing',
+      tokenError: local && (this.props.tokenError ?? false),
+      tokenStyle: 'height: var(--control-h); padding: 0 12px; border-radius: var(--radius-control); background: var(--color-cotton); ' + ((this.props.tokenError ?? false) ? 'border: 1.5px solid var(--color-error);' : 'border: 1px solid var(--color-rule-2);'),
+      signIn: () => this.setState({ signed: true }),
+      signOut: () => this.setState({ signed: false }),
+      countLine: countLine,
+      tabA: { n: nA, sel: tab === 'a' ? 'true' : 'false', style: tabStyle(tab === 'a'), go: () => this.setState({ tab: 'a' }) },
+      tabP: { n: nP, sel: tab === 'p' ? 'true' : 'false', style: tabStyle(tab === 'p'), go: () => this.setState({ tab: 'p' }) },
+      showA: tab === 'a', showP: tab === 'p',
+      cr: cr, em: em,
+      aEmpty: nA === 0,
+      people: people,
+      toast: st.toast,
+      closeToast: () => this.setState({ toast: '' })
+    };
+  }
+}
+</script>
+</body>
+</html>

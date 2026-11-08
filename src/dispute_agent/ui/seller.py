@@ -170,12 +170,18 @@ def raise_ticket(
         status, answer = post(dispute_body(shipment, contact, now, event_id))
     except OSError:
         return Raised(
-            False, "The dispute service is not running. Start it with `make run-api` and retry."
+            False,
+            "The dispute service is not running, so the ticket was not raised. Try again in a minute.",
         )
     if status == 422:
-        return Raised(False, "This seller address is not on the test allowlist (I11).")
+        return Raised(
+            False,
+            "This seller address is not on the test allowlist. Use the test seller address and try again.",
+        )
     if status != 200:
-        return Raised(False, f"The dispute service refused the ticket (HTTP {status}).")
+        return Raised(
+            False, f"The dispute service refused the ticket (HTTP {status}). Nothing was raised."
+        )
     case_id = answer.get("case_id")
     if answer.get("duplicate"):
         return Raised(True, "This ticket was already raised; showing the existing case.", case_id)

@@ -94,9 +94,18 @@ class TestItRenders:
         for item in ITEMS:
             assert f"- {item}" in lines, f"{item!r} is not on a line of its own"
 
-    def test_the_case_and_shipment_are_named(self) -> None:
-        message = render(a_context(), shipment_ref=SHIPMENT)
-        assert CASE_REF in message.subject
+    @pytest.mark.parametrize("kind", list(MessageKind))
+    def test_the_subject_names_the_shipment_not_the_internal_case_id(
+        self, kind: MessageKind
+    ) -> None:
+        """A seller knows their shipment, not our case id (design handoff, ADR 0048). The
+        shipment in the subject is also what routes a reply when its thread is lost."""
+        try:
+            message = render(a_context(kind=kind), shipment_ref=SHIPMENT)
+        except DomainValidationError:  # a kind this pack has no template for
+            return
+        assert SHIPMENT in message.subject
+        assert CASE_REF not in message.subject
         assert SHIPMENT in message.body
 
     def test_a_reminder_renders_too(self) -> None:

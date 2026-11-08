@@ -1,0 +1,323 @@
+/* Dispute desk: the console's material (design handoff, HANDOFF.md sections 1-3; ADR 0044, 0048).
+ * Every colour, size, radius and shadow is a token on :root; nothing below names a raw value.
+ * Coral (--color-paid) is spent only on the credited state; focus rings use --color-focus.
+ * Hallmark floor: no `transition: all`, no gradients, no tracked capitals, one card level.
+ * Streamlit draws its own widgets, so they are reached through data-testid and Base Web hooks. */
+:root {
+  --color-paper: #f8f4f1; --color-paper-2: #f1ece8; --color-paper-3: #e8e1dd;
+  --color-ink: #1d1614; --color-ink-2: #312926; --color-muted: #615955;
+  --color-rule: #d9d3cf; --color-rule-2: #c7bfba;
+  --color-cotton: #fdfbf8; --color-board: #1f1917; --color-board-type: #f6f3ef;
+  --color-paid: __PAID__; --color-paid-halo: rgb(186 74 52 / .18);
+  --color-focus: #bd3a2b; --color-error: #8a2416;
+  --font-body: "General Sans", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-figure: "Geist Mono", ui-monospace, monospace;
+  --text-sm: .875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem;
+  --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px;
+  --radius-card: 8px; --radius-control: 6px; --radius-pill: 999px; --control-h: 40px;
+  --shadow-stock: inset 0 1px 0 rgb(255 255 255 / .9), 0 0 0 1px rgb(29 22 20 / .05),
+    0 1px 2px rgb(29 22 20 / .06), 0 10px 28px -14px rgb(29 22 20 / .22);
+  --shadow-press: 0 1px 2px rgb(29 22 20 / .12);
+  --dur: 150ms; --measure: 68ch; --container: 76rem;
+}
+
+/* Base */
+html, body { overflow-x: clip; }
+html, body, .stApp { font-family: var(--font-body); color: var(--color-ink); background: var(--color-paper); }
+button, input, textarea, select { font-family: inherit; }
+.stApp p, .stApp li { line-height: 1.5; }
+.stApp h1 { font-size: var(--text-2xl); font-weight: 700; letter-spacing: -.01em; line-height: 1.2; padding: 0; margin: 0; }
+.stApp h2 { font-size: var(--text-xl); font-weight: 700; line-height: 1.25; padding: 0; }
+.stApp h3 { font-size: var(--text-md); font-weight: 600; line-height: 1.3; padding: 0; }
+.stApp [data-testid="stHeading"]:has(h1) { margin-bottom: var(--space-xs); }
+.stApp [data-testid="stHeaderActionElements"] { display: none; }
+.stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
+  font-size: var(--text-sm); color: var(--color-muted); opacity: 1; }
+.block-container { max-width: var(--container); padding: calc(var(--space-xl) + 56px) var(--space-lg) 64px; }
+code, pre { font-family: var(--font-figure); }
+a { color: var(--color-ink); text-underline-offset: 3px; text-decoration-color: var(--color-rule-2); }
+a:hover { color: var(--color-ink-2); text-decoration-color: var(--color-ink-2); }
+:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible, [role="tab"]:focus-visible,
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* Top bar: cotton strip with a rule; tabs are links, the current one on paper-3. */
+.stApp header[data-testid="stHeader"] { background: var(--color-cotton); border-bottom: 1px solid var(--color-rule); }
+.stApp [data-testid="stTopNavLink"], .stApp header a[data-testid] {
+  min-height: var(--control-h); border-radius: var(--radius-control); color: var(--color-muted); font-weight: 500;
+  font-size: var(--text-sm); transition: background-color var(--dur) ease; }
+.stApp [data-testid="stTopNavLink"]:hover { background: var(--color-paper-2); }
+.stApp [data-testid="stTopNavLink"][aria-current="page"], .stApp [data-testid="stTopNavLink"].active {
+  background: var(--color-paper-3); color: var(--color-ink); font-weight: 600; }
+
+/* Controls: 40px, ink board primary, cotton secondary, a real disabled state. */
+button[data-testid^="stBaseButton"] { min-height: var(--control-h); border-radius: var(--radius-control);
+  padding: 0 20px; white-space: nowrap; transition: background-color var(--dur) ease, transform var(--dur) ease; }
+button[data-testid="stBaseButton-primary"], button[data-testid="stBaseButton-primaryFormSubmit"] {
+  background: var(--color-board); color: var(--color-board-type); border: 0; font-weight: 600; }
+button[data-testid="stBaseButton-primary"]:hover:not(:disabled),
+button[data-testid="stBaseButton-primaryFormSubmit"]:hover:not(:disabled) { background: var(--color-ink-2); color: var(--color-board-type); }
+button[data-testid="stBaseButton-secondary"], button[data-testid="stBaseButton-secondaryFormSubmit"] {
+  background: var(--color-cotton); color: var(--color-ink); border: 1px solid var(--color-rule-2); font-weight: 500; }
+button[data-testid="stBaseButton-secondary"]:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); border-color: var(--color-rule-2); }
+button[data-testid^="stBaseButton"]:active:not(:disabled) { transform: translateY(1px); }
+button[data-testid^="stBaseButton"]:disabled { opacity: .55; cursor: not-allowed; }
+[data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div {
+  background: var(--color-cotton) !important; border-color: var(--color-rule-2) !important; border-radius: var(--radius-control) !important; }
+[data-baseweb="input"]:focus-within, [data-baseweb="textarea"]:focus-within, [data-baseweb="select"] > div:focus-within {
+  outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.stApp [data-testid="stWidgetLabel"] p { font-size: var(--text-sm); font-weight: 500; color: var(--color-ink-2); }
+/* Tabs: real buttons, 44px, a 2px ink underline on the selected one. */
+.stApp [data-baseweb="tab"] { min-height: 44px; font-size: var(--text-md); font-weight: 500; color: var(--color-muted); }
+.stApp [data-baseweb="tab"][aria-selected="true"] { color: var(--color-ink); font-weight: 600; }
+.stApp [data-baseweb="tab-highlight"] { background: var(--color-ink); height: 2px; }
+.stApp [data-baseweb="tab-border"] { background: var(--color-rule); }
+/* Segmented filter: a paper-3 track, the chosen segment on cotton. */
+.stApp [data-testid="stButtonGroup"] { background: var(--color-paper-3); border-radius: var(--radius-control); padding: 3px; width: fit-content; }
+.stApp [data-testid="stButtonGroup"] button { min-height: 34px; border: 0 !important; background: transparent; color: var(--color-ink-2); font-weight: 500; padding: 0 14px; }
+.stApp [data-testid="stButtonGroup"] button[kind$="Active"], .stApp [data-testid="stButtonGroup"] button[aria-checked="true"] {
+  background: var(--color-cotton); box-shadow: var(--shadow-press); color: var(--color-ink); font-weight: 600; }
+/* Toast: board, at the bottom. */
+.stApp [data-testid="stToast"] { background: var(--color-board); color: var(--color-board-type); }
+.stApp [data-testid="stToast"] p { color: var(--color-board-type); }
+/* Notices in the system's own words and colours. */
+[data-testid="stAlertContainer"] { background: var(--color-paper-2) !important; color: var(--color-ink) !important;
+  border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
+[data-testid="stAlertContentError"], [data-testid="stAlertContentError"] p { color: var(--color-error) !important; }
+
+/* Card: cotton stock, no border, one level only. Keyed containers (st-key-card*). */
+[class*="st-key-card"] { background: var(--color-cotton); border: 0 !important; border-radius: var(--radius-card);
+  box-shadow: var(--shadow-stock); padding: 28px 32px !important; }
+@media (max-width: 640px) { [class*="st-key-card"] { padding: 20px 16px !important; } }
+.panel { background: var(--color-paper-2); border-radius: var(--radius-card); padding: var(--space-md) 18px; }
+.rule { border: 0; border-top: 1px solid var(--color-rule); margin: var(--space-sm) 0; }
+.muted, p.muted { color: var(--color-muted); font-size: var(--text-sm); margin: 0; }
+.mono { font-family: var(--font-figure); font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.line { margin: var(--space-xs) 0 0; }
+.line--error { color: var(--color-error); font-weight: 500; }
+.icon { width: 16px; height: 16px; flex: none; vertical-align: -3px; }
+
+/* 3.1 Status chip: the label is always words; colour is never the only signal. */
+.chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: var(--radius-pill);
+  font-size: var(--text-sm); font-weight: 500; white-space: nowrap; line-height: 1;
+  border: 1px solid var(--color-rule-2); color: var(--color-ink-2); vertical-align: middle; }
+.chip--waiting { border: 1px dashed var(--color-ink-2); }
+.chip--attention { border: 1.5px solid var(--color-ink); color: var(--color-ink); font-weight: 700; }
+.chip--done { background: var(--color-paper-2); }
+.chip--closed { border-color: var(--color-rule); color: var(--color-muted); }
+.chip--settled { border: 1.5px solid var(--color-paid); color: var(--color-paid); font-weight: 700; }
+
+/* 3.2 Actor pill: a shape before the name, so the actor reads without colour. */
+.actor { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-control);
+  font-size: var(--text-sm); white-space: nowrap; color: var(--color-ink-2); }
+.actor::before { content: ""; width: 7px; height: 7px; flex: none; box-sizing: border-box; }
+.actor--code { background: var(--color-paper-3); color: var(--color-ink); font-family: var(--font-figure); }
+.actor--code::before { background: var(--color-ink); }
+.actor--ai, .actor--rules { border: 1px solid var(--color-ink-2); color: var(--color-ink); background: var(--color-cotton); }
+.actor--ai::before, .actor--rules::before { border: 1.5px solid var(--color-ink); transform: rotate(45deg); }
+.actor--person { background: var(--color-board); color: var(--color-board-type); font-weight: 600; }
+.actor--person::before { border-radius: 50%; background: var(--color-board-type); }
+.actor--seller { border: 1px solid var(--color-rule-2); }
+.actor--seller::before { border-radius: 50%; border: 1.5px solid var(--color-ink-2); }
+.actor--hub { border: 1px solid var(--color-rule-2); }
+.actor--hub::before { border: 1.5px solid var(--color-ink-2); }
+.actor--system { color: var(--color-muted); }
+.actor--system::before { display: none; }
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 0; margin: 0;
+  font-size: var(--text-sm); color: var(--color-muted); }
+.legend li { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
+
+/* Case card: name line, facts, headline, Why / Next, onward link. */
+.case-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
+.case-ref { font-family: var(--font-figure); font-size: var(--text-xl); font-weight: 600; letter-spacing: -.01em; }
+.case-facts { margin: 6px 0 0; font-size: var(--text-sm); color: var(--color-muted); overflow-wrap: anywhere; }
+.live { display: inline-flex; align-items: center; gap: 6px; }
+.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-muted); }
+.headline { font-size: var(--text-lg); font-weight: 600; line-height: 1.35; max-width: 62ch; margin: var(--space-md) 0 var(--space-sm); }
+.why-next { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 12px; max-width: 70ch; margin: 0; }
+.why-next dt { color: var(--color-muted); font-size: var(--text-sm); padding-top: 2px; }
+.why-next dd { margin: 0; color: var(--color-ink-2); }
+.code { font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-muted); }
+
+/* 3.3 Stepper: five numbered marks on a line, each with its state in words. Never strike-through. */
+.stepper { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0; margin: var(--space-lg) 0 0; }
+.stepper > li { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; min-width: 0; }
+.stepper .track { display: flex; align-items: center; }
+.stepper .mark { width: 30px; height: 30px; flex: none; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; font-family: var(--font-figure); font-size: var(--text-sm); font-weight: 600; box-sizing: border-box;
+  border: 1px solid var(--color-rule-2); color: var(--color-muted); background: var(--color-cotton); }
+.stepper .link { flex: 1; height: 0; margin: 0 8px; border-top: 2px dotted var(--color-rule-2); }
+.stepper .link--solid { border-top: 2px solid var(--color-ink); }
+.stepper > li:last-child .link { display: none; }
+.stepper b { display: block; font-weight: 600; padding-right: 12px; }
+.stepper small { display: block; font-size: var(--text-sm); color: var(--color-muted); }
+.step--done .mark { background: var(--color-ink); border-color: var(--color-ink); color: var(--color-board-type); }
+.step--settled .mark { background: var(--color-paid); border-color: var(--color-paid); color: var(--color-cotton); }
+.step--settled small { color: var(--color-paid); font-weight: 600; }
+.step--current .mark { border: 2px solid var(--color-ink); color: var(--color-ink); }
+.step--waiting .mark { border: 2px dashed var(--color-ink); color: var(--color-ink); }
+.step--person .mark { border: 2.5px solid var(--color-ink); color: var(--color-ink); background: var(--color-paper-3); }
+.step--current small, .step--waiting small, .step--person small { color: var(--color-ink); font-weight: 600; }
+.step--skipped .mark, .step--not_reached .mark { background: var(--color-paper-2); }
+
+/* Code's figures: a label over a tabular figure; the lead figure larger. */
+.figures { border-top: 1px solid var(--color-rule); padding-top: 18px; margin-top: var(--space-lg); }
+.figures dl { display: flex; flex-wrap: wrap; gap: 16px 40px; margin: 10px 0 0; }
+.figures dt { font-size: var(--text-sm); color: var(--color-muted); }
+.figures dd { margin: 2px 0 0; font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-lg); color: var(--color-ink-2); }
+.figures .lead dd { font-size: var(--text-xl); font-weight: 600; color: var(--color-ink); }
+.figures .note { margin: 10px 0 0; max-width: 70ch; }
+
+/* 3.4 Timeline: rounds of steps; a mark and a rail on the left, who and when on the right. */
+.round { margin: 0 0 var(--space-lg); }
+.round-head { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-2); }
+.round-head::after { content: ""; flex: 1; height: 1px; background: var(--color-rule); }
+.steps { list-style: none; padding: 0; margin: 0; }
+.steps > li { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 14px; margin: 0; padding: 0; }
+.rail { display: flex; flex-direction: column; align-items: center; padding-top: 6px; }
+.rail::after { content: ""; flex: 1; width: 2px; margin-top: 6px; min-height: 12px; background: var(--color-rule); }
+.steps > li:last-child .rail::after { display: none; }
+.dot { flex: none; box-sizing: border-box; width: 12px; height: 12px; border-radius: 50%; background: var(--color-ink); }
+.dot--propose { width: 14px; height: 14px; border-radius: 2px; border: 2px solid var(--color-ink); background: var(--color-cotton); transform: rotate(45deg); }
+.dot--person { width: 14px; height: 14px; border: 4px solid var(--color-ink); background: var(--color-cotton); }
+.dot--credited { width: 14px; height: 14px; background: var(--color-paid); box-shadow: 0 0 0 3px var(--color-paid-halo); }
+.dot--closed { border: 2px solid var(--color-muted); background: var(--color-paper-3); }
+.dot--pending { border: 2px dashed var(--color-ink-2); background: var(--color-paper); }
+.dot--attention { width: 14px; height: 14px; border: 2.5px solid var(--color-ink); background: var(--color-paper-3); }
+.dot--minor { width: 6px; height: 6px; margin-top: 3px; background: var(--color-rule-2); }
+.step-body { min-width: 0; padding-bottom: 22px; }
+.step-body--minor { padding-bottom: 14px; }
+.step-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px 24px; flex-wrap: wrap; }
+.step-title { font-size: var(--text-md); font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.step-who { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--color-muted); white-space: nowrap; margin: 0; }
+.step-sum { color: var(--color-ink-2); max-width: var(--measure); margin: 2px 0 0; overflow-wrap: anywhere; }
+.step-minor { display: flex; justify-content: space-between; gap: 16px; font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
+.step-minor--pending span:first-child { color: var(--color-ink-2); font-style: italic; }
+details.more { margin-top: 6px; }
+details.more > summary { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; cursor: pointer; list-style: none;
+  font-size: var(--text-sm); color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "\203A"; display: inline-block; font-size: 1.1em; transition: transform var(--dur) ease; }
+details.more[open] > summary::before { transform: rotate(90deg); }
+details.more ul { list-style: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 0 4px 16px; margin: 0;
+  font-size: var(--text-sm); color: var(--color-ink-2); }
+details.more li { overflow-wrap: anywhere; margin: 0; }
+
+/* 3.5 Recorded text: escaped plain text, "exactly as recorded". No left-border accent. */
+figure.recorded { margin: 10px 0 0; max-width: var(--measure); display: flex; flex-direction: column; gap: 6px; }
+figure.recorded figcaption, .caption { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
+blockquote.recorded, figure.recorded blockquote { margin: 0; padding: 12px 14px; background: var(--color-paper-2); border: 0;
+  border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-ink);
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Definition pairs and data tables drawn as HTML. */
+.pairs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: var(--space-sm) 0; font-size: var(--text-sm); }
+.pairs dt { color: var(--color-muted); }
+.pairs dd { margin: 0; color: var(--color-ink); }
+.pairs dd.num { font-family: var(--font-figure); font-variant-numeric: tabular-nums; text-align: right; }
+.figure-lg { font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-2xl); font-weight: 600; margin: 2px 0 var(--space-sm); }
+.checks { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.checks li { display: flex; gap: 8px; margin: 0; }
+.checks li::before { content: "\2713"; color: var(--color-ink-2); font-weight: 700; }
+.count { font-size: var(--text-lg); font-weight: 600; margin: var(--space-xs) 0 var(--space-md); }
+
+/* Totals: one card split by vertical rules; − and = show the sum. */
+.totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+.totals > div { padding: 0 var(--space-lg); border-left: 1px solid var(--color-rule); }
+.totals > div:first-child { padding-left: 0; border-left: 0; }
+.totals dt { font-size: var(--text-sm); color: var(--color-muted); }
+.totals dd { margin: 4px 0 0; font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-2xl); font-weight: 600; }
+@media (max-width: 640px) {
+  .totals { grid-template-columns: 1fr; gap: var(--space-sm); }
+  .totals > div { padding: var(--space-sm) 0 0; border-left: 0; border-top: 1px solid var(--color-rule); }
+  .totals > div:first-child { border-top: 0; padding-top: 0; }
+}
+
+/* Phone (brief section 12): the stepper becomes a list; who and when sit above the step title. */
+@media (max-width: 640px) {
+  .stepper { grid-template-columns: 1fr; gap: 0; }
+  .stepper > li { flex-direction: row; align-items: center; gap: 12px; padding: 4px 0; }
+  .stepper .link { display: none; }
+  .stepper b { display: inline; padding: 0; }
+  .stepper small { display: inline; margin-left: auto; }
+  .step-top { flex-direction: column-reverse; gap: 4px; }
+  .why-next { grid-template-columns: 44px minmax(0, 1fr); }
+}
+
+/* Clickable lists and tables (ui/picker.py): rows are real buttons, values are text. */
+.pick-cases { list-style: none; display: flex; flex-direction: column; gap: 2px; padding: 0; margin: 0; }
+.pick-cases li { margin: 0; padding: 0; }
+.pick-case { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px;
+  min-height: 44px; border: 0; border-radius: var(--radius-control); background: transparent; text-align: left; cursor: pointer;
+  color: var(--color-ink); transition: background-color var(--dur) ease; }
+.pick-case:hover { background: var(--color-paper-2); }
+.pick-case[aria-pressed="true"] { background: var(--color-cotton); box-shadow: var(--shadow-stock); }
+.pick-case-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; }
+.pick-mono { font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-sm); font-weight: 600; }
+.pick-muted { font-size: var(--text-sm); color: var(--color-muted); }
+.pick-text { color: var(--color-ink); }
+.pick-num { font-family: var(--font-figure); font-variant-numeric: tabular-nums; }
+.pick-paid { font-family: var(--font-figure); font-variant-numeric: tabular-nums; color: var(--color-paid); font-weight: 600; }
+.pick-error { color: var(--color-error); font-weight: 500; }
+.pick-table { overflow-x: auto; }
+.pick-row { display: grid; align-items: center; gap: 0 12px; min-width: 560px; min-height: 44px; padding: 8px 10px;
+  border: 0; border-bottom: 1px solid var(--color-rule); background: transparent; width: 100%; text-align: left;
+  font-size: var(--text-sm); color: var(--color-ink); }
+button.pick-row { cursor: pointer; transition: background-color var(--dur) ease; }
+button.pick-row:hover { background: var(--color-paper-2); }
+button.pick-row[aria-pressed="true"] { background: var(--color-paper-3); }
+button.pick-row::before { content: none; }
+.pick-head { min-height: 36px; color: var(--color-muted); font-weight: 600; border-bottom: 1px solid var(--color-rule-2); }
+.pick-tint { background: var(--color-paper-2); }
+.pick-right { text-align: right; justify-self: end; }
+.pick-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.pick-link { font-weight: 600; white-space: nowrap; }
+.pick-empty { padding: var(--space-sm) 10px; }
+.pick-radio { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--color-rule-2); display: inline-block; }
+button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color-ink); }
+.side-head { font-size: var(--text-md) !important; font-weight: 600; margin: 4px 0 8px; }
+
+/* Streamlit's Markdown gives every h2-h4 and p its own size, margin and padding, and that
+   outranks a single class. The console's own text restates its sizes under .stApp. */
+.stApp .case-ref { font-size: var(--text-xl); font-weight: 600; padding: 0; margin: 0; }
+.stApp .headline { font-size: var(--text-lg); font-weight: 600; line-height: 1.35; margin: var(--space-md) 0 var(--space-sm); }
+.stApp .case-facts { font-size: var(--text-sm); margin: 6px 0 0; }
+.stApp .why-next dt, .stApp .step-who, .stApp .step-minor, .stApp .muted, .stApp .legend,
+.stApp .stepper small, .stApp .figures dt, .stApp .pairs, .stApp figure.recorded figcaption,
+.stApp .caption, .stApp details.more > summary, .stApp details.more li { font-size: var(--text-sm); }
+.stApp .why-next dd, .stApp .step-sum, .stApp .stepper b { font-size: var(--text-md); }
+.stApp .step-title { font-size: var(--text-md); font-weight: 600; line-height: 1.4; padding: 0; margin: 0; }
+.stApp .round-head { font-size: var(--text-sm); font-weight: 600; padding: 0; margin: 0 0 14px; }
+.stApp .side-head { font-size: var(--text-md); font-weight: 600; padding: 0; margin: 4px 0 8px; }
+.stApp .step-sum, .stApp .step-minor, .stApp .step-who, .stApp .case-facts, .stApp .muted { margin-bottom: 0; }
+.stApp .figures dd { font-size: var(--text-lg); }
+.stApp .figures .lead dd { font-size: var(--text-xl); }
+.stApp .figure-lg, .stApp .totals dd { font-size: var(--text-2xl); }
+.stApp .count { font-size: var(--text-lg); font-weight: 600; }
+.stApp figure.recorded blockquote, .stApp blockquote.recorded { font-size: var(--text-sm); }
+.stApp .legend { margin: 0 0 var(--space-lg); }
+
+/* Review: the two halves of a decision card; the email exactly as stored. */
+.stApp .card-kind { font-size: var(--text-lg); font-weight: 700; margin: 0; padding: 0; }
+.card-headrow { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.stApp [class*="st-key-card"] h3 { font-size: var(--text-md); font-weight: 600; margin: 0 0 8px; padding: 0; }
+.stApp [class*="st-key-card"] h4 { font-size: var(--text-sm); font-weight: 600; margin: var(--space-md) 0 6px; padding: 0; color: var(--color-ink-2); }
+.stApp [class*="st-key-panel"] { background: var(--color-paper-2); border-radius: var(--radius-card); padding: 18px 20px !important; }
+.mail { background: var(--color-cotton); border: 1px solid var(--color-rule); border-radius: var(--radius-control); padding: 14px 16px;
+  white-space: pre-line; overflow-wrap: anywhere; font-size: var(--text-sm); color: var(--color-ink); margin: var(--space-sm) 0; }
+.num-mark { font-family: var(--font-figure); background: var(--color-paper-3); padding: 0 3px; border-radius: 3px; }
+.mail sup { font-family: var(--font-figure); font-size: .7em; color: var(--color-muted); margin-left: 1px; }
+.sources { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); }
+.sources li { display: grid; grid-template-columns: 22px max-content minmax(0, 1fr); gap: 10px; margin: 0; }
+.sources .idx { font-family: var(--font-figure); color: var(--color-muted); }
+.stApp .reason { font-size: var(--text-lg); font-weight: 600; margin: 0 0 4px; }
+.stApp .figure-lg { margin: 0; }
+.integrity { border: 1.5px solid var(--color-error); border-radius: var(--radius-control); padding: 12px 14px; color: var(--color-error); }
+.by { display: flex; align-items: center; gap: 8px; }
+.by::before { content: ""; width: 7px; height: 7px; flex: none; border: 1.5px solid var(--color-ink); transform: rotate(45deg); }
+.right { text-align: right; }
+@media (max-width: 640px) {
+  .stepper > li > div:last-child { display: flex; flex: 1; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .stApp .stepper small { margin-left: auto; }
+}

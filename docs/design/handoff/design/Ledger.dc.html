@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: ledger</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,dl,dd,ul,ol{margin:0}
+ul,ol{padding:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+.tab{transition:background-color .15s ease}
+.tab:hover{background:var(--color-paper-2)}
+.seg:hover{background:var(--color-paper-2)}
+.grp:hover{background:var(--color-paper-3)!important}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-paper)">
+<header style="background: var(--color-cotton); border-bottom: 1px solid var(--color-rule)">
+<div style="max-width: 76rem; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 12px 40px; flex-wrap: wrap">
+<a href="RaiseTicket.dc.html" style="font-weight: 700; font-size: var(--text-lg); text-decoration: none; color: var(--color-ink)">Dispute desk</a>
+<nav aria-label="Main" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a class="tab" href="RaiseTicket.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6"></path></svg>Raise a ticket</a>
+<a class="tab" href="AgentSteps.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>Agent steps</a>
+<a class="tab" href="Review.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"></path></svg>Review</a>
+<a class="tab" href="Ledger.dc.html" aria-current="page" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-ink); background: var(--color-paper-3); font-size: var(--text-sm); font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"></path></svg>Ledger</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 76rem; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap">
+<h1 style="font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em">Ledger</h1>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="seller" style="font-size: var(--text-sm); font-weight: 600">Seller</label>
+<select id="seller" style="height: var(--control-h); min-width: 240px; padding: 0 12px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-family: var(--font-figure); font-size: var(--text-sm)"><option>SELL-0001</option></select>
+</div>
+</div>
+
+<section aria-label="Totals" style="display: flex; flex-direction: column; gap: 10px">
+<dl style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock)">
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 4px">
+<dt style="font-size: var(--text-sm); color: var(--color-muted)">Charged</dt>
+<dd style="font-family: var(--font-figure); font-size: var(--text-2xl); font-weight: 600; font-variant-numeric: tabular-nums">₹11,660.00</dd>
+</div>
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid var(--color-rule)">
+<dt style="font-size: var(--text-sm); color: var(--color-muted)">Credited back</dt>
+<dd style="font-family: var(--font-figure); font-size: var(--text-2xl); font-weight: 600; font-variant-numeric: tabular-nums">− ₹1,820.00</dd>
+</div>
+<div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid var(--color-rule)">
+<dt style="font-size: var(--text-sm); color: var(--color-muted)">Net billed</dt>
+<dd style="font-family: var(--font-figure); font-size: var(--text-2xl); font-weight: 600; font-variant-numeric: tabular-nums">= ₹9,840.00</dd>
+</div>
+</dl>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Every figure is a sum of the ledger rows below.</p>
+</section>
+
+<section aria-labelledby="cfd" style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="cfd" style="font-size: var(--text-xl); font-weight: 700">Credits from disputes <span style="color: var(--color-muted); font-weight: 500">(1)</span></h2>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow-x: auto">
+<table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: var(--text-sm)">
+<thead>
+<tr style="text-align: left; color: var(--color-muted)">
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Posted</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Shipment</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); text-align: right">Amount</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Reason</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Approved by</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Proved</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="padding: 12px 16px; white-space: nowrap">7 Nov 2026, 09:58 UTC</td>
+<td style="padding: 12px 16px; font-family: var(--font-figure)">SHP-000002</td>
+<td style="padding: 12px 16px; text-align: right; font-family: var(--font-figure); font-weight: 600; color: var(--color-paid)">₹1,820.00</td>
+<td style="padding: 12px 16px">calculation error</td>
+<td style="padding: 12px 16px"><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); font-weight: 600"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--color-board-type)"></span>owner</span></td>
+<td style="padding: 12px 16px"><span style="display: inline-flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Read back</span></td>
+<td style="padding: 8px 16px"><a href="AgentSteps.dc.html" style="display: inline-flex; align-items: center; gap: 6px; min-height: 40px; white-space: nowrap; font-weight: 500">See the steps<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Proved means the agent read the credit back from the ledger after posting it. A credit the agent did not post reads “Not posted by the agent”.</p>
+</section>
+
+<section aria-labelledby="ae" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="ae" style="font-size: var(--text-xl); font-weight: 700">All entries</h2>
+<div style="display: flex; align-items: center; gap: 10px">
+<span id="show-l" style="font-size: var(--text-sm); color: var(--color-muted)">Show</span>
+<div role="group" aria-labelledby="show-l" style="display: inline-flex; padding: 3px; border-radius: var(--radius-control); background: var(--color-paper-3)">
+<sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+<button class="seg" type="button" aria-pressed="{{ f.pressed }}" onClick="{{ f.go }}" style="{{ f.style }}">{{ f.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+<div style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); overflow-x: auto">
+<table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: var(--text-sm)">
+<thead>
+<tr style="text-align: left; color: var(--color-muted)">
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Posted</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Shipment</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Type</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule); text-align: right">Amount</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Reason</th>
+<th scope="col" style="font-weight: 500; padding: 12px 16px; border-bottom: 1px solid var(--color-rule)">Transaction</th>
+</tr>
+</thead>
+<sc-if value="{{ showCredits }}" hint-placeholder-val="{{ true }}">
+<tbody>
+<tr style="border-bottom: 1px solid var(--color-rule)">
+<td style="padding: 12px 16px; white-space: nowrap">7 Nov 2026, 09:58 UTC</td>
+<td style="padding: 12px 16px; font-family: var(--font-figure)">SHP-000002</td>
+<td style="padding: 12px 16px; color: var(--color-paid); font-weight: 700">Credit</td>
+<td style="padding: 12px 16px; text-align: right; font-family: var(--font-figure); font-variant-numeric: tabular-nums">− ₹1,820.00</td>
+<td style="padding: 12px 16px">calculation error</td>
+<td style="padding: 12px 16px; font-family: var(--font-figure); color: var(--color-muted)">txn_b7bd93d602f542dd8436</td>
+</tr>
+</tbody>
+</sc-if>
+<sc-if value="{{ showCharges }}" hint-placeholder-val="{{ true }}">
+<tbody>
+<tr>
+<td colspan="6" style="padding: 0; border-bottom: 1px solid var(--color-rule)">
+<button class="grp" type="button" aria-expanded="{{ openAttr }}" onClick="{{ toggle }}" style="width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; border: 0; background: var(--color-paper-2); cursor: pointer; text-align: left; font-size: var(--text-sm)">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="{{ chevStyle }}"><path d="M9 6l6 6-6 6"></path></svg>
+<span style="font-weight: 600">Weight charges posted 1 Jan 2026, 00:00 UTC</span>
+<span style="color: var(--color-muted)">one per shipment</span>
+<span style="margin-left: auto; font-family: var(--font-figure); font-weight: 600">₹11,660.00</span>
+<span style="color: var(--color-muted); width: 72px; text-align: right">{{ toggleWord }}</span>
+</button>
+</td>
+</tr>
+<sc-if value="{{ open }}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{ charges }}" as="c" hint-placeholder-count="14">
+<tr style="border-bottom: 1px solid var(--color-rule)">
+<td style="padding: 10px 16px 10px 40px; white-space: nowrap; color: var(--color-muted)">1 Jan 2026, 00:00 UTC</td>
+<td style="padding: 10px 16px; font-family: var(--font-figure)">{{ c.id }}</td>
+<td style="padding: 10px 16px">Charge</td>
+<td style="{{ c.amountStyle }}">{{ c.amount }}</td>
+<td style="padding: 10px 16px">weight charge</td>
+<td style="padding: 10px 16px; font-family: var(--font-figure); color: var(--color-muted)">{{ c.txn }}</td>
+</tr>
+</sc-for>
+</sc-if>
+</tbody>
+</sc-if>
+</table>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Values in [brackets] were not in the sample data this prototype was built from.</p>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { filter: 'all', open: true };
+  }
+  renderVals() {
+    const amounts = { 1: '₹152.00', 2: '₹2,800.00', 3: '₹380.00', 4: '₹152.00', 5: '₹190.00', 6: '₹152.00', 7: '₹152.00', 8: '₹152.00', 9: '₹152.00', 10: '[charge]', 11: '₹152.00', 12: '[charge]', 13: '₹114.00', 14: '₹980.00' };
+    const charges = [];
+    for (let i = 1; i <= 14; i++) {
+      const id = 'SHP-' + String(i).padStart(6, '0');
+      const a = amounts[i];
+      const ph = a.charAt(0) === '[';
+      charges.push({ id: id, amount: a, txn: 'TXN-' + id + '-1', amountStyle: 'padding: 10px 16px; text-align: right; font-variant-numeric: tabular-nums; ' + (ph ? 'color: var(--color-muted);' : 'font-family: var(--font-figure);') });
+    }
+    const f = this.state.filter;
+    const seg = (on) => 'height: 34px; padding: 0 14px; border: 0; border-radius: 4px; cursor: pointer; font-size: var(--text-sm); ' + (on ? 'background: var(--color-cotton); font-weight: 600; box-shadow: 0 1px 2px rgba(29,22,20,.1);' : 'background: transparent; font-weight: 500;');
+    return {
+      filters: [['All', 'all'], ['Charges', 'charges'], ['Credits', 'credits']].map((x) => ({ label: x[0], pressed: f === x[1] ? 'true' : 'false', style: seg(f === x[1]), go: () => this.setState({ filter: x[1] }) })),
+      showCredits: f !== 'charges',
+      showCharges: f !== 'credits',
+      open: this.state.open,
+      openAttr: this.state.open ? 'true' : 'false',
+      toggleWord: this.state.open ? 'Hide' : 'Show',
+      chevStyle: this.state.open ? 'transform: rotate(90deg); transition: transform .15s ease' : 'transition: transform .15s ease',
+      toggle: () => this.setState({ open: !this.state.open }),
+      charges: charges
+    };
+  }
+}
+</script>
+</body>
+</html>

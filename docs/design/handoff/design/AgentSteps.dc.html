@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dispute desk: the agent's steps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+:root{--color-paper:#f8f4f1;--color-paper-2:#f1ece8;--color-paper-3:#e8e1dd;--color-ink:#1d1614;--color-ink-2:#312926;--color-muted:#615955;--color-rule:#d9d3cf;--color-rule-2:#c7bfba;--color-cotton:#fdfbf8;--color-board:#1f1917;--color-board-type:#f6f3ef;--color-paid:#ba4a34;--color-focus:#bd3a2b;--color-error:#8a2416;--font-body:"General Sans","Instrument Sans",ui-sans-serif,system-ui,sans-serif;--font-figure:"Geist Mono",ui-monospace,monospace;--text-sm:.875rem;--text-md:1rem;--text-lg:1.2rem;--text-xl:1.44rem;--text-2xl:1.728rem;--radius-card:8px;--radius-control:6px;--control-h:40px;--shadow-stock:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(29,22,20,.05),0 1px 2px rgba(29,22,20,.06),0 10px 28px -14px rgba(29,22,20,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--color-paper);color:var(--color-ink);font-family:var(--font-body);font-size:var(--text-md);line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,dl,dd,ul,ol{margin:0}
+ul,ol{padding:0}
+a{color:var(--color-ink);text-underline-offset:3px}a:hover{color:var(--color-ink-2)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}
+.tab{transition:background-color .15s ease}
+.tab:hover{background:var(--color-paper-2)}
+.casebtn{transition:background-color .15s ease}
+.casebtn:hover{background:var(--color-paper-2)}
+details>summary{cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details[open] .chev{transform:rotate(90deg)}
+.chev{transition:transform .15s ease}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-paper)">
+<header style="background: var(--color-cotton); border-bottom: 1px solid var(--color-rule)">
+<div style="max-width: 76rem; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 12px 40px; flex-wrap: wrap">
+<a href="RaiseTicket.dc.html" style="font-weight: 700; font-size: var(--text-lg); text-decoration: none; color: var(--color-ink)">Dispute desk</a>
+<nav aria-label="Main" style="display: flex; gap: 4px; flex-wrap: wrap">
+<a class="tab" href="RaiseTicket.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6"></path></svg>Raise a ticket</a>
+<a class="tab" href="AgentSteps.dc.html" aria-current="page" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-ink); background: var(--color-paper-3); font-size: var(--text-sm); font-weight: 600"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="5" r="2"></circle><path d="M8 19h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h8"></path></svg>Agent steps</a>
+<a class="tab" href="Review.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"></path></svg>Review</a>
+<a class="tab" href="Ledger.dc.html" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius-control); text-decoration: none; color: var(--color-muted); font-size: var(--text-sm); font-weight: 500"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"></path></svg>Ledger</a>
+</nav>
+</div>
+</header>
+
+<main style="max-width: 76rem; margin: 0 auto; padding: 32px 24px 64px; display: flex; flex-direction: column; gap: 24px">
+<h1 style="font-size: var(--text-2xl); font-weight: 700; letter-spacing: -0.01em">The agent's steps</h1>
+
+<div style="display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start">
+
+<aside aria-label="Cases" style="flex: 1 1 272px; max-width: 300px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<h2 style="font-size: var(--text-md); font-weight: 600">Cases <span style="color: var(--color-muted); font-weight: 500">({{ caseCount }})</span></h2>
+</div>
+<label for="case-q" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Find a case by shipment or status</label>
+<div style="position: relative">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="position: absolute; left: 12px; top: 12px; color: var(--color-muted)"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>
+<input id="case-q" type="search" placeholder="Shipment or status" value="{{ q }}" onChange="{{ onSearch }}" style="width: 100%; height: var(--control-h); padding: 0 12px 0 36px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-control); background: var(--color-cotton); font-size: var(--text-sm)">
+</div>
+<ul style="list-style: none; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{ cases }}" as="c" hint-placeholder-count="9">
+<li>
+<button class="casebtn" type="button" aria-pressed="{{ c.pressed }}" onClick="{{ c.pick }}" style="{{ c.btnStyle }}">
+<span style="display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%">
+<span style="font-family: var(--font-figure); font-size: var(--text-sm); font-weight: 600">{{ c.id }}</span>
+<span style="font-size: var(--text-sm); color: var(--color-muted)">{{ c.openedShort }}</span>
+</span>
+<span style="{{ c.chipStyle }}">{{ c.status }}</span>
+</button>
+</li>
+</sc-for>
+</ul>
+<sc-if value="{{ noMatch }}" hint-placeholder-val="{{ false }}">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">No case matches that. Try a shipment number such as 000002.</p>
+</sc-if>
+</aside>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 32px">
+
+<section aria-labelledby="case-name" style="background: var(--color-cotton); border-radius: var(--radius-card); box-shadow: var(--shadow-stock); padding: 28px 32px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="case-name" style="font-family: var(--font-figure); font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.01em">{{ c0.id }}</h2>
+<span style="{{ c0.chipStyle }}">{{ c0.status }}</span>
+</div>
+<p style="font-size: var(--text-sm); color: var(--color-muted)">{{ c0.facts }}<sc-if value="{{ c0.open }}" hint-placeholder-val="{{ false }}"><span role="status" aria-live="polite" style="display: inline-flex; align-items: center; gap: 6px"> · <span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-muted)"></span>refreshes every 4 s</span></sc-if></p>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<p style="font-size: var(--text-lg); font-weight: 600; line-height: 1.35; max-width: 62ch">{{ c0.headline }}</p>
+<dl style="display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 12px; max-width: 70ch">
+<sc-if value="{{ c0.hasWhy }}" hint-placeholder-val="{{ true }}">
+<dt style="color: var(--color-muted); font-size: var(--text-sm); padding-top: 2px">Why</dt>
+<dd style="color: var(--color-ink-2)">{{ c0.why }}<sc-if value="{{ c0.whyCode }}" hint-placeholder-val="{{ false }}"> <span style="font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-muted)">({{ c0.whyCode }})</span></sc-if></dd>
+</sc-if>
+<dt style="color: var(--color-muted); font-size: var(--text-sm); padding-top: 2px">Next</dt>
+<dd style="color: var(--color-ink-2)">{{ c0.next }}</dd>
+</dl>
+<sc-if value="{{ c0.hasLink }}" hint-placeholder-val="{{ true }}">
+<a href="{{ c0.linkHref }}" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: var(--radius-control); background: var(--color-board); color: var(--color-board-type); text-decoration: none; font-weight: 600; font-size: var(--text-sm)">{{ c0.linkLabel }}<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></a>
+</sc-if>
+</div>
+
+<div>
+<h3 style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">How far along</h3>
+<ol style="list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0">
+<sc-for list="{{ c0.phases }}" as="p" hint-placeholder-count="5">
+<li style="display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center">
+<span aria-hidden="true" style="{{ p.markStyle }}">
+<sc-if value="{{ p.isDone }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if>
+<sc-if value="{{ p.showNum }}" hint-placeholder-val="{{ true }}">{{ p.glyph }}</sc-if>
+</span>
+<span aria-hidden="true" style="{{ p.lineStyle }}"></span>
+</div>
+<div style="padding-right: 12px">
+<p style="font-weight: 600; font-size: var(--text-md)">{{ p.label }}</p>
+<p style="{{ p.wordStyle }}">{{ p.word }}</p>
+</div>
+</li>
+</sc-for>
+</ol>
+</div>
+
+<sc-if value="{{ c0.hasFigures }}" hint-placeholder-val="{{ true }}">
+<div style="border-top: 1px solid var(--color-rule); padding-top: 18px; display: flex; flex-direction: column; gap: 10px">
+<p style="font-size: var(--text-sm); color: var(--color-muted)">Code's figures <span style="color: var(--color-muted)">· worked out in code, not by the AI</span></p>
+<dl style="display: flex; flex-wrap: wrap; gap: 16px 40px">
+<sc-for list="{{ c0.figures }}" as="f" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<dt style="font-size: var(--text-sm); color: var(--color-muted)">{{ f.label }}</dt>
+<dd style="{{ f.valueStyle }}">{{ f.value }}</dd>
+</div>
+</sc-for>
+</dl>
+<sc-if value="{{ c0.figureNote }}" hint-placeholder-val="{{ false }}">
+<p style="font-size: var(--text-sm); color: var(--color-muted); max-width: 70ch">{{ c0.figureNote }}</p>
+</sc-if>
+</div>
+</sc-if>
+</section>
+
+<section aria-labelledby="wh" style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<h2 id="wh" style="font-size: var(--text-xl); font-weight: 700">What happened</h2>
+<ul aria-label="Who does what" style="list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: var(--text-sm); color: var(--color-muted)">
+<li style="display: flex; align-items: center; gap: 8px"><span style="{{ legend.code }}"><span aria-hidden="true" style="width: 7px; height: 7px; background: var(--color-ink)"></span>Code</span>fixed checks and calculations, no AI</li>
+<li style="display: flex; align-items: center; gap: 8px"><span style="{{ legend.ai }}"><span aria-hidden="true" style="width: 7px; height: 7px; border: 1.5px solid var(--color-ink); transform: rotate(45deg)"></span>AI or rules engine</span>proposes what to do</li>
+<li style="display: flex; align-items: center; gap: 8px"><span style="{{ legend.reviewer }}"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: var(--color-board-type)"></span>Reviewer</span>a person who approves</li>
+<li style="display: flex; align-items: center; gap: 8px"><span style="{{ legend.system }}">System</span>the service's own bookkeeping</li>
+<li>Times are UTC.</li>
+</ul>
+</div>
+
+<sc-for list="{{ c0.groups }}" as="g" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: center; gap: 12px">
+<h3 style="font-size: var(--text-sm); font-weight: 600; color: var(--color-ink-2); white-space: nowrap">{{ g.title }}</h3>
+<span aria-hidden="true" style="flex: 1; height: 1px; background: var(--color-rule)"></span>
+</div>
+<ol style="list-style: none; display: flex; flex-direction: column">
+<sc-for list="{{ g.steps }}" as="s" hint-placeholder-count="3">
+<li style="display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 14px">
+<div style="display: flex; flex-direction: column; align-items: center; padding-top: 6px">
+<span aria-hidden="true" style="{{ s.markStyle }}"></span>
+<span aria-hidden="true" style="{{ s.railStyle }}"></span>
+</div>
+<div style="{{ s.bodyStyle }}">
+<sc-if value="{{ s.minor }}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; justify-content: space-between; gap: 16px; font-size: var(--text-sm); color: var(--color-muted)">
+<p style="{{ s.minorTextStyle }}">{{ s.title }}</p>
+<p style="white-space: nowrap">{{ s.actor }} · {{ s.time }}</p>
+</div>
+</sc-if>
+<sc-if value="{{ s.major }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 6px 24px; flex-wrap: wrap">
+<h4 style="font-size: var(--text-md); font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">{{ s.label }}<sc-if value="{{ s.tag }}" hint-placeholder-val="{{ false }}"><span style="{{ s.tagStyle }}">{{ s.tag }}</span></sc-if></h4>
+<p style="display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--color-muted); white-space: nowrap"><span style="{{ s.actorStyle }}"><span aria-hidden="true" style="{{ s.actorShape }}"></span>{{ s.actor }}</span>{{ s.time }}</p>
+</div>
+<sc-if value="{{ s.summary }}" hint-placeholder-val="{{ true }}">
+<p style="color: var(--color-ink-2); max-width: 68ch; margin-top: 2px">{{ s.summary }}</p>
+</sc-if>
+<sc-if value="{{ s.reasoning }}" hint-placeholder-val="{{ false }}">
+<figure style="margin: 10px 0 0; max-width: 68ch; display: flex; flex-direction: column; gap: 6px">
+<figcaption style="font-size: var(--text-sm); color: var(--color-muted)">Its reasoning, exactly as recorded · proposed by {{ s.proposer }}</figcaption>
+<blockquote style="margin: 0; padding: 12px 14px; background: var(--color-paper-2); border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-ink); white-space: pre-wrap; overflow-wrap: anywhere">{{ s.reasoning }}</blockquote>
+</figure>
+</sc-if>
+<sc-if value="{{ s.hasDetails }}" hint-placeholder-val="{{ false }}">
+<details style="margin-top: 6px">
+<summary style="display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: var(--text-sm); color: var(--color-muted); text-decoration: underline; text-underline-offset: 3px"><svg class="chev" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>Details</summary>
+<ul style="list-style: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 0 4px 16px; font-size: var(--text-sm); color: var(--color-ink-2)">
+<sc-for list="{{ s.details }}" as="d" hint-placeholder-count="2">
+<li style="overflow-wrap: anywhere">{{ d }}</li>
+</sc-for>
+</ul>
+</details>
+</sc-if>
+</sc-if>
+</div>
+</li>
+</sc-for>
+</ol>
+</div>
+</sc-for>
+</section>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startCase":{"editor":"enum","options":["SHP-000002","SHP-000009","SHP-000011","SHP-000001","SHP-000006","SHP-000005","SHP-000013","SHP-000014","SHP-000007"],"default":"SHP-000002"},"$preview":{"width":1440,"height":2250}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: null, q: '' };
+  }
+
+  data() {
+    const RULES = 'Rules engine (the AI was off or not needed)';
+    const F5 = ['delivery status', 'declared size and weight', 'hub measurement', 'delivery zone', 'billing entries'];
+    const raised = (id, t) => ({ title: 'Dispute raised on ' + id, actor: 'Seller', time: t, kind: 'done' });
+    const elig = (t) => ({ title: 'Checked eligibility: eligible', summary: 'Its status says delivered. The evidence is checked next and can still prove otherwise.', actor: 'Code', time: t, kind: 'done' });
+    const gathered = (t, extra, notOnFile) => {
+      const found = F5.concat(extra);
+      let s = 'Found ' + found.length + ' of 8. Not needed this round: hub finding.';
+      if (notOnFile.length) s += ' Not on file: ' + notOnFile.join(', ') + '.';
+      return { title: 'Gathered the evidence', summary: s, actor: 'Code', time: t, kind: 'done', details: ['Found: ' + found.join(', ') + '.'] };
+    };
+    const recalc = (t, summary, details) => ({ title: 'Recalculated the charge', summary: summary, actor: 'Code', time: t, kind: 'done', details: details });
+    const approved = (t, what) => ({ title: 'owner approved ' + what, summary: 'Note: scripted reviewer', actor: 'Reviewer', time: t, kind: 'done', details: ['Approver: owner (listed in config/policy.yaml)', 'Bound to the exact text or amount shown on the Review screen'] });
+    const outcome = (t) => ({ title: 'Outcome recorded for pattern detection', actor: 'System', time: t, kind: 'minor' });
+    const NOFILE2 = ['parcel image', 'earlier shipments of this item'];
+    const noErr = (c) => 'Charged ' + c + ', correct ' + c + ', overcharged ₹0.00. Code found no definite error.';
+
+    return [
+      {
+        id: 'SHP-000011', status: 'Not eligible', tone: 'closed', openedShort: '16:09', open: false,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 16:09 UTC · closed 7 Nov 2026, 16:09 UTC · no AI calls',
+        headline: 'Closed: this shipment could not be disputed.',
+        why: 'The scan history shows the shipment was not delivered. Only delivered shipments can be disputed.',
+        next: 'Nothing left to do.',
+        phases: ['done', 'done', 'notreached', 'notreached', 'done'],
+        figures: null,
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000011', '16:09'), elig('16:09')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('16:09', ['earlier shipments of this item'], ['parcel image']),
+            recalc('16:09', 'Worked out before the scan history was read. Not used, because the shipment turned out not to be eligible.', ['Charged ₹152.00, correct ₹152.00, overcharged ₹0.00']),
+            { title: 'Closed: not eligible', tag: 'Not eligible', tagTone: 'closed', summary: 'The scan history shows the shipment was not delivered. Only delivered shipments can be disputed.', actor: 'Code', time: '16:09', kind: 'closed', details: ['Rule T05: scan history overrides the delivered status'] },
+            outcome('16:09')
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000006', status: 'With a person', tone: 'attention', openedShort: '15:16', open: true,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 15:16 UTC · open · no AI calls',
+        headline: 'The agent stopped and handed this case to a person.',
+        why: 'The input screen flagged it: the seller’s text read like instructions to the agent. It was treated as data, not followed.',
+        whyCode: 'R21',
+        next: 'A reviewer can take it over or return it to the agent on the Review screen.',
+        link: { href: 'Review.dc.html', label: 'Decide on the Review screen' },
+        phases: ['done', 'person', 'later', 'later', 'later'],
+        figures: [{ label: 'Charged', value: '₹152.00' }, { label: 'Correct charge', value: '₹152.00' }, { label: 'Overcharged', value: '₹0.00' }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000006', '15:16'), elig('15:16')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('15:16', [], NOFILE2),
+            recalc('15:16', noErr('₹152.00'), ['Rate card zone B']),
+            { title: 'Proposed: Hand to a person', tag: 'Needs a person', tagTone: 'attention', summary: 'High confidence. The seller’s text was screened, treated as data and sent to a person.', actor: 'Rules engine', proposer: RULES, reasoning: 'B2: input screen flagged a dispute_statement: instruction_like', time: '15:16', kind: 'person', details: ['Reason code R21: manipulation_suspected', 'Screen result: instruction_like', 'The seller’s words were never passed to a model as instructions'] },
+            { title: 'Handed to a person', actor: 'System', time: '15:16', kind: 'minor' },
+            { title: 'Now: waiting for a reviewer to take it over or return it to the agent.', kind: 'pending' }
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000001', status: 'With a person', tone: 'attention', openedShort: '14:23', open: true,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 14:23 UTC · open · no AI calls',
+        headline: 'The agent stopped and handed this case to a person.',
+        why: 'Proposal escalated: the round contains a parcel photo, and images need a person’s judgement.',
+        whyCode: 'B5',
+        next: 'A reviewer can take it over or return it to the agent on the Review screen.',
+        link: { href: 'Review.dc.html', label: 'Decide on the Review screen' },
+        phases: ['done', 'person', 'later', 'later', 'later'],
+        figures: [{ label: 'Charged', value: '₹152.00' }, { label: 'Correct charge', value: '₹152.00' }, { label: 'Overcharged', value: '₹0.00' }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000001', '14:23'), elig('14:23')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('14:23', ['parcel image'], ['earlier shipments of this item']),
+            recalc('14:23', noErr('₹152.00'), ['Rate card zone B']),
+            { title: 'Proposed: Hand to a person', tag: 'Needs a person', tagTone: 'attention', summary: 'High confidence. Policy sent it to a person: the round contains image evidence, which needs judgement.', actor: 'Rules engine', proposer: RULES, reasoning: 'B5: the round contains image evidence, which needs judgement', time: '14:23', kind: 'person', details: ['Reason: proposal escalated', 'Rule B5'] },
+            { title: 'Handed to a person', actor: 'System', time: '14:23', kind: 'minor' },
+            { title: 'Now: waiting for a reviewer to take it over or return it to the agent.', kind: 'pending' }
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000005', status: 'Awaiting approval', tone: 'waiting', openedShort: '13:30', open: true,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 13:30 UTC · open · no AI calls',
+        headline: 'Waiting for a reviewer to approve an email to the seller (evidence request).',
+        why: 'Policy allows it, but a person must approve first.',
+        next: 'Approve or reject it on the Review screen. Nothing is sent until then.',
+        link: { href: 'Review.dc.html', label: 'Decide on the Review screen' },
+        phases: ['done', 'done', 'waiting', 'later', 'later'],
+        figures: [{ label: 'Charged', value: '₹190.00' }, { label: 'Chargeable weight', value: '2,244 g' }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000005', '13:30'), elig('13:30')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('13:30', [], NOFILE2),
+            recalc('13:30', 'Charged ₹190.00 on a size-based weight of 2,244 g. The hub’s measured size is more than 5% larger than declared, so code needs the seller’s evidence before deciding.', ['Rule B7: measured size exceeds declared by more than 5%']),
+            { title: 'Proposed: Ask the seller for evidence', summary: 'High confidence. Policy allows it, but a person must approve the email first.', actor: 'Rules engine', proposer: RULES, reasoning: 'B7: measured size exceeds declared by more than 5%', time: '13:30', kind: 'propose', details: ['Draft email to seller+1@example.invalid, held for approval'] },
+            { title: 'Now: waiting for a reviewer to approve the evidence request email. Requested 13:30.', kind: 'pending' }
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000009', status: 'Awaiting approval', tone: 'waiting', openedShort: '12:37', open: true,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 12:37 UTC · open · no AI calls',
+        headline: 'Waiting for a reviewer to approve a ₹152.00 credit.',
+        why: 'Policy allows it, but a person must approve first.',
+        next: 'Approve or reject it on the Review screen. Nothing is sent until then.',
+        link: { href: 'Review.dc.html', label: 'Decide on the Review screen' },
+        phases: ['done', 'done', 'waiting', 'later', 'later'],
+        figures: [{ label: 'Duplicate debit (the credit’s basis)', value: '₹152.00', lead: true }, { label: 'Weight charge', value: '₹152.00' }, { label: 'Correct weight charge', value: '₹152.00' }],
+        figureNote: 'The weight charge itself was right. The seller was billed for it twice, so the credit returns the second debit.',
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000009', '12:37'), elig('12:37')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('12:37', [], NOFILE2),
+            recalc('12:37', 'The weight charge of ₹152.00 is correct, but it was billed twice. Code proved a duplicate charge of ₹152.00.', ['Weight check: charged ₹152.00, correct ₹152.00, overcharged ₹0.00', 'Billing entries: two debits of ₹152.00 for this shipment']),
+            { title: 'Proposed: Credit the seller', summary: 'High confidence. Policy allows it, but a person must approve first.', actor: 'Rules engine', proposer: RULES, reasoning: 'B3: one definite error proved by code: duplicate_charge', time: '12:37', kind: 'propose', details: ['Rule B3', 'Credit amount set by code: ₹152.00, reason duplicate charge'] },
+            { title: 'Now: waiting for a reviewer to approve the ₹152.00 credit. Requested 12:37.', kind: 'pending' }
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000013', status: 'Waiting for the seller', tone: 'waiting', openedShort: '11:44', open: true,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 11:44 UTC · open · no AI calls',
+        headline: 'Waiting for the seller to reply.',
+        next: 'If they do not reply, a reminder goes out, and then the case closes.',
+        phases: ['done', 'waiting', 'later', 'later', 'later'],
+        figures: [{ label: 'Charged', value: '₹114.00' }, { label: 'Correct charge', value: '₹114.00' }, { label: 'Overcharged', value: '₹0.00' }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000013', '11:44'), elig('11:44')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('11:44', [], NOFILE2),
+            recalc('11:44', noErr('₹114.00'), []),
+            { title: 'Proposed: Ask the seller for evidence', summary: 'High confidence. Policy allows it, but a person must approve the email first.', actor: 'Rules engine', proposer: RULES, reasoning: 'B7: measured size exceeds declared by more than 5%', time: '11:44', kind: 'propose', details: ['Rule B7'] },
+            approved('11:44', 'the evidence request email'),
+            { title: 'Sent the evidence request email', summary: 'To seller+1@example.invalid.', actor: 'Code', time: '11:44', kind: 'done', details: ['Message msg-0001'] },
+            { title: 'Proved it happened by reading it back', summary: 'The email was read back as sent. Now waiting for the seller.', actor: 'Code', time: '11:44', kind: 'done' },
+            { title: 'Now: waiting for the seller’s reply. A reminder needs approval after 48 h; the case closes at 72 h.', kind: 'pending' }
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000007', status: 'Not eligible', tone: 'closed', openedShort: '10:51', open: false,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 10:51 UTC · closed 7 Nov 2026, 10:51 UTC · no AI calls',
+        headline: 'Closed: this shipment could not be disputed.',
+        why: 'The shipment’s status shows it was not delivered. Only delivered shipments can be disputed.',
+        next: 'Nothing left to do.',
+        phases: ['done', 'notreached', 'notreached', 'notreached', 'done'],
+        figures: null,
+        groups: [
+          { title: 'The dispute', steps: [
+            raised('SHP-000007', '10:51'),
+            { title: 'Checked eligibility: not eligible', tag: 'Not eligible', tagTone: 'closed', summary: 'Its status is “Returned to origin”, not delivered. Only delivered shipments can be disputed.', actor: 'Code', time: '10:51', kind: 'closed', details: ['Rule T02: checked at intake'] },
+            outcome('10:51')
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000002', status: 'Resolved: credited', tone: 'settled', openedShort: '09:58', open: false,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 09:58 UTC · closed 7 Nov 2026, 09:58 UTC · no AI calls',
+        headline: 'Resolved: the seller was credited ₹1,820.00.',
+        why: 'Code proved an overcharge, and a reviewer approved the credit.',
+        next: 'Nothing left to do. The credit was proved by reading it back from the ledger.',
+        link: { href: 'Ledger.dc.html', label: 'See the credit in the ledger' },
+        phases: ['done', 'done', 'done', 'done', 'settled'],
+        figures: [{ label: 'Charged', value: '₹2,800.00' }, { label: 'Correct charge', value: '₹980.00' }, { label: 'Overcharged', value: '₹1,820.00', lead: true }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000002', '09:58'), elig('09:58')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('09:58', [], NOFILE2),
+            recalc('09:58', 'Charged ₹2,800.00, correct ₹980.00, overcharged ₹1,820.00. Code proved a calculation error.', ['Billed weight keyed as 20,000 g; the hub measured 7,000 g', 'Rate card zone E']),
+            { title: 'Proposed: Credit the seller', summary: 'High confidence. Policy allows it, but a person must approve first.', actor: 'Rules engine', proposer: RULES, reasoning: 'B3: one definite error proved by code: calculation_error', time: '09:58', kind: 'propose', details: ['Rule B3', 'Credit amount set by code: ₹1,820.00, reason calculation error'] },
+            approved('09:58', 'the credit of ₹1,820.00'),
+            { title: 'Posted a credit to the ledger', summary: '₹1,820.00 for calculation error.', actor: 'Code', time: '09:58', kind: 'done', details: ['Transaction txn_b7bd93d602f542dd8436', 'Posted once, with an idempotency key'] },
+            { title: 'Proved it happened by reading it back', summary: 'The credit is in the ledger. Next, the credit confirmation email to the seller needed approval.', actor: 'Code', time: '09:58', kind: 'done' },
+            approved('09:58', 'the credit confirmation email'),
+            { title: 'Sent the credit confirmation email', summary: 'To seller+1@example.invalid.', actor: 'Code', time: '09:58', kind: 'done', details: ['Message msg-0001'] },
+            { title: 'Proved it happened by reading it back', tag: 'Credited', tagTone: 'settled', summary: 'The email was read back as sent. The case is resolved: credited.', actor: 'Code', time: '09:58', kind: 'credited' },
+            outcome('09:58')
+          ] }
+        ]
+      },
+      {
+        id: 'SHP-000014', status: 'Resolved: charge upheld', tone: 'done', openedShort: '09:05', open: false,
+        facts: 'Seller SELL-0001 · opened 7 Nov 2026, 09:05 UTC · closed 7 Nov 2026, 09:05 UTC · no AI calls',
+        headline: 'Resolved: the charge was correct, and the seller was told why.',
+        next: 'Nothing left to do. The seller can reply with new evidence within 7 days.',
+        phases: ['done', 'done', 'done', 'done', 'done'],
+        figures: [{ label: 'Charged', value: '₹980.00' }, { label: 'Correct charge', value: '₹980.00' }, { label: 'Overcharged', value: '₹0.00' }],
+        groups: [
+          { title: 'The dispute', steps: [raised('SHP-000014', '09:05'), elig('09:05')] },
+          { title: 'Round 1 · First look', steps: [
+            gathered('09:05', [], NOFILE2),
+            recalc('09:05', noErr('₹980.00'), []),
+            { title: 'Proposed: Uphold the charge', summary: 'High confidence. Policy allows it, but a person must approve the explanation email first.', actor: 'Rules engine', proposer: RULES, reasoning: 'B8: charge follows the rate card and measured size is within 5% of declared', time: '09:05', kind: 'propose', details: ['Rule B8'] },
+            approved('09:05', 'the explanation email'),
+            { title: 'Sent the explanation email', summary: 'To seller+1@example.invalid.', actor: 'Code', time: '09:05', kind: 'done', details: ['Message msg-0001'] },
+            { title: 'Proved it happened by reading it back', summary: 'The email was read back as sent. The case is resolved: charge upheld.', actor: 'Code', time: '09:05', kind: 'done' },
+            outcome('09:05')
+          ] }
+        ]
+      }
+    ];
+  }
+
+  renderVals() {
+    const all = this.data();
+    const selId = this.state.sel ?? this.props.startCase ?? 'SHP-000002';
+    const q = (this.state.q || '').trim().toLowerCase();
+    const chipBase = 'display: inline-flex; align-items: center; align-self: flex-start; height: 24px; padding: 0 9px; border-radius: 999px; font-size: var(--text-sm); white-space: nowrap; font-weight: 500; ';
+    const TONES = {
+      working: 'border: 1px solid var(--color-rule-2); color: var(--color-ink-2);',
+      waiting: 'border: 1px dashed var(--color-ink-2); color: var(--color-ink-2);',
+      attention: 'border: 1.5px solid var(--color-ink); color: var(--color-ink); font-weight: 700;',
+      done: 'border: 1px solid var(--color-rule-2); color: var(--color-ink-2); background: var(--color-paper-2);',
+      closed: 'border: 1px solid var(--color-rule); color: var(--color-muted);',
+      settled: 'border: 1.5px solid var(--color-paid); color: var(--color-paid); font-weight: 700;'
+    };
+    const chip = (t) => chipBase + (TONES[t] || TONES.working);
+
+    const cases = all
+      .filter((c) => !q || c.id.toLowerCase().includes(q) || c.status.toLowerCase().includes(q))
+      .map((c) => {
+        const on = c.id === selId;
+        return {
+          id: c.id, status: c.status, openedShort: 'opened ' + c.openedShort,
+          chipStyle: chip(c.tone),
+          pressed: on ? 'true' : 'false',
+          btnStyle: 'width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border: 0; border-radius: var(--radius-control); text-align: left; cursor: pointer; min-height: 44px; ' + (on ? 'background: var(--color-cotton); box-shadow: var(--shadow-stock);' : 'background: transparent;'),
+          pick: () => this.setState({ sel: c.id })
+        };
+      });
+
+    const c = all.find((x) => x.id === selId) || all[0];
+
+    const LABELS = ['Raised', 'Investigated', 'Approved', 'Acted', 'Closed'];
+    const WORDS = { done: 'done', settled: 'done', inprogress: 'in progress', waiting: 'waiting', person: 'with a person', notneeded: 'not needed', notreached: 'not reached', later: 'later' };
+    const circle = 'width: 30px; height: 30px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-figure); font-size: var(--text-sm); font-weight: 600; ';
+    const MARK = {
+      done: 'background: var(--color-ink); color: var(--color-board-type);',
+      settled: 'background: var(--color-paid); color: var(--color-cotton);',
+      inprogress: 'border: 2px solid var(--color-ink); color: var(--color-ink); background: var(--color-cotton);',
+      waiting: 'border: 2px dashed var(--color-ink); color: var(--color-ink); background: var(--color-cotton);',
+      person: 'border: 2.5px solid var(--color-ink); color: var(--color-ink); background: var(--color-paper-3);',
+      notneeded: 'border: 1px solid var(--color-rule-2); color: var(--color-muted); background: var(--color-paper-2);',
+      notreached: 'border: 1px solid var(--color-rule-2); color: var(--color-muted); background: var(--color-paper-2);',
+      later: 'border: 1px solid var(--color-rule-2); color: var(--color-muted); background: var(--color-cotton);'
+    };
+    const phases = c.phases.map((m, i) => {
+      const nextM = c.phases[i + 1];
+      const solid = (m === 'done' || m === 'settled') && nextM && nextM !== 'later' && nextM !== 'notreached' && nextM !== 'notneeded';
+      const isDone = m === 'done' || m === 'settled';
+      const emphasise = m === 'waiting' || m === 'person' || m === 'inprogress';
+      return {
+        label: LABELS[i], word: WORDS[m],
+        isDone: isDone, showNum: !isDone,
+        glyph: (m === 'notneeded' || m === 'notreached') ? '–' : String(i + 1),
+        markStyle: circle + MARK[m],
+        lineStyle: i === 4 ? 'display: none;' : 'flex: 1; height: 0; margin: 0 8px; ' + (solid ? 'border-top: 2px solid var(--color-ink);' : 'border-top: 2px dotted var(--color-rule-2);'),
+        wordStyle: 'font-size: var(--text-sm); ' + (m === 'settled' ? 'color: var(--color-paid); font-weight: 600;' : emphasise ? 'color: var(--color-ink); font-weight: 600;' : 'color: var(--color-muted);')
+      };
+    });
+
+    const ACTOR = {
+      Seller: ['border: 1px solid var(--color-rule-2); color: var(--color-ink-2);', 'width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--color-ink-2);'],
+      Code: ['background: var(--color-paper-3); color: var(--color-ink); font-family: var(--font-figure);', 'width: 7px; height: 7px; background: var(--color-ink);'],
+      'Rules engine': ['border: 1px solid var(--color-ink-2); color: var(--color-ink); background: var(--color-cotton);', 'width: 7px; height: 7px; border: 1.5px solid var(--color-ink); transform: rotate(45deg);'],
+      AI: ['border: 1px solid var(--color-ink-2); color: var(--color-ink); background: var(--color-cotton);', 'width: 7px; height: 7px; border: 1.5px solid var(--color-ink); transform: rotate(45deg);'],
+      Reviewer: ['background: var(--color-board); color: var(--color-board-type); font-weight: 600;', 'width: 7px; height: 7px; border-radius: 50%; background: var(--color-board-type);'],
+      Hub: ['border: 1px solid var(--color-rule-2); color: var(--color-ink-2);', 'width: 7px; height: 7px; border: 1.5px solid var(--color-ink-2);'],
+      System: ['color: var(--color-muted);', 'display: none;']
+    };
+    const pill = 'display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-control); font-size: var(--text-sm); white-space: nowrap; ';
+    const dot = 'flex: none; ';
+    const STEPMARK = {
+      done: 'width: 12px; height: 12px; border-radius: 50%; background: var(--color-ink);',
+      propose: 'width: 14px; height: 14px; border: 2px solid var(--color-ink); background: var(--color-cotton); transform: rotate(45deg); border-radius: 2px;',
+      person: 'width: 14px; height: 14px; border-radius: 50%; border: 4px solid var(--color-ink); background: var(--color-cotton);',
+      credited: 'width: 14px; height: 14px; border-radius: 50%; background: var(--color-paid); box-shadow: 0 0 0 3px rgba(186,74,52,.18);',
+      closed: 'width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--color-muted); background: var(--color-paper-3);',
+      pending: 'width: 12px; height: 12px; border-radius: 50%; border: 2px dashed var(--color-ink-2); background: var(--color-paper);',
+      minor: 'width: 6px; height: 6px; margin-top: 3px; border-radius: 50%; background: var(--color-rule-2);'
+    };
+
+    let n = 0;
+    const groups = c.groups.map((g, gi) => {
+      const lastGroup = gi === c.groups.length - 1;
+      return {
+        title: g.title,
+        steps: g.steps.map((s, si) => {
+          const isLast = lastGroup && si === g.steps.length - 1;
+          const minor = s.kind === 'minor' || s.kind === 'pending';
+          if (!minor) n += 1;
+          const a = ACTOR[s.actor] || ACTOR.System;
+          return {
+            minor: minor, major: !minor,
+            label: n + '. ' + s.title,
+            title: s.title,
+            tag: s.tag || '', tagStyle: chip(s.tagTone || 'working'),
+            summary: s.summary || '',
+            actor: s.actor || '', time: s.time || '',
+            actorStyle: pill + a[0], actorShape: dot + a[1],
+            reasoning: s.reasoning || '', proposer: s.proposer || '',
+            details: s.details || [], hasDetails: !!(s.details && s.details.length),
+            markStyle: 'flex: none; ' + STEPMARK[s.kind || 'done'],
+            railStyle: isLast ? 'display: none;' : 'flex: 1; width: 2px; margin-top: 6px; min-height: 12px; background: var(--color-rule);',
+            bodyStyle: minor ? 'padding-bottom: 14px; min-width: 0;' : 'padding-bottom: 22px; min-width: 0;',
+            minorTextStyle: s.kind === 'pending' ? 'color: var(--color-ink-2); font-style: italic;' : ''
+          };
+        })
+      };
+    });
+
+    const figures = (c.figures || []).map((f) => ({
+      label: f.label, value: f.value,
+      valueStyle: 'font-family: var(--font-figure); font-variant-numeric: tabular-nums; ' + (f.lead ? 'font-size: var(--text-xl); font-weight: 600; color: var(--color-ink);' : 'font-size: var(--text-lg); color: var(--color-ink-2);')
+    }));
+
+    return {
+      q: this.state.q,
+      onSearch: (e) => this.setState({ q: e.target.value }),
+      caseCount: all.length,
+      cases: cases,
+      noMatch: cases.length === 0,
+      legend: {
+        code: pill + ACTOR.Code[0],
+        ai: pill + ACTOR['Rules engine'][0],
+        reviewer: pill + ACTOR.Reviewer[0],
+        system: pill + 'border: 1px dashed var(--color-rule-2); color: var(--color-muted);'
+      },
+      c0: {
+        id: c.id, status: c.status, chipStyle: chip(c.tone), facts: c.facts, open: c.open,
+        headline: c.headline, hasWhy: !!c.why, why: c.why || '', whyCode: c.whyCode || '', next: c.next,
+        hasLink: !!c.link, linkHref: c.link ? c.link.href : '', linkLabel: c.link ? c.link.label : '',
+        phases: phases,
+        hasFigures: !!c.figures, figures: figures, figureNote: c.figureNote || '',
+        groups: groups
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

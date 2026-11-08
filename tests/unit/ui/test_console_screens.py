@@ -94,7 +94,10 @@ def test_the_seller_sees_their_shipments_and_their_ticket(desk: dict[str, Any]) 
     at = AppTest.from_function(_seller, default_timeout=60).run()
     assert not at.exception
     assert at.title[0].value == "Raise a ticket"
-    assert len(at.dataframe) == 2  # shipments, and the one ticket
+    headers = [h.value for h in at.header]
+    assert {"Your shipments", "Dispute a charge", "Your tickets"} <= set(headers)
+    assert len(at.selectbox[0].options) == 14  # every shipment, chosen from the list or a row
+    assert "correct" not in " ".join(m.value for m in at.markdown).lower()  # brief 13.5
 
 
 def test_the_steps_tell_the_case_in_order(desk: dict[str, Any]) -> None:
@@ -104,13 +107,13 @@ def test_the_steps_tell_the_case_in_order(desk: dict[str, Any]) -> None:
     for expected in (
         "Waiting for a reviewer to approve a ₹1,820.00 credit.",  # the headline
         "Approve or reject it on the Review screen",  # what happens next
-        "Round 1: First look",
+        "Round 1 · First look",
         "Dispute raised on SHP-000002",
         "Charged ₹2,800.00, correct ₹980.00, overcharged ₹1,820.00.",
         "Proposed: Credit the seller",
         "a person must approve first",
         "Overcharge: ₹1,820.00",  # in the step's details
-        "Its reasoning, exactly as recorded:",  # the proposal's rationale, shown openly
+        "Its reasoning, exactly as recorded · proposed by Rules engine",  # shown openly
     ):
         assert expected in text
 
@@ -151,7 +154,7 @@ def test_a_reviewer_signs_in_sees_the_recommendation_and_approves(desk: dict[str
     assert "What the agent recommends" in text and "Credit the seller" in text
     assert "₹1,820.00" in text and "Rules engine" in text
 
-    approve = next(b for b in at.button if b.label == "Approve")
+    approve = next(b for b in at.button if b.label == "Approve the ₹1,820.00 credit")
     approve.click().run()
     assert not at.exception
     with SqliteUnitOfWork(create_sqlite_engine(desk["cases"]), clock=SystemClock()) as work:
@@ -173,10 +176,10 @@ def test_a_wrong_token_shows_no_queue(desk: dict[str, Any]) -> None:
 def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
     at = AppTest.from_function(_ledger, default_timeout=60).run()
     assert not at.exception
-    values = {m.label: m.value for m in at.metric}
-    assert values["Credited back"] == "₹0.00"  # nothing approved yet
-    assert values["Charged"].startswith("₹")  # money reads the same on every screen
-    assert "No credits yet" in _text(at)
+    text = _text(at)
+    assert "<dt>Credited back</dt><dd>\u2212 ₹0.00</dd>" in text  # nothing approved yet
+    assert "<dt>Charged</dt><dd>₹" in text  # money reads the same on every screen
+    assert "No credits yet" in text
 
 
 @pytest.fixture
@@ -206,7 +209,7 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
     at.button[0].click().run()
     assert not at.exception
     text = _text(at)
-    assert "Why it is with a person" in text and "proposal escalated" in text
+    assert "Why it is with a person" in text and "Proposal escalated" in text
     assert "image evidence" in text  # the reason's detail, shown as text
 
     take = next(b for b in at.button if b.label == "Take over")
@@ -278,7 +281,7 @@ class TestAnApprovalIsActedOn:
         at = AppTest.from_function(_review, default_timeout=60).run()
         at.text_input[0].input(os.environ["REVIEW_CONSOLE_TOKEN"])
         at.button[0].click().run()
-        next(b for b in at.button if b.label == "Approve").click().run()
+        next(b for b in at.button if b.label.startswith("Approve the")).click().run()
         assert not at.exception
 
         world.drive(20)  # the runner picks the decision up, as the hosted service does

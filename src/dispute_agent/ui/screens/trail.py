@@ -1,20 +1,13 @@
-"""Screen 2: the agent's steps for one case. Layout over `ui.trail` and `ui.journey`.
+"""Screen 2: the agent's steps - the signature screen (design handoff 4, Screen 2; ADR 0048).
 
-Read top to bottom the way a person asks (UX pass, docs/design/REDESIGN_HALLMARK.md):
+A case list on the left (searchable, the selected case in the URL). On the right, one card -
+the case's name and facts, where it stands (headline, Why, Next, the way onward), how far
+along it is (the stepper, in words), and code's figures when the case could be disputed -
+then "What happened": a timeline by round, each step saying what happened, who did it and
+when, with ids and codes folded into Details. Open cases refresh themselves every 4 s.
 
-1. Which case is this? The shipment, its status, the seller, when it opened and closed.
-2. Where does it stand? One headline, then why and what happens next, and a link to the
-   screen where the next move is made.
-3. How far along is it? Five phases on a stepper, each in words: done, in progress,
-   waiting, with a person, not needed, not reached.
-4. What did code find? The charged, correct and overcharged figures - only when the case
-   was eligible, so they answer a question someone asked.
-5. What happened? A timeline, round by round: each step says what happened in one line,
-   who did it and when, with details folded away. The investigator's reasoning is shown
-   openly, as recorded; the service's bookkeeping is shown quietly.
-
-Everything interpolated into markup goes through `escape`; model-written text stays text.
-The case lives in the URL (`?case=`); an open case refreshes itself.
+All markup is built from escaped values (`theme.escape`); recorded text is shown "exactly as
+recorded" in a quote block, never rendered (I5).
 """
 
 from __future__ import annotations
@@ -24,11 +17,11 @@ from typing import TYPE_CHECKING
 import streamlit as st
 
 from dispute_agent.kernel.domain.enums import CaseState
-from dispute_agent.ui import data
+from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import Journey, Mark, journey
-from dispute_agent.ui.labels import Tone, when
+from dispute_agent.ui.labels import Tone, clock, when
 from dispute_agent.ui.seller import tickets
-from dispute_agent.ui.theme import chip, escape
+from dispute_agent.ui.theme import actor, chip, escape, recorded
 from dispute_agent.ui.trail import Actor, Step, Trail, build
 
 if TYPE_CHECKING:
@@ -37,9 +30,9 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
 
 REFRESH_S = 4
-
-#: The state word under each phase: words, so the stepper never relies on colour alone.
-MARK_WORD = {
+#: The mark of a phase that did not happen: an en dash, not a number (HANDOFF 3.3).
+DASH = "\u2013"
+PHASE_WORD = {
     Mark.DONE: "done",
     Mark.CURRENT: "in progress",
     Mark.WAITING: "waiting",
@@ -48,7 +41,7 @@ MARK_WORD = {
     Mark.NOT_REACHED: "not reached",
     Mark.TODO: "later",
 }
-#: Who did a step, as a reader would name them.
+#: Who did a step, as a reader names them (HANDOFF 3.2).
 ACTOR = {
     Actor.CODE: "Code",
     Actor.AI: "AI",
@@ -59,10 +52,18 @@ ACTOR = {
     Actor.SYSTEM: "System",
 }
 LEGEND = (
-    "Code: fixed checks and calculations, no AI. AI or rules engine: proposes what to do. "
-    "Reviewer: a person who approves. System: the service's own bookkeeping. Times are UTC."
+    '<ul class="legend" aria-label="Who does what">'
+    f"<li>{actor('Code')}fixed checks and calculations, no AI</li>"
+    f"<li>{actor('Rules engine').replace('Rules engine', 'AI or rules engine')}proposes what to do</li>"
+    f"<li>{actor('Reviewer')}a person who approves</li>"
+    f"<li>{actor('System')}the service's own bookkeeping</li>"
+    "<li>Times are UTC.</li></ul>"
 )
-MARKS = {Tone.SETTLED: "Credited", Tone.ATTENTION: "Needs a person"}
+ONWARD = {
+    CaseState.AWAITING_APPROVAL: ("review", "Decide on the Review screen →"),
+    CaseState.NEEDS_HUMAN_REVIEW: ("review", "Decide on the Review screen →"),
+    CaseState.RESOLVED_CREDITED: ("ledger", "See the credit in the ledger →"),
+}
 
 
 def page() -> None:
@@ -74,8 +75,8 @@ def page() -> None:
         everyone = tickets(work.cases.list_in_states(list(CaseState)))
     if not everyone:
         st.markdown(
-            '<p class="muted">No cases yet. Raise a ticket on the seller screen and '
-            "its steps appear here.</p>",
+            '<p class="muted">No cases yet. Raise a ticket on the seller screen and its steps '
+            "appear here.</p>",
             unsafe_allow_html=True,
         )
         pages = st.session_state.get("pages")
@@ -85,41 +86,68 @@ def page() -> None:
 
     ids = [t.case_id for t in everyone]
     wanted = st.query_params.get("case") or st.session_state.get("case")
-    pick, _ = st.columns([2, 3])
-    case_id = pick.selectbox(
-        f"Case ({len(ids)})",
-        ids,
-        index=ids.index(wanted) if wanted in ids else 0,
-        format_func=lambda cid: next(
-            f"{t.shipment_ref} · {t.label} · opened {when(t.opened_at)}"
-            for t in everyone
-            if t.case_id == cid
-        ),
-    )
-    st.query_params["case"] = case_id
-    is_open = next(t.is_open for t in everyone if t.case_id == case_id)
-    st.fragment(_case, run_every=REFRESH_S if is_open else None)(case_id)
+    selected = wanted if wanted in ids else ids[0]
+    side, main = st.columns([1, 3], gap="large")
+    with side:
+        st.markdown(
+            f'<h2 class="side-head">Cases <span class="muted">({len(ids)})</span></h2>',
+            unsafe_allow_html=True,
+        )
+        query = st.text_input(
+            "Find a case by shipment or status",
+            placeholder="Shipment or status",
+            label_visibility="collapsed",
+            key="case-search",
+        )
+        q = query.strip().lower()
+        shown = [
+            t for t in everyone if not q or q in t.shipment_ref.lower() or q in t.label.lower()
+        ]
+        clicked = picker.show(
+            {
+                "view": "cases",
+                "selected": selected,
+                "empty": "No case matches that. Try a shipment number such as 000002.",
+                "rows": [
+                    {
+                        "id": t.case_id,
+                        "title": t.shipment_ref,
+                        "aside": f"opened {clock(t.opened_at)}",
+                        "status": t.label,
+                        "tone": t.tone.value,
+                    }
+                    for t in shown
+                ],
+            },
+            key="cases",
+        )
+        if clicked["pick"] and clicked["pick"] in ids and clicked["pick"] != selected:
+            # Redraw at once, so the list shows the new case as chosen.
+            st.session_state["case"] = clicked["pick"]
+            st.query_params["case"] = clicked["pick"]
+            st.rerun()
+    st.query_params["case"] = selected
+    st.session_state["case"] = selected
+    is_open = next(t.is_open for t in everyone if t.case_id == selected)
+    with main:
+        st.fragment(_case, run_every=REFRESH_S if is_open else None)(selected)
 
 
 def _case(case_id: str) -> None:
     with data.reader() as work:
         case = work.cases.get(case_id)  # type: ignore[arg-type]
-        trail = build(work, case, usage=data.ai_usage(case.id))
+        trail = build(work, case, usage=data.ai_usage(case.id), policy=data.policy())
         where = journey(work, case)
-    with st.container(border=True, key="stock-case"):
-        st.markdown(_identity(case, trail), unsafe_allow_html=True)
-        st.markdown(_stands(where), unsafe_allow_html=True)
+    with st.container(key="card-case"):
+        st.markdown(_identity(case, trail) + _stands(where), unsafe_allow_html=True)
         _onward(case)
-        st.markdown(_stepper(where), unsafe_allow_html=True)
-        if where.figures:
-            st.markdown(_figures(where), unsafe_allow_html=True)
+        st.markdown(_stepper(where) + _figures(where), unsafe_allow_html=True)
     st.header("What happened")
-    st.markdown(f'<p class="muted">{escape(LEGEND)}</p>', unsafe_allow_html=True)
-    st.markdown(_timeline(trail, case.opened_at), unsafe_allow_html=True)
+    st.markdown(LEGEND, unsafe_allow_html=True)
+    st.markdown(timeline(trail, case.opened_at), unsafe_allow_html=True)
 
 
 def _identity(case: Case, trail: Trail) -> str:
-    """The case's name line and its facts line."""
     calls = (
         f"{trail.ai_calls} AI call{'s' if trail.ai_calls != 1 else ''} (USD {trail.ai_cost:.4f})"
         if trail.ai_calls
@@ -131,66 +159,78 @@ def _identity(case: Case, trail: Trail) -> str:
         f"closed {when(case.closed_at)}" if case.closed_at else "open",
         calls,
     ]
-    if trail.is_open:
-        facts.append(f"refreshes every {REFRESH_S} s")
+    live = (
+        f' · <span class="live" role="status" aria-live="polite">refreshes every {REFRESH_S} s</span>'
+        if trail.is_open
+        else ""
+    )
     return (
-        f'<div class="case-head"><span class="case-ref">{escape(trail.shipment_ref)}</span>'
+        f'<div class="case-head"><h2 class="case-ref">{escape(trail.shipment_ref)}</h2>'
         f"{chip(trail.label, trail.tone)}</div>"
-        f'<p class="muted case-facts">{escape(" · ".join(facts))}</p>'
+        f'<p class="case-facts">{escape(" · ".join(facts))}{live}</p>'
     )
 
 
 def _stands(where: Journey) -> str:
-    rows = ([("Why", where.why)] if where.why else []) + [("Next", where.next_step)]
-    body = "".join(f"<dt>{escape(k)}</dt><dd>{escape(v)}</dd>" for k, v in rows)
-    return f'<p class="headline">{escape(where.headline)}</p><dl class="pair stands">{body}</dl>'
+    why = ""
+    if where.why:
+        code = f' <span class="code">({escape(where.why_code)})</span>' if where.why_code else ""
+        why = f"<dt>Why</dt><dd>{escape(where.why)}{code}</dd>"
+    return (
+        f'<p class="headline">{escape(where.headline)}</p>'
+        f'<dl class="why-next">{why}<dt>Next</dt><dd>{escape(where.next_step)}</dd></dl>'
+    )
 
 
 def _onward(case: Case) -> None:
-    """A link to the screen where the next move is made, when there is one."""
+    """The way onward, when the next move is made on another screen."""
     pages = st.session_state.get("pages")
-    if not pages:  # absent only when a screen runs on its own, as in tests
-        return
-    if case.state in (CaseState.AWAITING_APPROVAL, CaseState.NEEDS_HUMAN_REVIEW):
-        st.page_link(
-            pages["review"], label="Decide on the Review screen", icon=":material/fact_check:"
-        )
-    elif case.state is CaseState.RESOLVED_CREDITED:
-        st.page_link(
-            pages["ledger"], label="See the credit in the ledger", icon=":material/account_balance:"
-        )
+    target = ONWARD.get(case.state)
+    if pages and target and st.button(target[1], type="primary", key=f"onward-{case.id}"):
+        st.switch_page(pages[target[0]])
 
 
 def _stepper(where: Journey) -> str:
     settled = where.tone is Tone.SETTLED
     items = []
-    for name, mark in where.phases:
+    marks = [mark for _name, mark in where.phases]
+    for i, (name, mark) in enumerate(where.phases):
         style = "settled" if settled and name == "Closed" else mark.value
+        done = mark is Mark.DONE
+        glyph = "✓" if done else (DASH if mark in (Mark.SKIPPED, Mark.NOT_REACHED) else str(i + 1))
+        after = marks[i + 1] if i + 1 < len(marks) else None
+        solid = done and after is not None and after is Mark.DONE
         items.append(
-            f'<li class="step step--{style}"><b>{escape(name)}</b>'
-            f"<small>{escape(MARK_WORD[mark])}</small></li>"
+            f'<li class="step--{style}"><div class="track"><span class="mark" aria-hidden="true">'
+            f'{glyph}</span><span class="link{" link--solid" if solid else ""}" aria-hidden="true">'
+            f"</span></div><div><b>{escape(name)}</b><small>{escape(PHASE_WORD[mark])}</small>"
+            "</div></li>"
         )
-    return f'<ol class="stepper" aria-label="Progress">{"".join(items)}</ol>'
+    return (
+        '<h3 class="sr-only">How far along</h3>'
+        f'<ol class="stepper" aria-label="Progress">{"".join(items)}</ol>'
+    )
 
 
 def _figures(where: Journey) -> str:
-    """Code's own figures for the case: a label and a tabular figure each."""
+    if not where.figures:
+        return ""
     cells = "".join(
-        f"<div><dt>{escape(label)}</dt><dd>{escape(value)}</dd></div>"
+        f"<div{' class=lead' if label == where.lead else ''}><dt>{escape(label)}</dt>"
+        f"<dd>{escape(value)}</dd></div>"
         for label, value in where.figures
     )
-    return f'<dl class="figs" aria-label="Code\'s figures">{cells}</dl>'
+    note = f'<p class="muted note">{escape(where.figure_note)}</p>' if where.figure_note else ""
+    return (
+        '<div class="figures"><p class="muted">Code\'s figures · worked out in code, not by the '
+        f"AI</p><dl>{cells}</dl>{note}</div>"
+    )
 
 
-def _text(value: str) -> str:
-    """Escaped, with line breaks kept: recorded text is shown as written, never as markup."""
-    return escape(value).replace("\n", "<br>")
-
-
-def _timeline(trail: Trail, opened: datetime) -> str:
+def timeline(trail: Trail, opened: datetime) -> str:
+    """Every step, by round, as one block of escaped markup."""
     out: list[str] = []
-    current = -1
-    number = 0
+    current, number = -1, 0
     for step in trail.steps:
         if step.round != current:
             if current != -1:
@@ -199,10 +239,10 @@ def _timeline(trail: Trail, opened: datetime) -> str:
             title = (
                 "The dispute"
                 if current == 0
-                else f"Round {current}: {trail.round_titles.get(current, 'Looked again')}"
+                else f"Round {current} · {trail.round_titles.get(current, 'Looked again')}"
             )
             out.append(
-                f'<section class="tl-round"><p class="tl-head">{escape(title)}</p><ol class="tl">'
+                f'<section class="round"><h3 class="round-head">{escape(title)}</h3><ol class="steps">'
             )
         if not step.minor:
             number += 1
@@ -213,36 +253,31 @@ def _timeline(trail: Trail, opened: datetime) -> str:
 
 
 def _item(step: Step, number: int, opened: datetime) -> str:
-    stamp = f"{step.at:%H:%M}" if step.at.date() == opened.date() else when(step.at)
-    actor = ACTOR.get(step.actor, step.actor.value)
-    side = f'<p class="tl-when">{escape(actor)} · {escape(stamp)}</p>'
+    stamp = clock(step.at) if step.at.date() == opened.date() else when(step.at)
+    who = ACTOR.get(step.actor, step.actor.value)
+    rail = f'<div class="rail" aria-hidden="true"><span class="dot dot--{step.mark.value}"></span></div>'
     if step.minor:
+        pending = step.mark.value == "pending"
+        side = "" if pending else f"<span>{escape(who)} · {escape(stamp)}</span>"
+        css = "step-minor step-minor--pending" if pending else "step-minor"
         return (
-            f'<li class="tl-item tl--minor"><div class="tl-main">'
-            f'<p class="tl-title">{escape(step.title)}</p></div>{side}</li>'
+            f'<li>{rail}<div class="step-body step-body--minor"><p class="{css}">'
+            f"<span>{escape(step.title)}</span>{side}</p></div></li>"
         )
-    tag = MARKS.get(step.tone)
-    title = f"{number}. {escape(step.title)}" + (f" {chip(tag, step.tone)}" if tag else "")
-    parts = [f'<p class="tl-title">{title}</p>']
+    tag = f" {chip(step.tag, step.tone)}" if step.tag else ""
+    parts = [
+        f'<div class="step-top"><h4 class="step-title">{number}. {escape(step.title)}{tag}</h4>'
+        f'<p class="step-who">{actor(who)}{escape(stamp)}</p></div>'
+    ]
     if step.summary:
-        parts.append(f'<p class="tl-sum">{_text(step.summary)}</p>')
+        parts.append(f'<p class="step-sum">{escape(step.summary)}</p>')
     said, findings = (step.quoted[0], step.quoted[1:]) if step.quoted else ("", ())
     if said:
         parts.append(
-            '<p class="said-label">Its reasoning, exactly as recorded:</p>'
-            f'<blockquote class="said">{_text(said)}</blockquote>'
+            recorded(f"Its reasoning, exactly as recorded · proposed by {step.proposer}", said)
         )
-    shown = [line for line in step.lines if line]
-    if shown or findings:
-        more = "".join(f"<li>{_text(line)}</li>" for line in shown)
-        found = "".join(f"<li>{_text(line)}</li>" for line in findings)
-        parts.append(
-            '<details class="tl-more"><summary>Details</summary>'
-            + (f"<ul>{more}</ul>" if more else "")
-            + (f'<p class="said-label">Findings, as recorded:</p><ul>{found}</ul>' if found else "")
-            + "</details>"
-        )
-    return (
-        f'<li class="tl-item tl--{step.tone.value}"><div class="tl-main">{"".join(parts)}</div>'
-        f"{side}</li>"
-    )
+    details = [*step.lines, *(f"As recorded: {f}" for f in findings)]
+    if details:
+        items = "".join(f"<li>{escape(line)}</li>" for line in details)
+        parts.append(f'<details class="more"><summary>Details</summary><ul>{items}</ul></details>')
+    return f'<li>{rail}<div class="step-body">{"".join(parts)}</div></li>'
