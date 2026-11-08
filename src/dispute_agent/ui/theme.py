@@ -167,25 +167,96 @@ button:focus-visible, a:focus-visible, [role="tab"]:focus-visible, summary:focus
 .headline .chip { vertical-align: middle; margin-right: var(--space-xs); }
 .meta { margin: var(--space-sm) 0 0; }
 .next { color: var(--color-ink-2); margin: var(--space-2xs) 0 var(--space-sm); }
-.phases { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin: var(--space-md) 0 var(--space-2xs);
-  padding: 0; list-style: none; }
-.phase { padding: 0 0 var(--space-2xs); color: var(--color-muted); line-height: 1.3;
-  border-bottom: 2px solid transparent; border-radius: 0; }
-.phase b { display: block; font-weight: 500; color: inherit; }
-.phase small { font-size: var(--text-sm); }
-.phase--done { color: var(--color-ink-2); }
-.phase--current, .phase--person { color: var(--color-ink); border-bottom-color: var(--color-ink); }
-.phase--current b, .phase--person b, .phase--waiting b { font-weight: 600; }
-.phase--waiting { color: var(--color-ink); border-bottom: 2px dashed var(--color-ink); }
-.phase--skipped small { text-decoration: line-through; }
-.phase--settled { color: var(--color-paid); border-bottom-color: var(--color-paid); }
+/* Agent steps: the case's name line and facts line. */
+.case-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); margin: 0; }
+.case-ref { font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-lg);
+  font-weight: 600; color: var(--color-ink); }
+.case-facts { margin: var(--space-2xs) 0 var(--space-md); overflow-wrap: anywhere; }
+.stands { margin: var(--space-xs) 0 var(--space-sm); font-size: var(--text-md); max-width: var(--measure); }
+.stands dt { font-weight: 500; }
+
+/* Progress: numbered marks on a line; each mark says its state in words, never colour alone. */
+.stepper { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-xs);
+  list-style: none; margin: var(--space-md) 0 var(--space-2xs); padding: 0; counter-reset: step; }
+.stepper > li.step { margin: 0; position: relative; padding-top: calc(22px + var(--space-xs)); color: var(--color-muted);
+  line-height: 1.3; counter-increment: step; min-width: 0; }
+.step::before { content: counter(step); position: absolute; top: 0; left: 0; width: 22px; height: 22px;
+  border-radius: 50%; box-sizing: border-box; border: 1.5px solid var(--color-rule-2);
+  background: var(--color-cotton); display: grid; place-items: center;
+  font-size: 0.75rem; font-weight: 600; color: var(--color-muted); z-index: 1; }
+.step::after { content: ""; position: absolute; top: 10px; left: 30px; right: var(--space-2xs);
+  height: 2px; background: var(--color-rule); }
+.step:last-child::after { display: none; }
+.step b { display: block; font-weight: 500; color: inherit; }
+.step small { display: block; font-size: var(--text-sm); }
+.step--done { color: var(--color-ink-2); }
+.step--done::before { content: "✓"; background: var(--color-ink-2); border-color: var(--color-ink-2);
+  color: var(--color-board-type); }
+.step--done::after { background: var(--color-ink-2); }
+.step--current, .step--person, .step--waiting { color: var(--color-ink); }
+.step--current b, .step--person b, .step--waiting b { font-weight: 600; }
+.step--current::before, .step--person::before { border: 2px solid var(--color-ink); color: var(--color-ink); }
+.step--waiting::before { border: 2px dashed var(--color-ink); color: var(--color-ink); }
+.step--skipped small, .step--not_reached small { font-style: italic; }
+.step--settled { color: var(--color-paid); }
+.step--settled::before { content: "✓"; background: var(--color-paid); border-color: var(--color-paid);
+  color: var(--color-board-type); }
+
+/* Code's figures: a label over a tabular figure, in a row that wraps rather than stacks tall. */
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: var(--space-sm) var(--space-lg);
+  margin: var(--space-md) 0 0; padding-top: var(--space-md); border-top: var(--rule-hair) solid var(--color-rule); }
+.figs dt { font-size: var(--text-sm); color: var(--color-muted); }
+.figs dd { margin: 0; font-family: var(--font-figure); font-variant-numeric: tabular-nums;
+  font-size: var(--text-lg); color: var(--color-ink); }
+
+/* What happened: a timeline. A mark and a line on the left; who and when on the right. */
+.tl-round { margin: var(--space-md) 0 0; }
+.tl-head { margin: 0 0 var(--space-xs); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule);
+  font-weight: 600; color: var(--color-ink); }
+.tl { list-style: none; margin: 0; padding: 0; }
+.tl > li.tl-item { margin: 0; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--space-md); padding: 0 0 var(--space-md) var(--space-lg); }
+.tl-item::before { content: ""; position: absolute; left: 4px; top: 0.45em; width: 11px; height: 11px;
+  border-radius: 50%; box-sizing: border-box; background: var(--color-ink-2); z-index: 1; }
+.tl-item::after { content: ""; position: absolute; left: 9px; top: 1.2em; bottom: -0.45em; width: 1px;
+  background: var(--color-rule-2); }
+.tl-item:last-child::after { display: none; }
+.tl--settled::before { background: var(--color-paid); }
+.tl--attention::before { background: var(--color-cotton); border: 2.5px solid var(--color-ink); }
+.tl--waiting::before { background: var(--color-cotton); border: 2px dashed var(--color-ink); }
+.tl--closed::before { background: var(--color-cotton); border: 2px solid var(--color-muted); }
+.tl--minor::before { left: 6px; top: 0.55em; width: 7px; height: 7px; background: var(--color-rule-2); }
+.tl-main { min-width: 0; }
+.tl-title { margin: 0; font-weight: 600; color: var(--color-ink); line-height: 1.35; }
+.tl-title .chip { margin-left: var(--space-2xs); vertical-align: 1px; }
+.tl--minor .tl-title { font-weight: 400; font-size: var(--text-sm); color: var(--color-muted); }
+.tl-sum { margin: var(--space-3xs) 0 0; color: var(--color-ink-2); max-width: var(--measure); overflow-wrap: anywhere; }
+.tl-when { margin: 0; color: var(--color-muted); font-size: var(--text-sm); white-space: nowrap; text-align: right; }
+.said-label { margin: var(--space-xs) 0 var(--space-2xs); font-size: var(--text-sm); color: var(--color-muted); }
+.said { margin: 0; padding: var(--space-xs) var(--space-sm); max-width: var(--measure);
+  border-left: 2px solid var(--color-rule-2); background: var(--color-paper-2);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0; color: var(--color-ink);
+  overflow-wrap: anywhere; }
+.findings { margin: 0; padding-left: 1.1rem; font-size: var(--text-sm); color: var(--color-ink-2); }
+ul.findings > li, .tl-more ul > li { margin: 0 0 var(--space-2xs); padding: 0; font-size: var(--text-sm);
+  overflow-wrap: anywhere; }
+.tl-more { margin-top: var(--space-2xs); }
+.tl-more summary { width: fit-content; cursor: pointer; font-size: var(--text-sm); color: var(--color-ink-2);
+  text-decoration: underline; text-decoration-color: var(--color-rule-2); text-underline-offset: 2px; }
+.tl-more summary:hover { text-decoration-color: var(--color-accent-2); }
+.tl-more ul { list-style: disc; margin: var(--space-2xs) 0 0; padding-left: 1.1rem; font-size: var(--text-sm); color: var(--color-ink-2); }
+.tl-more li { overflow-wrap: anywhere; margin: 0; padding: 0; }
+
 @media (max-width: 640px) {
-  .phases { flex-direction: column; gap: var(--space-2xs); }
-  .phase { display: flex; justify-content: space-between; border-bottom: var(--rule-hair) solid var(--color-rule); }
-  .phase b { display: inline; }
+  .stepper { grid-template-columns: 1fr; gap: 0; }
+  .stepper > li.step { display: flex; justify-content: space-between; gap: var(--space-sm); padding: var(--space-2xs) 0 var(--space-xs) 32px; }
+  .step::before { top: var(--space-2xs); }
+  .step::after { left: 10px; right: auto; top: calc(22px + var(--space-2xs)); bottom: 0; width: 2px; height: auto; }
+  .step b { display: inline; }
+  .step small { display: inline; }
+  .tl > li.tl-item { grid-template-columns: minmax(0, 1fr); }
+  .tl-when { grid-row: 1; text-align: left; }
 }
-.round { margin: var(--space-lg) 0 var(--space-xs); padding-top: var(--space-sm);
-  border-top: var(--rule-hair) solid var(--color-rule); font-weight: 600; color: var(--color-ink); }
 .count { color: var(--color-ink-2); margin: var(--space-2xs) 0 var(--space-sm); }
 .result { margin: var(--space-sm) 0 0; color: var(--color-ink); }
 .result--error { color: var(--color-error); }

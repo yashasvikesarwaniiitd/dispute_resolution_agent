@@ -260,10 +260,11 @@ class TestWhereTheCaseIs:
             where = self._journey(world)
         finally:
             world.close()
-        assert where.headline.startswith("With a person:")
+        assert where.headline == "The agent stopped and handed this case to a person."
+        assert where.why  # the recorded review reason, in words
         assert dict(where.phases)["Investigated"] is Mark.PERSON
 
-    def test_an_ineligible_case_skips_what_never_happened(self) -> None:
+    def test_an_ineligible_case_marks_what_was_never_reached(self) -> None:
         from dispute_agent.ui.journey import Mark
 
         world = _world("not_delivered", approve=False)
@@ -273,7 +274,34 @@ class TestWhereTheCaseIs:
             world.close()
         assert where.headline == "Closed: this shipment could not be disputed."
         phases = dict(where.phases)
-        assert phases["Closed"] is Mark.DONE and phases["Investigated"] is Mark.SKIPPED
+        assert phases["Closed"] is Mark.DONE and phases["Investigated"] is Mark.NOT_REACHED
+        assert where.why.startswith("The shipment's status shows it was not delivered")
+        assert where.figures == ()
+
+    def test_a_shipment_proved_ineligible_by_its_evidence_says_so(self) -> None:
+        """S32 (T05): intake saw "delivered", the scan history did not. The screen must say
+        where it closed and why, not read "eligible" and then stop."""
+        from dispute_agent.ui.journey import Mark
+
+        world = _world("not_delivered_late_scan", approve=False)
+        try:
+            where = self._journey(world)
+            with _work(world) as work:
+                story = trail.build(work, work.cases.get(world.case_id))
+        finally:
+            world.close()
+        assert where.headline == "Closed: this shipment could not be disputed."
+        assert where.why.startswith("The scan history shows the shipment was not delivered")
+        assert where.figures == ()  # an overcharge of a shipment that cannot be disputed
+        phases = dict(where.phases)
+        assert phases["Investigated"] is Mark.DONE
+        assert phases["Approved"] is Mark.NOT_REACHED and phases["Acted"] is Mark.NOT_REACHED
+        titles = [s.title for s in story.steps]
+        closed = titles.index("Closed: not eligible")
+        assert titles[closed - 1] == "Recalculated the charge"
+        assert "scan history" in story.steps[closed].summary
+        assert story.steps[closed].tone is labels.Tone.CLOSED
+        assert story.steps[-1].minor  # the bookkeeping step, shown quietly
 
 
 class TestTheStepsAtAGlance:

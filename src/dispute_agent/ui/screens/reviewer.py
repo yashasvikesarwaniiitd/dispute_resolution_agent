@@ -118,9 +118,12 @@ def _card(card: Card, reviewer: Actor) -> None:
     with st.container(border=True, key=f"stock-{item.approval.id}"):
         st.markdown(
             f"**{escape('Credit' if item.is_credit else 'Message: ' + item.kind.replace('_', ' '))}**"
-            f" &nbsp; shipment {escape(case.shipment_ref)} &nbsp; {chip(case.label, case.tone)}",
+            f" &nbsp; shipment {escape(case.shipment_ref)} &nbsp; {chip(case.label, case.tone)}"
+            f' &nbsp; <span class="muted">requested '
+            f"{when(item.approval.request.requested_at)}</span>",
             unsafe_allow_html=True,
         )
+        _steps_link(case.case_id)
         ai, act = st.columns(2, gap="large")
         with ai:
             st.markdown("**What the agent recommends**")
@@ -131,16 +134,29 @@ def _card(card: Card, reviewer: Actor) -> None:
                     unsafe_allow_html=True,
                 )
             else:
+                found = "".join(
+                    f"<li>{_said(f'{kind}: {statement}')}"
+                    + (
+                        f' <span class="muted">(cites {escape(", ".join(refs))})</span>'
+                        if refs
+                        else ""
+                    )
+                    + "</li>"
+                    for kind, statement, refs in rec.findings
+                )
                 st.markdown(
-                    f"{escape(rec.action)}, confidence {escape(rec.confidence)}  \n"
-                    f'<span class="muted">{escape(rec.by)}</span>',
+                    f"<p><b>{escape(rec.action)}</b>, {escape(rec.confidence)} confidence<br>"
+                    f'<span class="muted">{escape(rec.by)}</span></p>'
+                    '<p class="said-label">Reasoning, exactly as recorded:</p>'
+                    f'<blockquote class="said">{_said(rec.rationale)}</blockquote>'
+                    + (
+                        '<p class="said-label">Findings, as recorded:</p>'
+                        f'<ul class="findings">{found}</ul>'
+                        if found
+                        else ""
+                    ),
                     unsafe_allow_html=True,
                 )
-                st.caption("Reasoning, exactly as recorded:")
-                st.text(rec.rationale)
-                for kind, statement, refs in rec.findings:
-                    cited = f" (cites {', '.join(refs)})" if refs else ""
-                    st.text(f"{kind}: {statement}{cited}")
         with act:
             st.markdown("**If you approve**")
             if not item.matches_approval:
@@ -198,20 +214,17 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
             why = reason.code.value.replace("_", " ")
             st.markdown(f"Why it is with a person: **{escape(why)}**")
             if reason.detail:
-                st.text(reason.detail)
+                st.markdown(
+                    f'<blockquote class="said">{_said(reason.detail)}</blockquote>',
+                    unsafe_allow_html=True,
+                )
         if proposals:
             rec = recommendation(proposals[-1])
             st.markdown(
                 f'<span class="muted">Last proposal: {escape(rec.action)}, {escape(rec.by)}</span>',
                 unsafe_allow_html=True,
             )
-        pages = st.session_state.get("pages")
-        if pages:  # absent only when a screen runs on its own, as in tests
-            st.page_link(
-                st.session_state["pages"]["trail"],
-                label="See every step of this case",
-                query_params={"case": ticket.case_id},
-            )
+        _steps_link(ticket.case_id)
         key = ticket.case_id
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
         note = st.text_area(
@@ -240,6 +253,22 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
             st.caption(
                 "A credit on this case is already verified, so it cannot go back to the agent."
             )
+
+
+def _said(text: str) -> str:
+    """Model-written text, escaped, line breaks kept: shown as written, never as markup."""
+    return escape(text).replace("\n", "<br>")
+
+
+def _steps_link(case_id: str) -> None:
+    pages = st.session_state.get("pages")
+    if pages:  # absent only when a screen runs on its own, as in tests
+        st.page_link(
+            pages["trail"],
+            label="See every step of this case",
+            icon=":material/route:",
+            query_params={"case": case_id},
+        )
 
 
 def _desk(reviewer: Actor, case_id: str, act: object) -> None:

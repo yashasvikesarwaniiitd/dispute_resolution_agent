@@ -1,10 +1,12 @@
 """Where a case is, and what happens next, in one sentence each (ADR 0044, Agent steps).
 
-The top of the Agent steps screen: a headline, the next step, and five phases - raised,
-investigated, approved, acted, closed - marked done, current, waiting, needing a person or
-skipped. Every sentence is chosen from the case's state and its records (pending approval,
-verified credit, the hub's ticket, the review reason); nothing is inferred and no figure is
-computed here - amounts come from the approval records, as stored.
+The top of the Agent steps screen: a headline, why the case is there, the next step, and
+five phases - raised, investigated, approved, acted, closed - each marked done, in progress,
+waiting, with a person, not needed (a later phase happened without it) or not reached (the
+case closed first). Every sentence is chosen from the case's state and its records (pending
+approval, verified credit, the hub's ticket, the review reason, the assessment's eligibility);
+nothing is inferred and no figure is computed here - amounts come from the records, as
+stored.
 """
 
 from __future__ import annotations
@@ -44,7 +46,10 @@ class Mark(StrEnum):
     CURRENT = "current"
     WAITING = "waiting"
     PERSON = "person"
+    #: Closed case: a later phase happened without this one (no approval was needed).
     SKIPPED = "skipped"
+    #: Closed case: it ended before this phase.
+    NOT_REACHED = "not_reached"
     TODO = "todo"
 
 
@@ -55,8 +60,12 @@ class Journey:
     tone: Tone
     phases: tuple[tuple[str, Mark], ...]
     #: Code's latest figures for the case - charged, correct, overcharged - as rendered facts;
-    #: empty until code has recalculated. Never computed here.
+    #: empty until code has recalculated, and for a shipment proved ineligible (its figures
+    #: answer a question that was never asked). Never computed here.
     figures: tuple[tuple[str, str], ...] = ()
+    #: Why the case is where it is, when the state alone does not say: the review reason, or
+    #: which check found the shipment ineligible.
+    why: str = ""
 
 
 WORKING = frozenset(
@@ -81,17 +90,24 @@ def journey(work: SqliteUnitOfWork, case: Case) -> Journey:
         if a.request.subject is ApprovalSubject.CREDIT and a.decision is ApprovalDecision.APPROVED
     ]
     issues = [a.external_ref for a in actions if a.action_type is ActionType.UPSERT_ISSUE]
-    headline, next_step = _words(case, pending, credited, issues)
     latest = work.assessments.latest(case.id)
+    proved_ineligible = latest is not None and latest.eligible == "ineligible"
+    headline, why, next_step = _words(case, pending, credited, issues, proved_ineligible)
     facts = {f.fact_id: render_fact(f.value) for f in (latest.facts if latest else ())}
-    figures = tuple((label, facts[key]) for key, label in FIGURES if key in facts)
+    figures = (
+        ()
+        if proved_ineligible
+        else tuple((label, facts[key]) for key, label in FIGURES if key in facts)
+    )
     return Journey(
         headline=headline,
         next_step=next_step,
         tone=state(case.state)[1],
+        why=why,
         phases=_phases(
             case,
-            investigated=bool(list(work.proposals.for_case(case.id))),
+            # Looking at the evidence is investigating, whether or not a proposal followed.
+            investigated=latest is not None or bool(list(work.proposals.for_case(case.id))),
             approved=any(a.decision is ApprovalDecision.APPROVED for a in approvals)
             or bool(actions),
             acted=any(a.status is ActionStatus.VERIFIED for a in actions),
@@ -105,7 +121,9 @@ def _words(
     pending: Sequence[Approval],
     credited: Sequence[Approval],
     issues: Sequence[str | None],
-) -> tuple[str, str]:
+    proved_ineligible: bool,
+) -> tuple[str, str, str]:
+    """The headline, why (when the state does not say it alone), and what happens next."""
     s = case.state
     if s is CaseState.RESOLVED_CREDITED:
         amount = credited[-1].request.amount if credited else None
@@ -113,28 +131,38 @@ def _words(
             f"Resolved: the seller was credited {render_fact(amount)}."
             if amount
             else "Resolved: the seller was credited.",
+            "Code proved an overcharge, and a reviewer approved the credit.",
             "Nothing left to do. The credit was proved by reading it back from the ledger.",
         )
     if s is CaseState.RESOLVED_UPHELD:
         return (
             "Resolved: the charge was correct, and the seller was told why.",
+            "",
             "Nothing left to do. The seller can reply with new evidence within 7 days.",
         )
     if s is CaseState.REJECTED_INELIGIBLE:
+        found = (
+            "The scan history shows the shipment was not delivered"
+            if proved_ineligible
+            else "The shipment's status shows it was not delivered"
+        )
         return (
             "Closed: this shipment could not be disputed.",
-            "Nothing left to do. Only delivered shipments can be disputed.",
+            f"{found}. Only delivered shipments can be disputed.",
+            "Nothing left to do.",
         )
     if s is CaseState.WITHDRAWN:
-        return "Closed: the seller withdrew the dispute.", "Nothing left to do."
+        return "Closed: the seller withdrew the dispute.", "", "Nothing left to do."
     if s is CaseState.CLOSED_NO_RESPONSE:
         return (
             "Closed: the seller did not reply.",
+            "",
             "If they reply later, the case opens again and is looked at fresh.",
         )
     if s is CaseState.HANDED_TO_HUMAN:
         return (
             "A person took this case over. The agent has stopped.",
+            "",
             "The person who took it handles it from here.",
         )
     if s is CaseState.AWAITING_APPROVAL:
@@ -148,28 +176,32 @@ def _words(
                 what = f"an email to the seller ({words(kind.value)})" if kind else "an email"
         return (
             f"Waiting for a reviewer to approve {what}.",
+            "Policy allows it, but a person must approve first.",
             "Approve or reject it on the Review screen. Nothing is sent until then.",
         )
     if s is CaseState.NEEDS_HUMAN_REVIEW:
         reason = case.review_reason
-        why = words(reason.code.value) if reason else "a reason the agent recorded"
-        detail = f" ({reason.detail})" if reason and reason.detail else ""
+        why = words(reason.code.value).capitalize() if reason else "A reason the agent recorded"
+        detail = f". {reason.detail}" if reason and reason.detail else ""
         return (
-            f"With a person: {why}{detail}.",
+            "The agent stopped and handed this case to a person.",
+            f"{why}{detail}",
             "A reviewer can take it over or return it to the agent on the Review screen.",
         )
     if s is CaseState.AWAITING_SELLER:
         return (
             "Waiting for the seller to reply.",
+            "",
             "If they do not reply, a reminder goes out, and then the case closes.",
         )
     if s is CaseState.AWAITING_OPS:
         ticket = f" (Jira {issues[-1]})" if issues and issues[-1] else ""
         return (
             f"Waiting for the hub to re-measure the parcel{ticket}.",
+            "",
             "If the hub does not answer in time, a person takes over.",
         )
-    return "The agent is working on it.", "This page refreshes by itself while it works."
+    return "The agent is working on it.", "", "This page refreshes by itself while it works."
 
 
 #: Where an open case is now. Rounds loop (a seller's reply starts the investigation again),
@@ -193,9 +225,12 @@ def _phases(
 ) -> tuple[tuple[str, Mark], ...]:
     if case.closed_at is not None or case.state not in CURRENT_PHASE:
         done = (True, investigated, approved, acted, True)
+        # The furthest middle phase that happened: phases before it that did not happen were
+        # not needed; phases after it were never reached (the case closed first).
+        furthest = max((i for i in (1, 2, 3) if done[i]), default=0)
         return tuple(
-            (name, Mark.DONE if flag else Mark.SKIPPED)
-            for name, flag in zip(PHASES, done, strict=True)
+            (name, Mark.DONE if flag else (Mark.SKIPPED if i < furthest else Mark.NOT_REACHED))
+            for i, (name, flag) in enumerate(zip(PHASES, done, strict=True))
         )
     current = CURRENT_PHASE[case.state]
     s = case.state

@@ -84,3 +84,49 @@ Recaptured after the fixes: Raise a ticket, Agent steps (desktop and 375 px), Re
   - The status chip repeats the headline's first words ("With a person" twice on Agent steps). Shortening the headline is a copy change in `ui/journey.py`.
   - On a phone the three figures stack tall; a compact row would need a custom block instead of `st.metric`.
   - Hallmark's linter did not run (no Node). Running `npx hallmark lint` would check the gates automatically.
+
+## UX pass (after the owner's review of the live Agent steps page)
+
+The owner found the Agent steps page vague and badly placed, on a live case (SHP-000011). Research before changing anything:
+
+- **ui-ux-pro-max** (github.com/nextlevelbuilder/ui-ux-pro-max-skill, MIT): its rule set was read as reference, and no scripts were run. Rules applied:
+  - visual hierarchy;
+  - content priority;
+  - progressive disclosure;
+  - colour is never the only signal;
+  - tabular figures;
+  - one primary action;
+  - empty states with a way forward;
+  - deep links;
+  - multi-step progress.
+- **Activity-timeline guidance** (Maersk design system; SaaS audit-log patterns): group the history, avoid a flat feed where everything weighs the same, and keep the record trustworthy.
+- **Human-in-the-loop approval patterns:** show the action the AI wants, its reasoning and its sources in one view. A bare Approve button invites rubber-stamping.
+
+**What was wrong on Agent steps, and the fix:**
+
+| Problem | Fix |
+|---|---|
+| A shipment proved ineligible by its scan history (T05) read "Checked eligibility: eligible", then simply stopped. Only the header said "Not eligible". | A "Closed: not eligible" step after the recalculation, saying why (`trail.INELIGIBLE`) |
+| "Investigated: skipped", struck through, although the evidence was gathered and the charge recalculated | Investigated counts the evidence round. A closed case marks a phase **not needed** (a later phase happened without it) or **not reached** (the case closed first). |
+| Charged, correct and overcharged (₹0.00) shown for a shipment that cannot be disputed | Figures only when the case was not proved ineligible |
+| The headline repeated the status chip ("With a person … With a person:") | Headline, then **Why** and **Next** as a definition list |
+| The "Code" and "System" actors unexplained; the full date on every step; boxed "Details" bars; bookkeeping weighed like a decision | A legend; the time only (the date when it differs); a timeline with a mark and a line; light "Details" toggles; the bookkeeping step shown small and muted |
+| The AI's reasoning hidden in a fold, in code font | Shown openly as a quoted block (escaped: model text stays text) |
+| No way onward | A link to Review when a person must act, and to the Ledger when credited |
+
+**The other screens:**
+- **Raise a ticket:**
+  - click a shipment row to choose it;
+  - each shipment shows its open ticket;
+  - a shipment that was not delivered says so before a ticket is raised on it;
+  - each ticket says in a sentence what is happening;
+  - after raising, the result and a link to watch the agent appear.
+- **Review:**
+  - each approval card shows when it was requested and links to every step of its case;
+  - the reasoning and findings read as text, not code font.
+- **Ledger:**
+  - money reads ₹ as on every other screen (it read "INR");
+  - credits from disputes have their own table, with who approved each and whether it was proved;
+  - all entries are filterable (All, Charges, Credits).
+
+Checked at 1,440 px and at 375 px, on the hosted case's fixture (`not_delivered_late_scan`), on a case with a person, and on a credit awaiting approval. New tests: `test_a_shipment_proved_ineligible_by_its_evidence_says_so` and `test_the_steps_explain_a_shipment_closed_after_its_evidence`.

@@ -64,6 +64,17 @@ class Step:
     summary: str = ""
     #: The evidence round this step belongs to; 0 is before the first look.
     round: int = 0
+    #: The service's own bookkeeping, not a decision about the case: shown quietly.
+    minor: bool = False
+
+
+#: Why a shipment was found ineligible, by the pack's reason code (eligibility.py).
+INELIGIBLE = {
+    "not_delivered": (
+        "The scan history shows the shipment was not delivered. Only delivered shipments "
+        "can be disputed."
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -241,19 +252,45 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
             if kind == InboundEventType.HUMAN_RETURNED_CASE:
                 after = "After a person returned it"
         elif kind == InternalEventType.CASE_OUTCOME_RECORDED:
-            add(Step(at, Actor.SYSTEM, "Outcome shared with pattern detection"))
+            add(Step(at, Actor.SYSTEM, "Outcome recorded for pattern detection", minor=True))
         elif kind == InternalEventType.STATE_CHANGED and cause.kind.value == "STEP":
             to_state = getattr(payload, "to_state", None)
             reason = getattr(payload, "review_reason", None)
             step = cause.ref
             if step == "eligibility":
                 if to_state is CaseState.REJECTED_INELIGIBLE:
-                    add(Step(at, Actor.CODE, "Checked eligibility: not eligible", tone=Tone.CLOSED))
+                    add(
+                        Step(
+                            at,
+                            Actor.CODE,
+                            "Checked eligibility: not eligible",
+                            tone=Tone.CLOSED,
+                            summary="The shipment's status shows it was not delivered. Only "
+                            "delivered shipments can be disputed, so the case closed.",
+                        )
+                    )
                 elif to_state is CaseState.NEEDS_HUMAN_REVIEW:
                     note, t = _outcome(to_state, reason)
-                    add(Step(at, Actor.CODE, "Checked eligibility: unsure", (note,), tone=t))
+                    add(
+                        Step(
+                            at,
+                            Actor.CODE,
+                            "Checked eligibility: unsure",
+                            (note,),
+                            tone=t,
+                            summary="The shipment's status could not be read, so a person decides.",
+                        )
+                    )
                 else:
-                    add(Step(at, Actor.CODE, "Checked eligibility: eligible"))
+                    add(
+                        Step(
+                            at,
+                            Actor.CODE,
+                            "Checked eligibility: eligible",
+                            summary="Its status says delivered. The evidence is checked next "
+                            "and can still prove otherwise.",
+                        )
+                    )
             elif step == "gather_evidence":
                 rounds += 1
                 trail.round_titles[rounds] = "First look" if rounds == 1 else after
@@ -270,6 +307,23 @@ def build(work: SqliteUnitOfWork, case: Case, *, usage: tuple[int, Decimal] | No
                         summary=_assessment_summary(found),
                     )
                 )
+                if to_state is CaseState.REJECTED_INELIGIBLE:
+                    # T05: the evidence proved what intake could not see. Said as its own
+                    # step, or the trail reads "eligible" and then simply stops.
+                    codes = found.reason_codes if found else ()
+                    add(
+                        Step(
+                            at,
+                            Actor.CODE,
+                            "Closed: not eligible",
+                            tuple(f"Reason code: {c}" for c in codes),
+                            tone=Tone.CLOSED,
+                            summary=" ".join(
+                                INELIGIBLE.get(c, words(c).capitalize()) for c in codes
+                            )
+                            or "The evidence showed this shipment cannot be disputed.",
+                        )
+                    )
             elif step == "investigate":
                 proposal = proposals[investigations] if investigations < len(proposals) else None
                 investigations += 1
@@ -374,4 +428,4 @@ PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
 }
 
 
-__all__ = ["Actor", "Recommendation", "Step", "Trail", "build", "recommendation"]
+__all__ = ["INELIGIBLE", "Actor", "Recommendation", "Step", "Trail", "build", "recommendation"]

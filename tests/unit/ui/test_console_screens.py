@@ -109,8 +109,34 @@ def test_the_steps_tell_the_case_in_order(desk: dict[str, Any]) -> None:
         "Proposed: Credit the seller",
         "a person must approve first",
         "Overcharge: ₹1,820.00",  # in the step's details
+        "Its reasoning, exactly as recorded:",  # the proposal's rationale, shown openly
     ):
         assert expected in text
+
+
+def test_the_steps_explain_a_shipment_closed_after_its_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    world = open_world(
+        "not_delivered_late_scan",
+        policy=PolicyConfig(),
+        clock=FakeClock(NOW),
+        ids=FakeIdGenerator(),
+        decide=lambda _a: None,
+    )
+    world.drive(20)
+    world.close()
+    data = tmp_path / "data"
+    data.mkdir()
+    _copy(world.folder / "cases.sqlite3", data / "cases.sqlite3")
+    monkeypatch.chdir(tmp_path)
+
+    at = AppTest.from_function(_trail, default_timeout=60).run()
+    assert not at.exception
+    text = _text(at)
+    assert "Closed: not eligible" in text and "scan history shows" in text
+    assert "not reached" in text  # approval and action were never reached
+    assert "Overcharged" not in text  # no figures for a shipment that cannot be disputed
 
 
 def test_a_reviewer_signs_in_sees_the_recommendation_and_approves(desk: dict[str, Any]) -> None:
@@ -147,8 +173,9 @@ def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
     at = AppTest.from_function(_ledger, default_timeout=60).run()
     assert not at.exception
     values = {m.label: m.value for m in at.metric}
-    assert values["Credited back"] == "INR 0.00"  # nothing approved yet
-    assert values["Charged"].startswith("INR ")
+    assert values["Credited back"] == "₹0.00"  # nothing approved yet
+    assert values["Charged"].startswith("₹")  # money reads the same on every screen
+    assert "No credits yet" in _text(at)
 
 
 @pytest.fixture
