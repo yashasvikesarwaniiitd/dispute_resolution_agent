@@ -12,6 +12,7 @@ open without one.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
@@ -21,6 +22,8 @@ from dispute_agent.kernel.domain.errors import ConfigError
 from dispute_agent.ui.gate import opens
 from dispute_agent.ui.screens import finance, reviewer, seller, trail
 from dispute_agent.ui.theme import stylesheet
+
+WORDMARK = Path(__file__).parent / "assets" / "wordmark.svg"
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -34,6 +37,7 @@ def main(
 ) -> None:
     st.set_page_config(page_title="Dispute desk", page_icon=":material/balance:", layout="wide")
     st.html(stylesheet())
+    st.logo(str(WORDMARK), size="large")
     if hosted and not _through_the_gate():
         return
     if start is not None:
@@ -49,6 +53,8 @@ def main(
             seller.page,
             title="Raise a ticket",
             icon=":material/receipt_long:",
+            # The default page is served at the root ("/"); Streamlit does not route its
+            # url_path. The name stays: without it the top navigation does not draw there.
             url_path="seller",
             default=True,
         ),

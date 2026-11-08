@@ -31,6 +31,12 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
 
 PHASES = ("Raised", "Investigated", "Approved", "Acted", "Closed")
+#: Which of code's facts the headline card shows, and how it names them.
+FIGURES = (
+    ("f_charged", "Charged"),
+    ("f_recalculated", "Correct charge"),
+    ("f_discrepancy", "Overcharged"),
+)
 
 
 class Mark(StrEnum):
@@ -48,6 +54,9 @@ class Journey:
     next_step: str
     tone: Tone
     phases: tuple[tuple[str, Mark], ...]
+    #: Code's latest figures for the case - charged, correct, overcharged - as rendered facts;
+    #: empty until code has recalculated. Never computed here.
+    figures: tuple[tuple[str, str], ...] = ()
 
 
 WORKING = frozenset(
@@ -73,6 +82,9 @@ def journey(work: SqliteUnitOfWork, case: Case) -> Journey:
     ]
     issues = [a.external_ref for a in actions if a.action_type is ActionType.UPSERT_ISSUE]
     headline, next_step = _words(case, pending, credited, issues)
+    latest = work.assessments.latest(case.id)
+    facts = {f.fact_id: render_fact(f.value) for f in (latest.facts if latest else ())}
+    figures = tuple((label, facts[key]) for key, label in FIGURES if key in facts)
     return Journey(
         headline=headline,
         next_step=next_step,
@@ -84,6 +96,7 @@ def journey(work: SqliteUnitOfWork, case: Case) -> Journey:
             or bool(actions),
             acted=any(a.status is ActionStatus.VERIFIED for a in actions),
         ),
+        figures=figures,
     )
 
 

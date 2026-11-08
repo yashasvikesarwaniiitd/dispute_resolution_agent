@@ -10,22 +10,23 @@ import streamlit as st
 
 from dispute_agent.ui import data
 from dispute_agent.ui.finance import rows, totals
+from dispute_agent.ui.labels import when
 from dispute_agent.ui.seller import catalogue, sellers
-
-PAID = "#ba4a34"  # --color-paid, the settled state (ui/theme.py)
+from dispute_agent.ui.theme import PAID
 
 
 def page() -> None:
     st.title("Ledger")
     shipments = catalogue()
-    seller_ref = st.selectbox("Seller", sellers(shipments))
+    pick, _ = st.columns([2, 3])
+    seller_ref = pick.selectbox("Seller", sellers(shipments))
     refs = [s.ref for s in shipments if s.seller_ref == seller_ref]
 
     entries = data.ledger_entries(refs)
     if not entries:
         st.markdown(
             '<p class="muted">The ledger has no entries yet. It is created and seeded with '
-            "the synthetic charges when the dispute service starts (`make run-api`).</p>",
+            "the synthetic charges when the dispute service starts.</p>",
             unsafe_allow_html=True,
         )
         return
@@ -47,7 +48,7 @@ def page() -> None:
 
     table = [
         {
-            "Posted": r.posted_at,
+            "Posted": when(r.posted_at),
             "Shipment": r.shipment_ref,
             "Type": r.kind,
             "Amount (INR)": float(r.amount),
@@ -64,7 +65,6 @@ def page() -> None:
         hide_index=True,
         width="stretch",
         column_config={
-            "Posted": st.column_config.DatetimeColumn(format="D MMM YYYY, HH:mm"),
             "Amount (INR)": st.column_config.NumberColumn(format="%.2f"),
         },
     )

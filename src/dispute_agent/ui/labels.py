@@ -6,6 +6,7 @@ what it names: a case that is "With a person" is in NEEDS_HUMAN_REVIEW, nothing 
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from dispute_agent.kernel.domain.enums import CaseState, ProposalAction
@@ -75,9 +76,15 @@ def state(value: CaseState) -> tuple[str, Tone]:
     return STATE[value]
 
 
+def when(moment: datetime) -> str:
+    """Every time on every screen, one way: "7 Nov 2026, 16:08 UTC" (one zone, no seconds)."""
+    utc = moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
+    return f"{utc.day} {utc:%b %Y, %H:%M} UTC"
+
+
 def words(code: str) -> str:
     """A recorded code as words: `remeasurement_lower` becomes `remeasurement lower`."""
     return code.replace("_", " ").replace(":", ": ").strip()
 
 
-__all__ = ["ACTION", "EVIDENCE", "FINDING", "STATE", "Tone", "state", "words"]
+__all__ = ["ACTION", "EVIDENCE", "FINDING", "STATE", "Tone", "state", "when", "words"]

@@ -15,7 +15,7 @@ import streamlit as st
 from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.ui import data
 from dispute_agent.ui.journey import Journey, Mark, journey
-from dispute_agent.ui.labels import Tone
+from dispute_agent.ui.labels import Tone, when
 from dispute_agent.ui.seller import tickets
 from dispute_agent.ui.theme import chip, escape, who
 from dispute_agent.ui.trail import Step, Trail, build
@@ -57,12 +57,13 @@ def page() -> None:
 
     ids = [t.case_id for t in everyone]
     wanted = st.query_params.get("case") or st.session_state.get("case")
-    case_id = st.selectbox(
+    pick, _ = st.columns([2, 3])
+    case_id = pick.selectbox(
         "Case",
         ids,
         index=ids.index(wanted) if wanted in ids else 0,
         format_func=lambda cid: next(
-            f"{t.shipment_ref}, {t.label}, opened {t.opened_at:%d %b %H:%M}"
+            f"{t.shipment_ref}, {t.label}, opened {when(t.opened_at)}"
             for t in everyone
             if t.case_id == cid
         ),
@@ -77,24 +78,39 @@ def _case(case_id: str) -> None:
         case = work.cases.get(case_id)  # type: ignore[arg-type]
         trail = build(work, case, usage=data.ai_usage(case.id))
         where = journey(work, case)
-    _headline(trail, where, case.opened_at)
-    _phases(where)
-    st.divider()
+    with st.container(border=True, key="stock-case"):
+        _headline(trail, where)
+        _figures(where)
+        _phases(where)
+        _meta(trail, case.opened_at)
     _rounds(trail)
 
 
-def _headline(trail: Trail, where: Journey, opened: datetime) -> None:
+def _headline(trail: Trail, where: Journey) -> None:
+    st.markdown(
+        f'<p class="headline">{chip(trail.label, trail.tone)}{escape(where.headline)}</p>'
+        f'<p class="next"><b>Next:</b> {escape(where.next_step)}</p>',
+        unsafe_allow_html=True,
+    )
+
+
+def _figures(where: Journey) -> None:
+    """Code's own figures for the case, once it has recalculated: a label and a figure."""
+    if not where.figures:
+        return
+    for column, (label, value) in zip(st.columns(len(where.figures)), where.figures, strict=True):
+        column.metric(label, value)
+
+
+def _meta(trail: Trail, opened: datetime) -> None:
     calls = (
         f"{trail.ai_calls} AI call{'s' if trail.ai_calls != 1 else ''}, USD {trail.ai_cost:.4f}"
         if trail.ai_calls
         else "no AI calls"
     )
     st.markdown(
-        f"{chip(trail.label, trail.tone)}"
-        f'<p class="headline">{escape(where.headline)}</p>'
-        f'<p class="next"><b>Next:</b> {escape(where.next_step)}</p>'
-        f'<p class="muted">Shipment {escape(trail.shipment_ref)}, opened '
-        f"{opened:%d %b %H:%M}, {escape(calls)}"
+        f'<p class="muted meta">Shipment {escape(trail.shipment_ref)}, opened '
+        f"{when(opened)}, {escape(calls)}"
         f"{', refreshing while open' if trail.is_open else ''}.</p>",
         unsafe_allow_html=True,
     )
@@ -106,7 +122,7 @@ def _phases(where: Journey) -> None:
     for name, mark in where.phases:
         style = "settled" if settled and name == "Closed" else mark.value
         pills.append(
-            f'<div class="phase phase--{style}"><b>{escape(name)}</b>'
+            f'<div class="phase phase--{style}" role="listitem"><b>{escape(name)}</b>'
             f"<small>{escape(MARK_WORD[mark])}</small></div>"
         )
     st.markdown(
@@ -133,7 +149,7 @@ def _step(number: int, step: Step) -> None:
     left, right = st.columns([1, 6], gap="small")
     with left:
         st.markdown(
-            f'{who(step.actor.value)}<br><span class="muted">{step.at:%d %b %H:%M:%S}</span>',
+            f'{who(step.actor.value)}<br><span class="muted">{when(step.at)}</span>',
             unsafe_allow_html=True,
         )
     with right:

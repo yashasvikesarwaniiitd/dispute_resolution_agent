@@ -21,8 +21,9 @@ from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, Domai
 from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole, sign_in
 from dispute_agent.ui import data
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
+from dispute_agent.ui.labels import when
 from dispute_agent.ui.review import Card, queue, with_a_person
-from dispute_agent.ui.theme import chip, escape
+from dispute_agent.ui.theme import chip, escape, pairs
 from dispute_agent.ui.trail import recommendation
 
 if TYPE_CHECKING:
@@ -45,6 +46,9 @@ def page() -> None:
         cards = queue(work, console)
         people = with_a_person(work)
 
+    st.markdown(
+        f'<p class="count">{escape(_count(cards, len(people)))}</p>', unsafe_allow_html=True
+    )
     waiting, handed = st.tabs(
         [f"Awaiting your approval ({len(cards)})", f"With a person ({len(people)})"]
     )
@@ -74,7 +78,8 @@ def _signed_in() -> Actor | None:
             "against each decision, bound to the exact amount or text shown."
         )
         return actor
-    with st.form("sign-in"):
+    narrow, _ = st.columns([2, 3])
+    with narrow, st.form("sign-in"):
         st.markdown("Sign in with the review console token to see the queue.")
         token = st.text_input("Review console token", type="password")
         name = st.text_input("Your name", value="owner")
@@ -92,9 +97,25 @@ def _signed_in() -> Actor | None:
     return None
 
 
+def _count(cards: list[Card], people: int) -> str:
+    """What waits for this reviewer, in one line, from the queue itself."""
+    amounts = [c.item.credit_amount for c in cards if c.item.is_credit and c.item.credit_amount]
+    emails = sum(1 for c in cards if not c.item.is_credit)
+    parts = [f"a {amount} credit" for amount in amounts]
+    if emails:
+        parts.append(f"{emails} email{'s' if emails != 1 else ''}")
+    waiting = (
+        f"{len(cards)} waiting for your decision: {', '.join(parts)}."
+        if cards
+        else "Nothing waiting for your decision."
+    )
+    handed = f" {people} case{'s' if people != 1 else ''} with a person." if people else ""
+    return waiting + handed
+
+
 def _card(card: Card, reviewer: Actor) -> None:
     item, case = card.item, card.case
-    with st.container(border=True):
+    with st.container(border=True, key=f"stock-{item.approval.id}"):
         st.markdown(
             f"**{escape('Credit' if item.is_credit else 'Message: ' + item.kind.replace('_', ' '))}**"
             f" &nbsp; shipment {escape(case.shipment_ref)} &nbsp; {chip(case.label, case.tone)}",
@@ -135,17 +156,25 @@ def _card(card: Card, reviewer: Actor) -> None:
                 )
                 st.caption(item.body)
                 st.markdown("**Code's figures behind it**")
-                for label, value in item.evidence:
-                    st.text(f"{label}: {value}")
+                st.markdown(
+                    pairs([(label.capitalize(), value) for label, value in item.evidence]),
+                    unsafe_allow_html=True,
+                )
             else:
                 st.markdown(f"An email to {escape(item.to)}")
                 st.text(f"Subject: {item.subject}")
                 st.text(item.body)
                 st.markdown("**Every number in it, and where it came from**")
-                for figure, source in item.numbers or (("(none)", "this message has no figures"),):
-                    st.text(f"{figure}: {source}")
-        note = st.text_area("Note, or your reason for rejecting", key=f"note-{item.approval.id}")
-        yes, no, _ = st.columns([1, 1, 3])
+                st.markdown(
+                    pairs(list(item.numbers) or [("None", "this message has no figures")]),
+                    unsafe_allow_html=True,
+                )
+        st.markdown('<hr class="rule">', unsafe_allow_html=True)
+        note = st.text_area(
+            "Note, or your reason for rejecting", key=f"note-{item.approval.id}", height=68
+        )
+        row = st.container(horizontal=True, gap="small")
+        yes, no = row, row
         if yes.button("Approve", key=f"yes-{item.approval.id}", type="primary"):
             _decide(reviewer, item.approval.id, note, approving=True)
         if no.button("Reject", key=f"no-{item.approval.id}"):
@@ -159,10 +188,10 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         proposals = list(work.proposals.for_case(case.id))
         paid = work.actions.has_verified_credit(case.id)
     reason = case.review_reason
-    with st.container(border=True):
+    with st.container(border=True, key=f"stock-person-{ticket.case_id}"):
         st.markdown(
             f"**Shipment {escape(ticket.shipment_ref)}** &nbsp; {chip(ticket.label, ticket.tone)}"
-            f' &nbsp; <span class="muted">since {ticket.updated_at:%d %b %H:%M}</span>',
+            f' &nbsp; <span class="muted">since {when(ticket.updated_at)}</span>',
             unsafe_allow_html=True,
         )
         if reason is not None:
@@ -184,15 +213,17 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
                 query_params={"case": ticket.case_id},
             )
         key = ticket.case_id
+        st.markdown('<hr class="rule">', unsafe_allow_html=True)
         note = st.text_area(
-            "Your note (needed to return it to the agent)", key=f"person-note-{key}"
+            "Your note (needed to return it to the agent)", key=f"person-note-{key}", height=68
         )
         notify = st.checkbox(
             "When taking over, tell the seller a person is handling it (the email goes "
             "through review first)",
             key=f"notify-{key}",
         )
-        take, back, withdraw = st.columns(3)
+        row = st.container(horizontal=True, gap="small")
+        take, back, withdraw = row, row, row
         if take.button("Take over", key=f"take-{key}", type="primary"):
             _desk(reviewer, key, lambda desk, c: desk.take_over(c, notify_seller=notify, note=note))
         if back.button("Return to the agent", key=f"back-{key}", disabled=paid):

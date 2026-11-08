@@ -13,7 +13,7 @@ linkColor = "#bb3d31"
 borderColor = "#d9d3cf"
 showWidgetBorder = true
 baseRadius = "8px"
-buttonRadius = "8px"
+buttonRadius = "6px"
 font = "General Sans:https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap, sans-serif"
 headingFont = "General Sans:https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&display=swap, sans-serif"
 codeFont = "Geist Mono:https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400&display=swap, monospace"

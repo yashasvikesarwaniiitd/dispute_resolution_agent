@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="28" viewBox="0 0 168 28" role="img" aria-label="Dispute desk">
+  <!-- The console's name in the top bar. An image, because Streamlit's logo slot takes no CSS;
+       its one colour is the Coral ink token (#1d1614), noted in ui/theme.py's stamp. -->
+  <text x="0" y="20" fill="#1d1614" font-family="General Sans, ui-sans-serif, system-ui, sans-serif"
+        font-size="18" font-weight="600" letter-spacing="-0.2">Dispute desk</text>
+</svg>
