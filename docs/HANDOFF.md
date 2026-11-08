@@ -104,6 +104,7 @@ Foundry spend so far: about $0.66 of the $150 cap.
 | D65 | (2026-11-07) Owner wants the console on the web doing the real things (real Gmail and Jira), with one password for the whole app and Gmail renewed weekly. Built for Streamlit Community Cloud (ADR 0045): `streamlit_app.py` runs the dispute service in-process; secrets only in the host's store; fails closed. The owner deploys (Claude Code never signs in to a host); steps in docs/DEPLOY_STREAMLIT.md. |
 | D66 | (2026-11-07) The hosted console is live (owner deployed it). The owner asked for actions on cases handed to a person; built as the case desk (ADR 0046): existing transitions only, recorded as the signed-in reviewer because POST /inbound refuses people's decisions. No kernel change. |
 | D67 | (2026-11-08) The owner asked to remove the review login. Hosted only: the site password stands in for the review token, and Review asks for a name, still recorded on every decision (ADR 0047). Local runs keep the token. No kernel change. |
+| D68 | (2026-11-08) Live bug: raising a ticket failed with a pydantic ValidationError after a push. Streamlit unloads every watched module on a file change; the cached in-process service kept the old classes, and strict models refused the new `CaseFacts`. Fixed in `streamlit_app.py`: one service per loaded copy of the code, the old one stopped first. Reproduced and proved fixed with a reload script; test in `test_hosted.py`. No kernel change. |
 
 ## 5. Open decisions (defaults apply until the owner decides)
 

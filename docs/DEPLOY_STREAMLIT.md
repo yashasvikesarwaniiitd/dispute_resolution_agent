@@ -46,5 +46,6 @@ Then in Streamlit, open your app, go to **Settings**, then **Secrets**, replace 
 ## Good to know
 
 - **Data resets** when Streamlit restarts the app: cases and the simulated ledger start fresh. Emails sent and Jira issues opened are real and stay.
+- **A push updates the running app in place.** Streamlit reloads the code without restarting; the hosted entry notices and restarts the dispute service from the new code (`streamlit_app.py`, `Services`). If a page ever shows an error right after a push, open Manage app, ⋮, Reboot app.
 - **The AI is the rules engine** here. The Foundry sign-in is tied to your machine.
 - **To retire the app:** delete it in Streamlit. Then revoke the Gmail access at myaccount.google.com/permissions and the Jira token at id.atlassian.com/manage-profile/security/api-tokens.

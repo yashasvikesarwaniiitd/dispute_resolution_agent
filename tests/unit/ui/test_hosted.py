@@ -11,7 +11,7 @@ from __future__ import annotations
 import secrets
 import tomllib
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from pydantic import SecretStr
@@ -171,3 +171,39 @@ class TestTheSecretsBlock:
         assert values["MODULES_FILE"] == "modules.hosted.yaml"
         assert "GMAIL_REFRESH_TOKEN" in missing and "JIRA_API_TOKEN" in missing
         assert "CONSOLE_PASSWORD" not in missing
+
+
+class TestTheServiceAcrossReloads:
+    """Streamlit unloads every watched module when a file changes - a push to GitHub does
+    that on Streamlit Cloud - and imports fresh copies. A service kept from before would hold
+    the old classes, and the strict domain models then refuse objects made from the new ones
+    (a pydantic ValidationError on raising a ticket, seen live on 2026-11-08). So the hosted
+    entry keeps one service per loaded copy of the code, and stops the old one first."""
+
+    def _entry(self) -> Any:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("hosted_entry", ROOT / "streamlit_app.py")
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # must not start the console when imported
+        return module
+
+    def test_one_service_per_copy_of_the_code_and_the_old_one_stopped(self) -> None:
+        entry = self._entry()
+        started: list[Any] = []
+
+        class Client:
+            def __init__(self) -> None:
+                self.stopped = False
+                started.append(self)
+
+            def __exit__(self, *_: object) -> None:
+                self.stopped = True
+
+        services = entry.Services()
+        before, after = object(), object()  # two loaded copies of the code
+        first = services.get(before, Client)
+        assert services.get(before, Client) is first and len(started) == 1  # kept
+        second = services.get(after, Client)  # the code was reloaded
+        assert second is not first and first.stopped and not second.stopped
