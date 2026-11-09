@@ -23,7 +23,14 @@ from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
 from dispute_agent.ui.photos import photo_for
-from dispute_agent.ui.seller import catalogue, open_ticket_for, raise_ticket, sellers, tickets
+from dispute_agent.ui.seller import (
+    catalogue,
+    latest_ticket_for,
+    open_ticket_for,
+    raise_ticket,
+    sellers,
+    tickets,
+)
 from dispute_agent.ui.theme import chip, escape, line, pairs
 
 if TYPE_CHECKING:
@@ -89,7 +96,7 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
                         {"kind": "text" if s.status == "Delivered" else "error", "text": s.status},
                         s.zone,
                         {"kind": "num", "text": s.charged},
-                        _ticket_cell(open_ticket_for(s, mine)),
+                        _ticket_cell(latest_ticket_for(s, mine)),
                     ],
                 }
                 for s in shipments
@@ -104,6 +111,16 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
 
 def _ticket_cell(ticket: Ticket | None) -> object:
     return {"chip": ticket.label, "tone": ticket.tone.value} if ticket else ""
+
+
+def _over(chosen: Shipment) -> str:
+    """Say plainly when the bill is above the card on the hub's own measurement."""
+    if not chosen.over_card:
+        return ""
+    return (
+        f'<p class="line line--error" role="alert">You were charged {escape(chosen.over_card)} '
+        "more than the rate card gives for the hub's own measurement.</p>"
+    )
 
 
 def _bill(
@@ -127,6 +144,14 @@ def _bill(
         f'<p class="muted">Charged for zone {escape(chosen.zone)}</p>'
         f'<p class="figure-lg">{escape(chosen.charged)}</p><hr class="rule">'
         + pairs([("You declared", chosen.declared), ("The hub measured", chosen.measured)])
+        + '<hr class="rule"><p class="muted">What the rate card says, worked out in code</p>'
+        + pairs(
+            [
+                ("On the hub's measurement", chosen.card_on_measured),
+                ("On your declared size", chosen.card_on_declared),
+            ]
+        )
+        + _over(chosen)
         + '<hr class="rule">',
         unsafe_allow_html=True,
     )

@@ -344,5 +344,5 @@ Agent 62% vs rules-only 48% on first-round actions. Prompt work for `case_invest
 
 ## The person's verdict (2026-11-10, ADR 0050)
 
-- **Show code's charge on the seller's declared size.** The With-a-person card shows declared against measured size and code's figures for the hub's measurement. What the charge would be on the declared size is a pack calculation the screens cannot reach today (they do not import the pack); a pack-level read for it would let a person see what is at stake. Display only: a credit still needs a code-proven error.
+- ~~Show code's charge on the seller's declared size.~~ Done in D73 (`WeightDisputePack.charge_for`).
 - **A demo path for a hub finding.** "Ask the hub to remeasure" leaves a case waiting for operations. On the hosted site nothing sends the finding, so the case waits until the operations timeout brings it back to a person. A console control to record a finding (as operations) would let the demo show the whole remeasure-then-credit path.

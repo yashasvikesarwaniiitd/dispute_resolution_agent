@@ -21,6 +21,7 @@ from dispute_agent.kernel.domain.enums import ActorKind, CaseState, ProposalActi
 from dispute_agent.kernel.domain.events import INBOUND_SOURCES
 from dispute_agent.kernel.domain.models import Actor as Who
 from dispute_agent.kernel.policy.config import PolicyConfig
+from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.approvals.streamlit_ui.console import ReviewConsole
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import fixture
 from dispute_agent.ui import finance, labels, review, seller, trail
@@ -96,11 +97,27 @@ class TestSellerScreen:
         first = next(s for s in shipments if s.ref == "SHP-000001")
         assert first.charged == "₹152.00"  # kurta_box_larger, first in FIXTURES order
 
-    def test_the_answer_key_is_never_shown(self) -> None:
-        key = fixture("calc_error_high_value").shipment.correct_paise
-        shown = next(s for s in seller.catalogue() if s.ref == "SHP-000002")
-        text = " ".join(str(v) for v in vars(shown).values())
-        assert f"{key / 100:,.2f}" not in text and str(key) not in text
+    def test_the_answer_key_is_never_read_only_the_published_rate_card(self) -> None:
+        """D73 (owner, 2026-11-10), narrowing ADR 0044's "no answer key": the bill shows what
+        the rate card gives, as a carrier publishes it, worked out by the pack's calculator. It
+        never reads the synthetic world's answer key (`correct_paise`), and the agent still
+        proves any error itself."""
+        import inspect
+
+        from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
+
+        assert ".correct_paise" not in inspect.getsource(seller)  # never read
+        s = fixture("calc_error_high_value").shipment
+        card = WeightDisputePack().charge_for(
+            s.measured.length_cm,
+            s.measured.width_cm,
+            s.measured.height_cm,
+            s.measured_dead_grams,
+            s.zone,
+            s.packaging,
+        )
+        shown = next(x for x in seller.catalogue() if x.ref == "SHP-000002")
+        assert shown.card_on_measured.startswith(render_fact(card.amount))
         assert shown.charged == "₹2,800.00"
 
     def test_a_credited_case_reads_as_settled(self, credited: World) -> None:

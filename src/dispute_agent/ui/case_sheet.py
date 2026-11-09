@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from dispute_agent.kernel.domain.enums import CaseState, InternalEventType, ReviewCode
 from dispute_agent.kernel.policy.credit import credit_amount
 from dispute_agent.kernel.policy.numbers import render_fact
+from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 from dispute_agent.ui.theme import escape, recorded
 
 if TYPE_CHECKING:
@@ -185,6 +186,30 @@ def _figures(assessment: ChargeAssessment | None) -> tuple[tuple[str, str], ...]
     return tuple(rows)
 
 
+def on_declared(
+    declared: Mapping[str, Any] | None, zone: Mapping[str, Any] | None
+) -> tuple[str, str] | None:
+    """The rate card's charge on the seller's declared size: what is at stake (display only).
+
+    The pack's own calculation, on the declared size instead of the hub's. It proves nothing:
+    a credit still needs an error code proves, such as a lower remeasurement.
+    """
+    if not declared or not zone or not isinstance(declared.get("dead_grams"), int):
+        return None
+    try:
+        charge = WeightDisputePack().charge_for(
+            declared["length_cm"],
+            declared["width_cm"],
+            declared["height_cm"],
+            declared["dead_grams"],
+            str(zone["zone"]),
+            str(zone.get("packaging") or "") or None,
+        )
+    except Exception:  # a size the card cannot price: say nothing rather than guess
+        return None
+    return ("Rate card on the seller's declared size", render_fact(charge.amount))
+
+
 # -- the decisions ------------------------------------------------------------------------------
 
 UPHOLD = Verdict(
@@ -298,7 +323,12 @@ def build(work: Any, case: Case) -> Sheet:  # Any: a unit of work (reader)
         checks=checks,
         claim=case.facts.statement.text if case.facts.statement else "",
         facts=facts,
-        figures=_figures(assessment),
+        figures=_figures(assessment)
+        + tuple(
+            row
+            for row in (on_declared(_found(items, "shipment.declared_dims"), zone),)
+            if row is not None
+        ),
         verdicts=offered,
         no_verdict=none,
         refused=last_refusal(list(work.events.list_for_case(case.id))),

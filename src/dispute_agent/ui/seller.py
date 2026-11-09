@@ -1,7 +1,8 @@
 """Screen 1: a seller's shipments, their tickets, and raising a new one (ADR 0044).
 
-The seller sees what they were billed and what the hub measured - never the synthetic
-world's answer key (`correct_paise`), which only the recalculation may arrive at.
+The seller sees what they were billed, what the hub measured, and what the published rate
+card gives (D73), worked out by the pack's calculator. Never the synthetic world's answer key
+(the fixture's correct charge): only the agent's recalculation proves an error.
 
 Raising a ticket posts the same body the dispute form posts to `POST /events`, so it takes
 the real route: intake, the allowlist (I11), dedupe and the runner. The console never opens
@@ -19,6 +20,7 @@ from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES, fixture
+from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 from dispute_agent.ui.labels import Tone, state
 
 if TYPE_CHECKING:
@@ -59,6 +61,12 @@ class Shipment:
     declared: str
     measured: str
     charged: str
+    #: What the rate card says, worked out by the pack's own calculator (ADR 0050): on the
+    #: hub's measurement (what the charge should be) and on the seller's declared size.
+    card_on_measured: str = ""
+    card_on_declared: str = ""
+    #: Charged minus the card on the hub's measurement, when the bill is higher; else "".
+    over_card: str = ""
 
 
 @dataclass(frozen=True)
@@ -89,8 +97,18 @@ def _size(dims: Any, grams: int) -> str:
     )
 
 
+def _card(pack: WeightDisputePack, dims: Any, grams: int, zone: str, packaging: str) -> Any:
+    return pack.charge_for(dims.length_cm, dims.width_cm, dims.height_cm, grams, zone, packaging)
+
+
+def _card_line(charge: Any) -> str:
+    kg = Decimal(charge.chargeable_grams) / 1000
+    return f"{render_fact(charge.amount)} for {kg:.2f} kg"
+
+
 def catalogue() -> list[Shipment]:
     """Every synthetic shipment once, served as the running app serves it: first fixture wins."""
+    pack = WeightDisputePack()  # the card the running app uses (app.py builds the same)
     seen: dict[str, Shipment] = {}
     for name in FIXTURES:
         s = fixture(name).shipment
@@ -105,8 +123,20 @@ def catalogue() -> list[Shipment]:
             declared=_size(s.declared, s.declared_dead_grams),
             measured=_size(s.measured, s.measured_dead_grams),
             charged=render_fact(Money.from_paise(s.billed_paise)),
+            **_cards(pack, s),
         )
     return sorted(seen.values(), key=lambda s: s.ref)
+
+
+def _cards(pack: WeightDisputePack, s: Any) -> dict[str, str]:
+    on_measured = _card(pack, s.measured, s.measured_dead_grams, s.zone, s.packaging)
+    on_declared = _card(pack, s.declared, s.declared_dead_grams, s.zone, s.packaging)
+    over = s.billed_paise - on_measured.amount_paise
+    return {
+        "card_on_measured": _card_line(on_measured),
+        "card_on_declared": _card_line(on_declared),
+        "over_card": render_fact(Money.from_paise(over)) if over > 0 else "",
+    }
 
 
 def sellers(shipments: Iterable[Shipment]) -> list[str]:
@@ -140,6 +170,17 @@ def open_ticket_for(shipment: Shipment, mine: Iterable[Ticket]) -> Ticket | None
         (t for t in mine if t.shipment_ref == shipment.ref and t.is_open),
         None,
     )
+
+
+def latest_ticket_for(shipment: Shipment, mine: Iterable[Ticket]) -> Ticket | None:
+    """The ticket to show beside a shipment: the open one, else the latest closed one.
+
+    Only the open one blocks a new ticket (`open_ticket_for`); a resolved one still belongs
+    in the table, so the seller sees how it ended.
+    """
+    on_it = [t for t in mine if t.shipment_ref == shipment.ref]
+    open_one = next((t for t in on_it if t.is_open), None)
+    return open_one or max(on_it, key=lambda t: t.updated_at, default=None)
 
 
 def dispute_body(shipment: Shipment, contact: str, now: datetime, event_id: str) -> dict[str, str]:

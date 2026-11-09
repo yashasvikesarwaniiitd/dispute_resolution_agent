@@ -23,7 +23,7 @@ The logic lives in plain Python (`seller.py`, `trail.py`, `review.py`, `finance.
   - A reviewer's decision goes through `ReviewConsole` (ADR 0018). The identity comes from sign-in and is bound to the stored text's hash; nothing is sent from the page (I2).
   - Two architecture tests hold this: nothing in the system imports `dispute_agent.ui`, and the console never opens a case itself. The import-linter contracts stay verbatim from ARCHITECTURE section 2.
 - **Model-written text stays text.** Every value interpolated into markup is escaped. The rationale and findings are shown with `st.text`, never as markdown, so a seller's or a model's words cannot change the page.
-- **No answer key.** The seller screen shows what was billed and measured, never the synthetic world's correct charge.
+- **No answer key.** The seller screen shows what was billed and measured, never the synthetic world's correct charge. *Narrowed by D73 (owner, 2026-11-10):* the bill also shows what the published rate card gives, on the hub's measurement and on the declared size, worked out by the pack's calculator - as a carrier publishes its rates. The screen still never reads the answer key (`correct_paise`), and the agent proves any error itself.
 - **No free-text complaint.** Like the API's form, a dispute carries no statement: a seller's words are untrusted input to the investigator, and adding a box is its own decision.
 - **Reads never wait.** Reads use deferred engines, so a screen does not wait on the runner. Two read-only methods were added in `infra` for this: `assessments.for_case` and `usage_for_case`.
 

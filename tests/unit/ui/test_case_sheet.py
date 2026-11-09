@@ -58,6 +58,8 @@ def test_the_facts_put_the_declared_and_measured_size_side_by_side(
     figures = dict(photo_case.figures)
     assert figures["Charged"] == "₹152.00" and figures["Difference"] == "₹0.00"
     assert figures["Errors code proved"] == "none"
+    # What is at stake: the same card on the seller's declared size (display only).
+    assert figures["Rate card on the seller's declared size"] == "₹76.00"
     assert photo_case.claim == "My kurta weighs 480 g, why am I charged for 2 kg?"
 
 

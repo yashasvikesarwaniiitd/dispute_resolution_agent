@@ -31,7 +31,7 @@ from dispute_agent.kernel.domain.ids import AssessmentId
 from dispute_agent.kernel.domain.values import Money, Weight
 from dispute_agent.packs.weight_dispute import eligibility as eligibility_rules
 from dispute_agent.packs.weight_dispute.baseline import baseline_proposal, decide
-from dispute_agent.packs.weight_dispute.calculator import Dimensions, calculate
+from dispute_agent.packs.weight_dispute.calculator import Charge, Dimensions, calculate
 from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD
 from dispute_agent.packs.weight_dispute.reconcile import LedgerLine, prove
 
@@ -99,6 +99,25 @@ class WeightDisputePack:
     def __init__(self, card: RateCard | None = None, *, tolerance_pct: int = 5) -> None:
         self._card = card or DEFAULT_RATE_CARD
         self._tolerance_pct = tolerance_pct
+
+    def charge_for(
+        self,
+        length_cm: object,
+        width_cm: object,
+        height_cm: object,
+        dead_grams: int,
+        zone: str,
+        packaging: str | None = None,
+    ) -> Charge:
+        """The rate card's charge for one parcel: the same calculation `assess` runs (I9).
+
+        For screens to show what the card says - on the hub's measurement, or on the seller's
+        declared size - without reaching into the calculator. It decides nothing: a credit
+        still needs an error `assess` proves.
+        """
+        return calculate(
+            Dimensions.of(length_cm, width_cm, height_cm), dead_grams, zone, self._card, packaging
+        )
 
     # -- intake ---------------------------------------------------------------------------
 
