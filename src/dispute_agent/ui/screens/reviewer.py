@@ -34,6 +34,7 @@ from dispute_agent.ui import data
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import money, when
+from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.review import Card, queue, with_a_person
 from dispute_agent.ui.theme import chip, escape, line
 from dispute_agent.ui.trail import recommendation
@@ -269,6 +270,9 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         left, right = st.columns(2, gap="large")
         if review is not None:
             left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
+        photo = photo_for(ticket.shipment_ref)
+        if photo is not None:  # the thing a person is being asked to judge
+            left.image(str(photo), caption="Parcel photo", width="stretch")
         with right, st.container(key=f"panel-person-{key}"):
             st.markdown(view.choices(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)

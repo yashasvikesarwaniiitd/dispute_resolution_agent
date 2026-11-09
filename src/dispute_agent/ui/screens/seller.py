@@ -22,6 +22,7 @@ from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
+from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.seller import catalogue, open_ticket_for, raise_ticket, sellers, tickets
 from dispute_agent.ui.theme import chip, escape, line, pairs
 
@@ -129,6 +130,9 @@ def _bill(
         + '<hr class="rule">',
         unsafe_allow_html=True,
     )
+    photo = photo_for(chosen.ref)
+    if photo is not None:
+        st.image(str(photo), caption="Your parcel photo", width="stretch")
     if chosen.status != "Delivered":
         st.markdown(
             f'<p class="line line--error" role="alert">⚠ Its status is "{escape(chosen.status)}", '

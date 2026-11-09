@@ -20,6 +20,7 @@ from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import Journey, Mark, journey
 from dispute_agent.ui.labels import Tone, clock, when
+from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.seller import tickets
 from dispute_agent.ui.theme import actor, chip, escape, recorded
 from dispute_agent.ui.trail import Actor, Step, Trail, build
@@ -139,8 +140,13 @@ def _case(case_id: str) -> None:
         trail = build(work, case, usage=data.ai_usage(case.id), policy=data.policy())
         where = journey(work, case)
     with st.container(key="card-case"):
-        st.markdown(_identity(case, trail) + _stands(where), unsafe_allow_html=True)
-        _onward(case)
+        photo = photo_for(case.facts.shipment_ref)
+        text, picture = st.columns([3, 1], gap="large") if photo else (st.container(), None)
+        with text:
+            st.markdown(_identity(case, trail) + _stands(where), unsafe_allow_html=True)
+            _onward(case)
+        if picture is not None and photo is not None:
+            picture.image(str(photo), caption="Parcel photo", width="stretch")
         st.markdown(_stepper(where) + _figures(where), unsafe_allow_html=True)
     st.header("What happened")
     st.markdown(LEGEND, unsafe_allow_html=True)
