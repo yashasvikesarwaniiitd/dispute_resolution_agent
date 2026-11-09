@@ -44,6 +44,10 @@ if TYPE_CHECKING:
     from dispute_agent.ui.seller import Ticket
 
 LINES = "review_lines"  # what was decided this session, said in a line each
+DESK_LINES = "desk_lines"  # what was done to cases with a person, said in a line each
+#: Approvals and cases decided this session: their cards leave at once, without waiting for
+#: the runner to apply the decision (a few seconds), so a decision is never offered twice.
+ACTED = "review_acted"
 
 
 def page() -> None:
@@ -57,7 +61,9 @@ def page() -> None:
     with data.reader() as work:
         console = ReviewConsole(store=work.approvals, clock=SystemClock(), reviewer=reviewer)
         cards = queue(work, console)
-        people = with_a_person(work)
+        acted = set(st.session_state.get(ACTED, ()))
+        cards = [c for c in cards if str(c.item.approval.id) not in acted]
+        people = [p for p in with_a_person(work) if p.case_id not in acted]
         extra = {c.item.approval.id: _credit_basis(work, c) for c in cards if c.item.is_credit}
 
     st.markdown(
@@ -77,6 +83,8 @@ def page() -> None:
         for card in cards:
             _card(card, reviewer, extra.get(card.item.approval.id, (None, money(Decimal(0)))))
     with handed:
+        for said in st.session_state.get(DESK_LINES, []):
+            st.markdown(line(said), unsafe_allow_html=True)
         if not people:
             st.markdown(
                 '<p class="muted">No case is waiting for a person.</p>', unsafe_allow_html=True
@@ -230,16 +238,19 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
                 unsafe_allow_html=True,
             )
             return
-        note = st.text_area("Note, or your reason for rejecting", key=f"note-{aid}", height=68)
-        st.caption(
-            "Approving keeps this as a note. Rejecting sends it to the agent as your reason."
-            if note.strip()
-            else "A note is optional to approve. A reason is needed to reject."
-        )
-        row = st.container(horizontal=True, gap="small")
-        if row.button(view.approve_label(item), key=f"yes-{aid}", type="primary"):
+        # One form, so the note and the button arrive together: a text box only reports
+        # what was typed when it loses focus, which used to swallow the first click.
+        with st.form(f"decide-{aid}", border=False):
+            note = st.text_area("Note, or your reason for rejecting", key=f"note-{aid}", height=68)
+            st.caption("A note is optional to approve. A reason is needed to reject.")
+            row = st.container(horizontal=True, gap="small")
+            yes = row.form_submit_button(view.approve_label(item), type="primary")
+            no = row.form_submit_button("Reject")
+        if yes:
             _decide(reviewer, card, note, approving=True)
-        if row.button("Reject", key=f"no-{aid}", disabled=not note.strip()):
+        elif no and not note.strip():
+            st.error("Write your reason for rejecting, then press Reject.")
+        elif no:
             _decide(reviewer, card, note, approving=False)
 
 
@@ -261,42 +272,60 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         with right, st.container(key=f"panel-person-{key}"):
             st.markdown(view.choices(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
-        note = st.text_area(
-            "Your note (needed to return it to the agent)", key=f"person-note-{key}", height=68
-        )
-        notify = st.checkbox(
-            "When taking over, tell the seller a person is handling it (the email goes through review first)",
-            key=f"notify-{key}",
-        )
-        row = st.container(horizontal=True, gap="small", vertical_alignment="center")
-        if row.button("Take over", key=f"take-{key}", type="primary"):
+        withdraw_offered = can_confirm_withdrawal(case)
+        with st.form(f"desk-{key}", border=False):
+            note = st.text_area(
+                "Your note (needed to return it to the agent)", key=f"person-note-{key}", height=68
+            )
+            notify = st.checkbox(
+                "When taking over, tell the seller a person is handling it (the email goes through "
+                "review first)",
+                key=f"notify-{key}",
+            )
+            row = st.container(horizontal=True, gap="small", vertical_alignment="center")
+            take = row.form_submit_button("Take over", type="primary")
+            back = row.form_submit_button("Return to the agent", disabled=paid)
+            withdraw = row.form_submit_button("Confirm withdrawal") if withdraw_offered else False
+            if paid:
+                row.caption(
+                    "A credit on this case is already verified, so it cannot go back to the agent."
+                )
+        if take:
             _desk(
                 reviewer,
                 ticket,
                 lambda desk, c: desk.take_over(c, notify_seller=notify, note=note),
-                notify=notify,
+                said=f"took over {ticket.shipment_ref}. The agent has stopped."
+                + (
+                    " The handed-to-a-person email to the seller now waits for your approval."
+                    if notify
+                    else ""
+                ),
             )
-        if row.button("Return to the agent", key=f"back-{key}", disabled=paid or not note.strip()):
+        elif back and not note.strip():
+            st.error("Write a note first: it is recorded with the case when you return it.")
+        elif back:
             _desk(
                 reviewer,
                 ticket,
                 lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
+                said=f"returned {ticket.shipment_ref} to the agent. It starts a new round from "
+                "fresh evidence.",
             )
-        if can_confirm_withdrawal(case) and row.button("Confirm withdrawal", key=f"withdraw-{key}"):
-            _desk(reviewer, ticket, lambda desk, c: desk.confirm_withdrawal(c, note))
-        if paid:
-            row.caption(
-                "A credit on this case is already verified, so it cannot go back to the agent."
+        elif withdraw:
+            _desk(
+                reviewer,
+                ticket,
+                lambda desk, c: desk.confirm_withdrawal(c, note),
+                said=f"confirmed the seller's withdrawal on {ticket.shipment_ref}.",
             )
-        elif not note.strip():
-            row.caption("Write a note to return it.")
 
 
 def _said(text: str) -> None:
     st.session_state.setdefault(LINES, []).insert(0, text)
 
 
-def _desk(reviewer: Actor, ticket: Ticket, act: object, *, notify: bool = False) -> None:
+def _desk(reviewer: Actor, ticket: Ticket, act: object, *, said: str) -> None:
     try:
         with data.writer() as work:
             case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
@@ -305,10 +334,10 @@ def _desk(reviewer: Actor, ticket: Ticket, act: object, *, notify: bool = False)
         st.error(str(refused))
         return
     who = reviewer.id.removeprefix("human:")
-    tail = " The handed-to-a-person email to the seller now waits for approval." if notify else ""
-    _said(
-        f"{who} acted on {ticket.shipment_ref}. Recorded; the agent applies it within a few seconds.{tail}"
+    st.session_state.setdefault(DESK_LINES, []).insert(
+        0, f"{who} {said} Recorded; the agent applies it within a few seconds."
     )
+    st.session_state.setdefault(ACTED, []).append(ticket.case_id)
     st.toast("Recorded. The agent applies it within a few seconds.")
     st.rerun()
 
@@ -333,5 +362,6 @@ def _decide(reviewer: Actor, card: Card, note: str, *, approving: bool) -> None:
         else f"{who} rejected {thing}. Reason: “{note.strip()}”. The agent re-plans. A case "
         "allows two rejections before it goes to a person."
     )
+    st.session_state.setdefault(ACTED, []).append(str(approval_id))
     st.toast("Recorded. The agent picks it up from here.")
     st.rerun()
