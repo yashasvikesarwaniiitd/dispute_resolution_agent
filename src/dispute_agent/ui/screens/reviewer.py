@@ -35,7 +35,7 @@ from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import money, when
 from dispute_agent.ui.photos import photo_for
-from dispute_agent.ui.review import Card, queue, with_a_person
+from dispute_agent.ui.review import Card, not_yet_applied, queue, with_a_person
 from dispute_agent.ui.theme import chip, escape, line
 from dispute_agent.ui.trail import recommendation
 
@@ -48,9 +48,12 @@ if TYPE_CHECKING:
 
 LINES = "review_lines"  # what was decided this session, said in a line each
 DESK_LINES = "desk_lines"  # what was done to cases with a person, said in a line each
-#: Approvals and cases decided this session: their cards leave at once, without waiting for
-#: the runner to apply the decision (a few seconds), so a decision is never offered twice.
+#: Approvals decided this session: their cards leave at once, without waiting for the runner
+#: to apply the decision (a few seconds), so a decision is never offered twice.
 ACTED = "review_acted"
+#: Cases with a person acted on this session, with the case's `updated_at` at that moment.
+#: Hidden only until the agent changes the case, so a Return that comes back shows again.
+ACTED_CASES = "review_acted_cases"
 
 
 def page() -> None:
@@ -66,7 +69,7 @@ def page() -> None:
         cards = queue(work, console)
         acted = set(st.session_state.get(ACTED, ()))
         cards = [c for c in cards if str(c.item.approval.id) not in acted]
-        people = [p for p in with_a_person(work) if p.case_id not in acted]
+        people = not_yet_applied(with_a_person(work), st.session_state.get(ACTED_CASES, {}))
         extra = {c.item.approval.id: _credit_basis(work, c) for c in cards if c.item.is_credit}
 
     st.markdown(
@@ -355,7 +358,7 @@ def _desk(reviewer: Actor, ticket: Ticket, act: object, *, said: str) -> None:
     st.session_state.setdefault(DESK_LINES, []).insert(
         0, f"{who} {said} Recorded; the agent applies it within a few seconds."
     )
-    st.session_state.setdefault(ACTED, []).append(ticket.case_id)
+    st.session_state.setdefault(ACTED_CASES, {})[ticket.case_id] = ticket.updated_at.isoformat()
     st.toast("Recorded. The agent applies it within a few seconds.")
     st.rerun()
 

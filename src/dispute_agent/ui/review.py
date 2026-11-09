@@ -16,7 +16,7 @@ from dispute_agent.ui.seller import Ticket, ticket
 from dispute_agent.ui.trail import Recommendation, recommendation
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
     from dispute_agent.modules.approvals.streamlit_ui.console import PendingItem, ReviewConsole
@@ -53,4 +53,15 @@ def with_a_person(work: SqliteUnitOfWork) -> Sequence[Ticket]:
     return [ticket(c) for c in sorted(cases, key=lambda c: c.updated_at)]
 
 
-__all__ = ["Card", "queue", "with_a_person"]
+def not_yet_applied(people: Sequence[Ticket], acted: Mapping[str, str]) -> list[Ticket]:
+    """The cases to show, leaving out one a reviewer acted on until the agent has moved it.
+
+    `acted` maps a case id to its `updated_at` (ISO) when the reviewer acted. The card is
+    hidden only while the case is unchanged, so the same choice is not offered twice in the
+    seconds before the agent applies it. Once the case changes - a Return comes back to a
+    person after its new round, say - it is a new question and shows again.
+    """
+    return [p for p in people if acted.get(p.case_id) != p.updated_at.isoformat()]
+
+
+__all__ = ["Card", "not_yet_applied", "queue", "with_a_person"]

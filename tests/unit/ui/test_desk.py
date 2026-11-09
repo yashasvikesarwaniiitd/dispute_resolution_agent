@@ -8,7 +8,7 @@ through dispatch and the transition's own guards.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -135,3 +135,30 @@ def test_only_a_signed_in_person_can_use_the_desk() -> None:
     system = Actor(kind=ActorKind.SYSTEM, id="system:runner")
     with pytest.raises(DomainValidationError):
         CaseDesk(inbox=None, clock=None, reviewer=system)  # type: ignore[arg-type]
+
+
+def test_a_returned_case_shows_again_on_review_when_it_comes_back(with_a_person: World) -> None:
+    """Review hid a case acted on this session for good, so a Return that came back to a
+    person (on Agent steps) never reappeared on Review. Hidden only until the case changes."""
+    from dispute_agent.ui.review import not_yet_applied
+    from dispute_agent.ui.review import with_a_person as people
+
+    def shown(acted: dict[str, str]) -> list[str]:
+        with SqliteUnitOfWork(with_a_person.engine, clock=SystemClock()) as work:
+            return [p.case_id for p in not_yet_applied(people(work), acted)]
+
+    case_id = str(with_a_person.case_id)
+    with SqliteUnitOfWork(with_a_person.engine, clock=SystemClock()) as work:
+        before = next(p for p in people(work) if p.case_id == case_id)
+        desk = CaseDesk(inbox=work.inbox, clock=with_a_person.clock, reviewer=ASHA)
+        desk.return_to_agent(
+            work.cases.get(with_a_person.case_id), "Look again.", credit_verified=False
+        )
+    acted = {case_id: before.updated_at.isoformat()}  # what the Review screen records
+    assert shown(acted) == []  # not offered twice while the agent has not applied it
+
+    with_a_person.clock.advance(timedelta(seconds=30))
+    with_a_person.tick()  # the agent picks up the Return and runs its new round
+    with_a_person.drive(20)
+    assert with_a_person.report().case.state is CaseState.NEEDS_HUMAN_REVIEW
+    assert shown(acted) == [case_id]  # back with a person: a new question, shown again
