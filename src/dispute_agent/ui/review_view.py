@@ -140,20 +140,24 @@ def marked_body(body: str, numbers: Sequence[tuple[str, str]]) -> str:
 def if_approve_email(item: PendingItem) -> str:
     """The right half for an email: the exact recipient, subject and body, and each number's
     source. Nothing is reworded: this is the text the hash binds (I13)."""
+    rows = "".join(
+        f'<li><span class="idx">{i}</span><span class="mono">{escape(value)}</span>'
+        f"<span>{escape(source)}</span></li>"
+        for i, (value, source) in enumerate(item.numbers, 1)
+    )
+    # No figures: a plain sentence, not a one-item list (the list's first column is a narrow
+    # number badge, and a sentence squeezed into it wraps a letter or two per line).
     sources = (
-        "".join(
-            f'<li><span class="idx">{i}</span><span class="mono">{escape(value)}</span>'
-            f"<span>{escape(source)}</span></li>"
-            for i, (value, source) in enumerate(item.numbers, 1)
-        )
-        or "<li><span>This email has no figures.</span></li>"
+        f'<ol class="sources">{rows}</ol>'
+        if rows
+        else '<p class="muted">This email has no figures.</p>'
     )
     return (
         "<h3>If you approve, this exact email is sent</h3>"
         f'<dl class="pairs"><dt>To</dt><dd>{escape(item.to)} <span class="muted">{TEST_ADDRESS}</span></dd>'
         f"<dt>Subject</dt><dd>{escape(item.subject)}</dd></dl>"
         f'<div class="mail">{marked_body(item.body, item.numbers)}</div>'
-        f'<h4>Every number in it, and where it came from</h4><ol class="sources">{sources}</ol>'
+        f"<h4>Every number in it, and where it came from</h4>{sources}"
     )
 
 

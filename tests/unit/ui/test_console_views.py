@@ -338,6 +338,23 @@ class TestTheDesignHandoff:
         assert '<span class="num-mark">\u20b9190.00</span><sup>2</sup>' in shown
         assert "\n" not in shown  # a blank line would end the HTML block in Markdown
 
+    def test_an_email_without_figures_says_so_in_a_plain_sentence(self) -> None:
+        """Not a one-item list: its narrow number column squeezed the sentence to a letter a line."""
+        from types import SimpleNamespace
+
+        from dispute_agent.ui.review_view import if_approve_email
+
+        def shown(numbers: tuple[tuple[str, str], ...]) -> str:
+            item = SimpleNamespace(to="s@example.test", subject="S", body="Hello", numbers=numbers)
+            return if_approve_email(item)  # type: ignore[arg-type]  # reads only these four
+
+        none = shown(())
+        assert '<p class="muted">This email has no figures.</p>' in none
+        assert 'class="sources"' not in none
+        some = shown((("₹190.00", "charged"),))
+        assert '<ol class="sources"><li><span class="idx">1</span>' in some
+        assert "no figures" not in some
+
     def test_the_clickable_component_never_writes_markup_from_data(self) -> None:
         from dispute_agent.ui.picker import JS
 
