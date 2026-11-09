@@ -20,6 +20,7 @@ from typing import Literal
 from dispute_agent.kernel.ports import (
     ApprovalService,
     EvidenceSource,
+    ImageChecker,
     InputScreen,
     Ledger,
     MessageChannel,
@@ -145,6 +146,22 @@ MODULE_SPECS: dict[str, ModuleSpec] = {
             AdapterSpec("sql_context", depends_on=("ticketing",)),
         ),
         off_adapter="null",
+    ),
+    "image_check": ModuleSpec(
+        name="image_check",
+        port=ImageChecker,
+        adapters=_adapters(
+            # ADR 0049: Foundry gpt-5-mini reads the photo through its own guarded gateway.
+            AdapterSpec(
+                "foundry_vision",
+                needs_env=(
+                    "FOUNDRY_PROJECT_ENDPOINT",
+                    "FOUNDRY_MODEL_DEPLOYMENT",
+                    "AZURE_TENANT_ID",
+                ),
+            ),
+            AdapterSpec("recorded"),
+        ),
     ),
     "evals": ModuleSpec(
         name="evals",

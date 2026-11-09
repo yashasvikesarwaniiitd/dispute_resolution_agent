@@ -43,6 +43,24 @@ make gmail-export
 
 Then in Streamlit, open your app, go to **Settings**, then **Secrets**, replace the `GMAIL_REFRESH_TOKEN` line with the clipboard, and **Save**. The app restarts with the new sign-in. Until you renew, email cases go to a person instead of sending.
 
+## The photo check (optional, ADR 0049)
+
+When a person returns a photo case to the agent, a vision model describes the parcel photo and the case comes back with its verdict. Out of the box the live site **replays** the verdicts gpt-5-mini gave in its evaluation run (`image_check: recorded` in `config/modules.hosted.yaml`), so it works with no model call and no secret, and the card says it was replayed.
+
+For **live** checks the site needs its own Foundry sign-in. Your laptop's sign-in cannot travel, so the site uses a Microsoft Entra **app registration** (still Entra ID only, I14). Steps, in the Azure portal:
+
+1. **Microsoft Entra ID → App registrations → New registration.** Name it `dispute-desk-photo-check`, single tenant, no redirect URI. Register.
+2. On its **Overview**, note the **Application (client) ID**.
+3. **Certificates & secrets → New client secret.** Expiry 90 days. Copy the **Value** once (it is shown only once). Never paste it into chat.
+4. Open your **Foundry resource** (the one with the `gpt-5-mini` deployment) → **Access control (IAM) → Add role assignment** → role **Cognitive Services OpenAI User** (or **Azure AI User**) → members: the app registration → **Review + assign**.
+5. In your `.env` on the laptop, add:
+   - `FOUNDRY_CLIENT_ID=` the client id
+   - `FOUNDRY_CLIENT_SECRET=` the secret value
+6. Run `make hosted-secrets` again. The block now also carries `AZURE_TENANT_ID`, `FOUNDRY_PROJECT_ENDPOINT`, `FOUNDRY_MODEL_DEPLOYMENT`, `FOUNDRY_CLIENT_ID` and `FOUNDRY_CLIENT_SECRET`. Paste it into Streamlit's Secrets and Save.
+7. In `config/modules.hosted.yaml`, change `image_check`'s adapter from `recorded` to `foundry_vision`, commit and push.
+
+Each live check is one gpt-5-mini call (under US$0.005), logged and counted against the same spending caps as every other model call. To stop it, set the adapter back to `recorded`. When the secret expires, checks fail safe: the card says the sign-in failed and the case still reaches a person.
+
 ## Good to know
 
 - **Data resets** when Streamlit restarts the app: cases and the simulated ledger start fresh. Emails sent and Jira issues opened are real and stay.

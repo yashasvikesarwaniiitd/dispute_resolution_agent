@@ -30,7 +30,7 @@ from dispute_agent.modules.approvals.streamlit_ui.console import (
     reviewer_named,
     sign_in,
 )
-from dispute_agent.ui import data
+from dispute_agent.ui import data, photo_check
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import money, when
@@ -261,6 +261,7 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
         proposals = list(work.proposals.for_case(case.id))
         paid = work.actions.has_verified_credit(case.id)
+        checked = photo_check.latest(work.evidence.bundle(case.id, case.gather_round).items)
     review = case.review_reason
     rec = recommendation(proposals[-1]) if proposals else None
     key = ticket.case_id
@@ -273,6 +274,8 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         photo = photo_for(ticket.shipment_ref)
         if photo is not None:  # the thing a person is being asked to judge
             left.image(str(photo), caption="Parcel photo", width="stretch")
+        if checked is not None:  # ADR 0049: what the vision model saw, after a Return
+            left.markdown(photo_check.html(checked), unsafe_allow_html=True)
         with right, st.container(key=f"panel-person-{key}"):
             st.markdown(view.choices(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
@@ -314,7 +317,8 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
                 ticket,
                 lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
                 said=f"returned {ticket.shipment_ref} to the agent. It starts a new round from "
-                "fresh evidence.",
+                "fresh evidence; on a photo case that round also runs the photo check, and the "
+                "case comes back here with its verdict.",
             )
         elif withdraw:
             _desk(

@@ -171,6 +171,21 @@ class TestTheSecretsBlock:
         assert values["MODULES_FILE"] == "modules.hosted.yaml"
         assert "GMAIL_REFRESH_TOKEN" in missing and "JIRA_API_TOKEN" in missing
         assert "CONSOLE_PASSWORD" not in missing
+        assert "FOUNDRY_CLIENT_SECRET" not in values  # no app registration: none of its names
+
+    def test_the_photo_check_sign_in_is_added_whole_or_named_missing(self) -> None:
+        """ADR 0049: an app registration in .env brings the Foundry names with it."""
+        from pydantic import SecretStr
+
+        hs: object = self._module()
+        settings = Settings(
+            _env_file=None, foundry_client_id="app-id", foundry_client_secret=SecretStr("s")
+        )
+        values, missing = hs.collect(settings, None, "pw")  # type: ignore[attr-defined]
+        assert values["FOUNDRY_CLIENT_ID"] == "app-id"
+        assert {"AZURE_TENANT_ID", "FOUNDRY_PROJECT_ENDPOINT"} <= set(missing)
+        names = tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
+        assert "FOUNDRY_CLIENT_SECRET" in names
 
 
 class TestTheServiceAcrossReloads:

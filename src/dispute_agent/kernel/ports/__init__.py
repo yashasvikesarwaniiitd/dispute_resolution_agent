@@ -20,6 +20,7 @@ from dispute_agent.kernel.ports.event_log import EventLog
 from dispute_agent.kernel.ports.evidence_source import EvidenceSource
 from dispute_agent.kernel.ports.evidence_store import EvidenceStore
 from dispute_agent.kernel.ports.id_generator import IdGenerator
+from dispute_agent.kernel.ports.image_checker import ImageChecker, PhotoSource
 from dispute_agent.kernel.ports.input_screen import InputScreen
 from dispute_agent.kernel.ports.intent_store import IntentStore
 from dispute_agent.kernel.ports.kill_switch import KillSwitch
@@ -48,6 +49,7 @@ __all__ = [
     "EvidenceSource",
     "EvidenceStore",
     "IdGenerator",
+    "ImageChecker",
     "InputScreen",
     "IntentStore",
     "KillSwitch",
@@ -58,6 +60,7 @@ __all__ = [
     "ModelUsageLedger",
     "ModuleStatus",
     "PatternContextProvider",
+    "PhotoSource",
     "PromptRegistry",
     "ProposalStore",
     "Reasoner",

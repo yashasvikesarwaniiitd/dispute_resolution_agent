@@ -30,6 +30,7 @@ modules:
   reasoning:     {enabled: false, adapter: rules_only}
   input_screen:  {enabled: true,  adapter: rules_based}
   tracing:       {enabled: true,  adapter: noop}
+  image_check:   {enabled: false, adapter: recorded}
   email:         {enabled: false, adapter: fake}
   ticketing:     {enabled: false, adapter: fake}
   ledger:        {enabled: false, adapter: simulated}
@@ -154,4 +155,4 @@ class TestGetCase:
 class TestHealthzStillWorks:
     def test_it_lists_every_module(self, client: TestClient) -> None:
         body = client.get("/healthz").json()
-        assert len(body["modules"]) == 11
+        assert len(body["modules"]) == 12

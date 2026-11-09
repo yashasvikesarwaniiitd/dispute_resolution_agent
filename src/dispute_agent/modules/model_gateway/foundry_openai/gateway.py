@@ -13,6 +13,7 @@ worst-case costing when usage is missing - is the agent route's, and so is the e
 
 from __future__ import annotations
 
+import base64
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -30,6 +31,9 @@ if TYPE_CHECKING:
 
 ROUTE = "foundry_openai"
 CHARS_PER_TOKEN_WORST = 3
+#: What one attached photo may cost in input tokens at most, for worst-case costing when the
+#: service reports no usage (a 960 px photo is well under this at any detail level).
+IMAGE_TOKENS_WORST = 2000
 
 
 @dataclass
@@ -56,8 +60,27 @@ class FoundryOpenAiGateway:
 
     def complete(self, req: ModelRequest) -> ModelResponse:
         system = "\n\n".join(m.content for m in req.prompt.messages if m.role == "system")
-        user = req.prompt.messages[-1].content
+        text = req.prompt.messages[-1].content
         prompt_chars = sum(len(m.content) for m in req.prompt.messages)
+        user: Any = text
+        if req.image is not None:
+            # ADR 0049: the documented Responses API shape for an inline image - an input_image
+            # part carrying a base64 data URI, beside the text. The bytes go to the service
+            # and nowhere else: not into the sent log, a prompt hash or a store.
+            encoded = base64.b64encode(req.image.data).decode("ascii")
+            user = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": text},
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:{req.image.media_type};base64,{encoded}",
+                        },
+                    ],
+                }
+            ]
+            prompt_chars += IMAGE_TOKENS_WORST * CHARS_PER_TOKEN_WORST
         return complete_with_one_retry(
             req,
             lambda r: self._call(system, user, r.max_output_tokens, prompt_chars),
@@ -74,7 +97,7 @@ class FoundryOpenAiGateway:
             cost_usd=self.price.cost(tokens_in, max_output_tokens),
         )
 
-    def _call(self, system: str, user: str, max_tokens: int, prompt_chars: int) -> RawReply:
+    def _call(self, system: str, user: Any, max_tokens: int, prompt_chars: int) -> RawReply:
         sent: dict[str, object] = {
             "model": self.deployment,
             "max_output_tokens": max_tokens,

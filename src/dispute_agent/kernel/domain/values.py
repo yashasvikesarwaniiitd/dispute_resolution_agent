@@ -169,7 +169,12 @@ class UntrustedText(BaseModel):
 
     text: str
     origin: Literal[
-        "seller_email", "seller_portal", "jira_comment", "shipment_note", "dispute_form"
+        "seller_email",
+        "seller_portal",
+        "jira_comment",
+        "shipment_note",
+        "dispute_form",
+        "image_check",
     ]
     source_ref: str
     truncated: bool = False
@@ -180,7 +185,12 @@ class UntrustedText(BaseModel):
         cls,
         text: str,
         origin: Literal[
-            "seller_email", "seller_portal", "jira_comment", "shipment_note", "dispute_form"
+            "seller_email",
+            "seller_portal",
+            "jira_comment",
+            "shipment_note",
+            "dispute_form",
+            "image_check",
         ],
         source_ref: str,
     ) -> Self:

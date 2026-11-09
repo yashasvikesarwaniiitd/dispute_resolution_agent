@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login explain demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login explain demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team eval-image
 
 setup:
 	$(PY) setup
@@ -86,3 +86,8 @@ llm-check:
 # make red-team ARGS="--live"   against the real Foundry agent (costs; owner approval first)
 red-team:
 	$(PY) red-team $(ARGS)
+
+# make eval-image               the image check's 20 photos against Foundry gpt-5-mini (ADR 0049;
+#                               costs money, capped at US$1 a run; owner approval first)
+eval-image:
+	$(PY) eval-image $(ARGS)

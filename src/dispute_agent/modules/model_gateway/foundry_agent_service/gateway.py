@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.errors import (
     AgentDrift,
+    ConfigError,
     GuardrailBlocked,
     KernelError,
     TransientPortError,
@@ -75,6 +76,12 @@ class FoundryAgentServiceGateway:
     _verified: dict[str, float] = field(default_factory=dict)
 
     def complete(self, req: ModelRequest) -> ModelResponse:
+        if req.image is not None:
+            # ADR 0049: only the direct deployment route reads photos. Answering without the
+            # photo would be a verdict about nothing, so refuse.
+            raise ConfigError(
+                "this model route cannot read images; the image check uses foundry_openai"
+            )
         agent = self._checked_agent(req)
         user = req.prompt.messages[-1].content
         # The agent's instructions are billed as input too, though we do not send them;

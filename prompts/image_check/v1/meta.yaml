@@ -1,0 +1,15 @@
+name: image_check
+version: v1
+status: active  # live eval passed every image_check_gate, 2026-11-09: count 19/19, packaging 18/19, 0 size guesses, injection unchanged, US$0.044 (ADR 0049)
+owner: product
+purpose: Describe one parcel photo in closed choices for a person who must judge it. Never decides, recommends or measures.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+  image_input: true
+max_output_tokens: 700
+eval_suite: tests/evals/test_image_check_eval.py
+eval_cases: src/dispute_agent/modules/evals/parcel_photos/answer_key.json
+changelog:
+  - v1: initial version (ADR 0049). Counting rule (only parcels being shipped; flattened boxes and background objects are not parcels), no size without a scale in view, text in the photo is data, observations without figures. Its examples describe scenes that are not in the evaluation set, so the eval is not taught to the test.

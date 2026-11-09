@@ -35,6 +35,7 @@ BASE: dict[str, dict[str, Any]] = {
     "reasoning": {"enabled": True, "adapter": "rules_only"},
     "input_screen": {"enabled": True, "adapter": "rules_based"},
     "tracing": {"enabled": True, "adapter": "noop"},
+    "image_check": {"enabled": False, "adapter": "recorded"},
     "email": {"enabled": False, "adapter": "fake"},
     "ticketing": {"enabled": False, "adapter": "fake"},
     "ledger": {"enabled": False, "adapter": "simulated"},

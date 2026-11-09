@@ -54,6 +54,7 @@ if TYPE_CHECKING:
     )
     from dispute_agent.kernel.domain.ids import CaseId
     from dispute_agent.kernel.domain.models import Case
+    from dispute_agent.kernel.orchestrator.image_check import ImageCheckRound
     from dispute_agent.kernel.policy.config import TimersConfig
     from dispute_agent.kernel.ports import (
         AssessmentStore,
@@ -159,6 +160,9 @@ class GatherEvidenceStep:
     #: Reads the seller's replies into this round (the reply round). None: no replies can
     #: arrive in this assembly, as before the dispatcher existed.
     replies: ReplyRound | None = None
+    #: The image check (ADR 0049): runs only in a round started by a person's Return that
+    #: carries the photo flag. None: no image check in this assembly.
+    image_check: ImageCheckRound | None = None
     name: str = "gather_evidence"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -197,6 +201,8 @@ class GatherEvidenceStep:
         # round that then retries would be read again into the next one.
         if self.replies is not None:
             self.replies.read(case, now)
+        if self.image_check is not None:
+            self.image_check.read(case, now, outcome.results)
         return StepOutcome(trigger=Trigger.EVIDENCE_RECORDED)
 
     def _arm_retry(self, case: Case, due_at: datetime, now: datetime) -> None:

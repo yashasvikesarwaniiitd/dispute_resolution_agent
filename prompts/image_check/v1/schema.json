@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ImageVerdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["parcel_count", "packaging", "label_visible", "size_from_photo", "observations", "confidence"],
+  "properties": {
+    "parcel_count": {"type": "string", "enum": ["one", "more_than_one", "cannot_tell"]},
+    "packaging": {"type": "string", "enum": ["sealed", "open", "damaged", "cannot_tell"]},
+    "label_visible": {"type": "string", "enum": ["yes", "no", "cannot_tell"]},
+    "size_from_photo": {"type": "string", "enum": ["cannot_be_judged", "looks_smaller_than_measured", "looks_consistent_with_measured"]},
+    "observations": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {"type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[^0-9<>`]+$"}
+    },
+    "confidence": {"type": "string", "enum": ["low", "medium", "high"]}
+  }
+}

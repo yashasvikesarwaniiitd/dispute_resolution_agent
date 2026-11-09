@@ -180,7 +180,8 @@ def choices(rec: Recommendation | None) -> str:
         f"<h3>Last proposal</h3>{last}<h3>What each choice does</h3>"
         '<dl class="pairs"><dt>Take over</dt><dd>You handle it from here. The agent stops.</dd>'
         "<dt>Return to the agent</dt><dd>The agent starts a new round from fresh evidence. "
-        "Needs a note.</dd></dl>"
+        "On a photo case, a vision model also checks the photo and the case comes back to a "
+        "person with its verdict. Needs a note.</dd></dl>"
     )
 
 

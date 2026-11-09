@@ -18,6 +18,7 @@ from dispute_agent.kernel.orchestrator.dispatch import Dispatcher
 from dispute_agent.kernel.orchestrator.effects import TransitionEffects
 from dispute_agent.kernel.orchestrator.execution import ApplyApprovalStep, ExecuteStep, VerifyStep
 from dispute_agent.kernel.orchestrator.handoff import HandOffStep
+from dispute_agent.kernel.orchestrator.image_check import ImageCheckRound
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
 from dispute_agent.kernel.orchestrator.reminder import ReminderStep
@@ -32,6 +33,7 @@ from dispute_agent.modules.input_screen.rules_based import RulesBasedInputScreen
 from dispute_agent.modules.reasoning.disabled import DisabledReasoner
 from dispute_agent.modules.reasoning.rules_only.reasoner import RulesOnlyReasoner
 from dispute_agent.packs.weight_dispute.eligibility import STATUS_KEY
+from dispute_agent.packs.weight_dispute.photo import PHOTO_FLAG, size_facts
 from dispute_agent.packs.weight_dispute.render import TemplateDrafter
 
 if TYPE_CHECKING:
@@ -79,6 +81,9 @@ class Line:
     tracer: Any = None
     #: HOOK A: the PatternContextProvider (Null until cross_case is on, ADR 0035).
     patterns: Any = None
+    #: ADR 0049: the image check and the photos it reads. Both None: no image check.
+    image_checker: Any = None
+    photos: Any = None
 
     def machine(self) -> StateMachine:
         return StateMachine(default_table())
@@ -115,6 +120,19 @@ class Line:
                 ids=self.ids,
                 timers_store=work.timers,
                 timers=self.policy.timers,
+                image_check=(
+                    ImageCheckRound(
+                        events=work.events,
+                        evidence=work.evidence,
+                        ids=self.ids,
+                        checker=self.image_checker,
+                        photos=self.photos,
+                        image_key=PHOTO_FLAG,
+                        size_facts=size_facts,
+                    )
+                    if self.image_checker is not None and self.photos is not None
+                    else None
+                ),
                 replies=ReplyReader(
                     messages=work.messages,
                     inbox=work.inbox,

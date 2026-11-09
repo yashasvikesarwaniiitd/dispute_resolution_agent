@@ -77,6 +77,12 @@ modules:
     enabled: true                                 # Phase 7 (P7-12): patterns as caution only (I7)
     adapter: sql_context                          # off again: enabled false, adapter "null"
 
+  image_check:
+    enabled: true                                 # ADR 0049: a vision model describes the parcel photo after a Return
+    adapter: recorded                             # replays gpt-5-mini's verdicts from its eval run: no model call.
+                                                  # foundry_vision once the app registration's secrets are in
+                                                  # Streamlit (docs/DEPLOY_STREAMLIT.md, "The photo check")
+
   evals:
     enabled: true
     adapter: default

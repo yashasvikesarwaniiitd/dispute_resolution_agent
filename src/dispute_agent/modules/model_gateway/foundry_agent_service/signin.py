@@ -59,6 +59,20 @@ def _cache() -> Any:
     return TokenCachePersistenceOptions(name=CACHE_NAME, allow_unencrypted_storage=False)
 
 
+def app_credential(tenant_id: str | None, client_id: str, client_secret: str) -> Any:
+    """The live site's sign-in (ADR 0049): a Microsoft Entra app registration.
+
+    Still Entra ID only (I14), named to the same pinned directory. The owner creates the
+    registration and gives it a Foundry role; its secret lives only in the host's secret store
+    and reaches here through settings (I12). No browser, no cache.
+    """
+    from azure.identity import ClientSecretCredential
+
+    return ClientSecretCredential(
+        tenant_id=check_tenant(tenant_id), client_id=client_id, client_secret=client_secret
+    )
+
+
 def runtime_credential(tenant_id: str | None, record_path: Path) -> Any:
     """A credential that signs in silently from the cache, or raises AuthPortError."""
     from azure.identity import AuthenticationRecord, InteractiveBrowserCredential
@@ -103,4 +117,4 @@ def sign_in(tenant_id: str | None, record_path: Path, *, device_code: bool = Fal
     return str(record.username)
 
 
-__all__ = ["SCOPE", "check_tenant", "runtime_credential", "sign_in"]
+__all__ = ["SCOPE", "app_credential", "check_tenant", "runtime_credential", "sign_in"]

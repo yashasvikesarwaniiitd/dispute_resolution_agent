@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     #: anyway, so it is redacted from logs like every other credential (ADR 0038).
     gmail_client_secret: SecretStr | None = None
     applicationinsights_connection_string: SecretStr | None = None
+    #: ADR 0049: the live site's Foundry sign-in - a Microsoft Entra app registration (still
+    #: Entra ID, I14). Set only in the host's secret store. Unset: the interactive sign-in.
+    foundry_client_secret: SecretStr | None = None
 
     # --- non-secret settings the adapters need -------------------------------------------
     anthropic_model_haiku: str | None = None
@@ -53,6 +56,8 @@ class Settings(BaseSettings):
     #: The Entra directory the pilot subscription lives in. Not a secret; pins the sign-in
     #: to it, so a work account already signed in on the laptop is never picked up.
     azure_tenant_id: str | None = None
+    #: ADR 0049: the app registration's id (not a secret) for the live site's Foundry sign-in.
+    foundry_client_id: str | None = None
     graph_client_id: str | None = None
     graph_mailbox: str | None = None
     #: The `consumers` authority, because the pilot account is a personal Outlook.com one

@@ -64,6 +64,7 @@ modules:
 | `ledger` | `simulated` | `approvals` | |
 | `approvals` | `store_backed` | — | |
 | `cross_case` | `null`, `sql_context` | `ticketing` when `sql_context` | disabled -> `null` adapter, never `Disabled` |
+| `image_check` | `foundry_vision`, `recorded` | — | ADR 0049 (owner-approved spec change): describes a parcel photo after a person returns a photo case; `foundry_vision` builds its own guarded `foundry_openai` gateway, `recorded` replays saved answers offline. Off: no image check runs |
 | `evals` | `default` | — | |
 
 Start-up validation (refuses to start, naming the modules): unknown module or adapter; a missing dependency (for example `ledger` on without `approvals`); `reasoning: llm` with `model_gateway` off; `secondary_adapter` not `anthropic_direct` or equal to `adapter`; an adapter marked `preview: true` while `APP_ENV=ci`; a real adapter (`outlook_graph`, `jira_cloud`, `foundry_*`, `anthropic_direct`) whose environment variables are missing. (`outlook_graph` with no cached refresh token starts, but reports `reauth_required` and escalates sends until `make email-login`.) A disabled module is wired to its `Disabled` adapter (I6), except `cross_case` (Null).

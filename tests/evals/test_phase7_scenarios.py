@@ -51,6 +51,7 @@ modules:
   reasoning:     {enabled: true,  adapter: rules_only}
   input_screen:  {enabled: true,  adapter: rules_based}
   tracing:       {enabled: true,  adapter: noop}
+  image_check:   {enabled: false, adapter: recorded}
   email:         {enabled: true,  adapter: fake}
   ticketing:     {enabled: true,  adapter: fake}
   ledger:        {enabled: true,  adapter: simulated}

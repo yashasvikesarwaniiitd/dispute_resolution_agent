@@ -14,6 +14,7 @@ from dispute_agent.kernel.domain.actions import CreditPayload, IssuePayload, Mes
 from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.ui.labels import EVIDENCE, MESSAGE, clock, words
+from dispute_agent.ui.photo_check import IMAGE_CHECK as PHOTO_CHECK
 
 if TYPE_CHECKING:
     from dispute_agent.kernel.domain.actions import Action, ActionPayload, Approval
@@ -26,9 +27,10 @@ LATER = frozenset({"ops.finding", "seller_reply"})
 
 
 def evidence(bundle: EvidenceBundle, *, asked_later: bool) -> tuple[str, tuple[str, ...]]:
-    """'Found 5 of 8. Not needed this round: hub finding. Not on file: parcel image.'"""
+    """'Found 5 of 8. Not needed this round: hub finding. Not on file: hub's photo note.'"""
     found, later, absent, failed = [], [], [], []
-    for item in bundle.items:
+    items = [i for i in bundle.items if i.result.requirement_key != PHOTO_CHECK]
+    for item in items:
         key = item.result.requirement_key
         name = EVIDENCE.get(key, key).lower()
         status = item.result.status.value.lower()
@@ -40,7 +42,7 @@ def evidence(bundle: EvidenceBundle, *, asked_later: bool) -> tuple[str, tuple[s
             later.append(name)
         else:
             absent.append(name)
-    summary = f"Found {len(found)} of {len(bundle.items)}."
+    summary = f"Found {len(found)} of {len(items)}."
     if later:
         summary += " Not needed this round: " + ", ".join(later) + "."
     if absent:

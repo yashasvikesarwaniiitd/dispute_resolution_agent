@@ -315,7 +315,7 @@ class TestTheStepsAtAGlance:
         evidence = next(s for s in story.steps if s.title == "Gathered the evidence")
         assert (
             evidence.summary.startswith("Found ")
-            and "Not on file: parcel image" in evidence.summary
+            and "Not on file: hub's photo note" in evidence.summary
         )
         assert "Not needed this round: hub finding" in evidence.summary
         recalc = next(s for s in story.steps if s.title == "Recalculated the charge")
@@ -357,7 +357,7 @@ class TestTheDesignHandoff:
             (
                 "proposal_escalated",
                 "B5: the round contains image evidence, which needs judgement",
-                "Proposal escalated: the round contains a parcel photo",
+                "Proposal escalated: the hub flagged the parcel photo",
                 "B5",
             ),
             (

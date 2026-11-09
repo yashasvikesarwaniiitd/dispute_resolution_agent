@@ -1,7 +1,7 @@
 """`/healthz` — what is switched on, and what is running it.
 
 The first question anyone asks of a running system is "is it the configuration I think it
-is?", and with eleven modules each having a disabled form, guessing is easy. This answers it
+is?", and with twelve modules each having a disabled form, guessing is easy. This answers it
 without a log dive: every module, whether it is on, and the adapter actually in use — which
 for a disabled module is its Disabled adapter, not the one named in the file.
 

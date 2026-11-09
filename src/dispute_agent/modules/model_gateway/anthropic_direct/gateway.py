@@ -82,6 +82,12 @@ class AnthropicDirectGateway:
         return cls(model=checked, price=price, client=client)
 
     def complete(self, req: ModelRequest) -> ModelResponse:
+        if req.image is not None:
+            # ADR 0049: only the direct deployment route reads photos. Answering without the
+            # photo would be a verdict about nothing, so refuse.
+            raise ConfigError(
+                "this model route cannot read images; the image check uses foundry_openai"
+            )
         system = "\n\n".join(m.content for m in req.prompt.messages if m.role == "system")
         user = req.prompt.messages[-1].content
         prompt_chars = sum(len(m.content) for m in req.prompt.messages)

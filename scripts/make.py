@@ -186,6 +186,11 @@ def red_team(*args: str) -> int:
     return uv("python", "scripts/red_team.py", *args)
 
 
+def eval_image(*args: str) -> int:
+    """The image check's live evaluation (ADR 0049). Costs money: at most US$1 a run."""
+    return uv("python", "scripts/eval_image.py", *args)
+
+
 def evaluate(*args: str) -> int:
     """Baseline versus model on the scenario catalogue. `--live` uses Foundry (costs)."""
     return uv("python", "scripts/eval.py", *args)
@@ -216,6 +221,7 @@ TARGETS = {
     "hosted-secrets": hosted_secrets,
     "demo": demo,
     "eval": evaluate,
+    "eval-image": eval_image,
     "red-team": red_team,
 }
 
@@ -230,6 +236,8 @@ def main(argv: Sequence[str]) -> int:
         return demo(*argv[1:])
     if argv[0] == "eval":
         return evaluate(*argv[1:])
+    if argv[0] == "eval-image":
+        return eval_image(*argv[1:])
     if argv[0] == "explain":
         return explain(*argv[1:])
     if argv[0] == "foundry-login":

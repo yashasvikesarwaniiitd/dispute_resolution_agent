@@ -27,6 +27,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle, Fact
 from dispute_agent.kernel.domain.ids import CaseId, EvidenceItemId, PayloadHash, ProposalId
+from dispute_agent.kernel.domain.image import ImageAttachment
 from dispute_agent.kernel.domain.json_values import JsonValue
 from dispute_agent.kernel.domain.models import RelatedCase
 from dispute_agent.kernel.domain.patterns import PatternRecord
@@ -303,9 +304,13 @@ class ModelRequest(BaseModel):
         "seller_reply_interpreter",
         "seller_message_drafter",
         "pattern_analyst",
+        "image_check",
     ]
     prompt: RenderedPrompt
     max_output_tokens: Annotated[int, Field(gt=0)]
+    #: One photo for the model to read (ADR 0049). Only `image_check` sends one; a route that
+    #: cannot read images refuses the request rather than answering without it.
+    image: ImageAttachment | None = None
 
 
 class ModelUsage(BaseModel):

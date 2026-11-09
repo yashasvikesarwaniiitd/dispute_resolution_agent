@@ -29,6 +29,7 @@ modules:
   reasoning:     {enabled: false, adapter: rules_only}
   input_screen:  {enabled: true,  adapter: rules_based}
   tracing:       {enabled: true,  adapter: noop}
+  image_check:   {enabled: false, adapter: recorded}
   email:         {enabled: false, adapter: outlook_graph}
   ticketing:     {enabled: false, adapter: fake}
   ledger:        {enabled: false, adapter: simulated}
@@ -83,9 +84,9 @@ class TestHealthz:
         assert rows["cross_case"]["adapter"] == "null"
         assert rows["tracing"]["adapter"] == "noop"
 
-    def test_all_eleven_modules_are_reported(self, client: TestClient) -> None:
+    def test_all_twelve_modules_are_reported(self, client: TestClient) -> None:
         rows = modules_by_name(client.get("/healthz").json())
-        assert len(rows) == 11
+        assert len(rows) == 12
 
     def test_it_reports_no_settings_or_secrets(self, client: TestClient) -> None:
         """I12. Which adapter runs is operational fact; what it was configured with is not."""
@@ -124,6 +125,7 @@ class TestTheAppFactory:
             "email",
             "evals",
             "evidence",
+            "image_check",
             "input_screen",
             "ledger",
             "reasoning",

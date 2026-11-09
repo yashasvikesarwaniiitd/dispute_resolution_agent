@@ -27,6 +27,7 @@ from dispute_agent.kernel.domain.enums import (
     InboundEventType,
     InternalEventType,
 )
+from dispute_agent.ui import photo_check
 from dispute_agent.ui import trail_words as said
 from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, words
 
@@ -87,6 +88,9 @@ class Step:
     mark: Mark = Mark.DONE
     #: Who proposed, in full, for a proposal's "proposed by" caption.
     proposer: str = ""
+    #: When set, every quoted line is shown together under this caption (not a proposal's
+    #: "reasoning, then findings"): the photo check's observations (ADR 0049).
+    quote_caption: str = ""
 
     @property
     def tag(self) -> str:
@@ -244,9 +248,12 @@ def build(
                 try:
                     bundle = work.evidence.bundle(case.id, rounds)
                     summary, lines = said.evidence(bundle, asked_later=asked_hub or rounds > 1)
+                    checked = photo_check.latest(bundle.items)
                 except Exception:  # a round with no stored evidence says nothing about it
-                    summary, lines = "", ()
+                    summary, lines, checked = "", (), None
                 add(Step(at, Actor.CODE, "Gathered the evidence", lines, summary=summary))
+                if checked is not None:  # ADR 0049: a person returned a photo case
+                    add(_photo_checked(at, checked))
             elif step == "assess":
                 found = next((a for a in assessments if a.gather_round == rounds), None)
                 closed = to_state is CaseState.REJECTED_INELIGIBLE
@@ -303,6 +310,30 @@ def build(
         line = said.waiting(case.state, pending, policy)
         add(Step(trail.steps[-1].at, Actor.SYSTEM, line, minor=True, mark=Mark.PENDING))
     return trail
+
+
+def _photo_checked(at: datetime, checked: photo_check.PhotoCheck) -> Step:
+    """The vision model's look at the parcel photo: advice for a person, never a decision."""
+    if not checked.ok:
+        return Step(
+            at,
+            Actor.AI,
+            "Tried to check the parcel photo",
+            summary=checked.summary,
+            tone=Tone.ATTENTION,
+            mark=Mark.ATTENTION,
+        )
+    rows = (*(f"{k}: {v}" for k, v in checked.rows), f"By {checked.by}.")
+    return Step(
+        at,
+        Actor.AI,
+        "Checked the parcel photo",
+        rows,
+        quoted=checked.observations,
+        summary=checked.summary,
+        mark=Mark.PROPOSE,
+        quote_caption=f"What it saw, exactly as recorded · by {checked.by}",
+    )
 
 
 def _eligibility(at: datetime, case: Case, to_state: CaseState | None, review: Any) -> Step:

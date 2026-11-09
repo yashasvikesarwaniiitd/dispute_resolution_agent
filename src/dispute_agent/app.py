@@ -14,6 +14,7 @@ could reach any adapter in the system and the dependency rule would be decoratio
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -74,6 +75,17 @@ if TYPE_CHECKING:
 #: directory (Phase 4P safety review, LOW).
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_DIR = PROJECT_ROOT / "config"
+#: The image check's saved answers from its last live evaluation run (ADR 0049), replayed by
+#: the `recorded` adapter so a demo shows real verdicts with no model call.
+RECORDED_IMAGE_ANSWERS = (
+    PROJECT_ROOT
+    / "src"
+    / "dispute_agent"
+    / "modules"
+    / "evals"
+    / "parcel_photos"
+    / "recorded_v1.json"
+)
 
 
 @dataclass(frozen=True)
@@ -735,6 +747,7 @@ def _build_runtime(
         kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
         # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
         patterns=adapters.patterns if cross_case_on else None,
+        **build_image_check(registry, settings, policy, clock, ids),
     )
     jobs: list[Any] = []
     if cross_case_on:
@@ -755,6 +768,37 @@ def _build_runtime(
         )
     runner = Runner(engine, line, observer=adapters.outcomes, jobs=jobs)
     return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)
+
+
+def build_image_check(
+    registry: Registry, settings: Settings, policy: PolicyConfig, clock: Clock, ids: IdGenerator
+) -> dict[str, Any]:
+    """The image check and the photos it reads (ADR 0049), or nothing when it is off.
+
+    `foundry_vision` builds its own guarded `foundry_openai` gateway, so every photo it reads
+    is logged and counted against the same spending caps as every other model call (I14).
+    """
+    adapter = registry.adapter_name("image_check")
+    if adapter == "disabled":
+        return {}
+    from dispute_agent.modules.evidence.synthetic_shipments.photos import PhotoFolder
+
+    if adapter == "recorded":
+        from dispute_agent.modules.image_check.recorded import RecordedImageChecker
+
+        answers = RECORDED_IMAGE_ANSWERS
+        loaded = json.loads(answers.read_text(encoding="utf-8")) if answers.is_file() else {}
+        return {"image_checker": RecordedImageChecker(loaded), "photos": PhotoFolder()}
+    if adapter == "foundry_vision":
+        from dispute_agent.modules.image_check.vision import VisionImageChecker
+        from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+        gateway = build_model_gateway(
+            "foundry_openai", settings=settings, policy=policy, clock=clock, ids=ids
+        )
+        prompts = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+        return {"image_checker": VisionImageChecker(gateway, prompts), "photos": PhotoFolder()}
+    raise _not_built("image_check", adapter)
 
 
 # -- the model path (Phase 4P, ADR 0029) ------------------------------------------------------
@@ -851,11 +895,24 @@ def build_haiku_gateway(settings: Settings, policy: PolicyConfig) -> ModelGatewa
     )
 
 
-def build_foundry_openai_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:
-    from dispute_agent.modules.model_gateway.foundry_agent_service.pricing import load_price
+def foundry_credential(settings: Settings) -> Any:
+    """The Foundry sign-in (I14: Entra ID only). An app registration when its id and secret
+    are set - the live site (ADR 0049) - otherwise the owner's interactive sign-in."""
     from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
+        app_credential,
         runtime_credential,
     )
+
+    secret = settings.foundry_client_secret
+    if settings.foundry_client_id and secret is not None:
+        return app_credential(
+            settings.azure_tenant_id, settings.foundry_client_id, secret.get_secret_value()
+        )
+    return runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD)
+
+
+def build_foundry_openai_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:
+    from dispute_agent.modules.model_gateway.foundry_agent_service.pricing import load_price
     from dispute_agent.modules.model_gateway.foundry_openai.gateway import (
         FoundryOpenAiGateway,
     )
@@ -865,7 +922,7 @@ def build_foundry_openai_gateway(settings: Settings, policy: PolicyConfig) -> Mo
     return FoundryOpenAiGateway.build(
         endpoint=settings.foundry_project_endpoint,
         deployment=settings.foundry_model_deployment,
-        credential=runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD),
+        credential=foundry_credential(settings),
         # Same deployment, same price row as the agent route.
         price=load_price(PRICING, "foundry_agent_service", settings.foundry_model_deployment),
         timeout_s=policy.llm.call_timeout_s,
@@ -896,7 +953,6 @@ def build_foundry_gateway(settings: Settings, policy: PolicyConfig) -> ModelGate
         )
     from dispute_agent.modules.model_gateway.foundry_agent_service.signin import (
         check_tenant,
-        runtime_credential,
     )
 
     check_tenant(settings.azure_tenant_id)
@@ -906,7 +962,7 @@ def build_foundry_gateway(settings: Settings, policy: PolicyConfig) -> ModelGate
         client=AzureAgentServiceClient(
             settings.foundry_project_endpoint,
             timeout_s=policy.llm.call_timeout_s,
-            credential=runtime_credential(settings.azure_tenant_id, FOUNDRY_AUTH_RECORD),
+            credential=foundry_credential(settings),
         ),
         lock=read_lock(FOUNDRY_LOCK),
         price=load_price(PRICING, ROUTE, settings.foundry_model_deployment),

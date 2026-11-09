@@ -34,6 +34,7 @@ MODULE_PACKAGES = [
     "dispute_agent.modules.evidence",
     "dispute_agent.modules.cross_case",
     "dispute_agent.modules.evals",
+    "dispute_agent.modules.image_check",  # ADR 0049
 ]
 
 OTHER_PACKAGES = [
@@ -50,6 +51,6 @@ def test_package_exists(name: str) -> None:
     importlib.import_module(name)
 
 
-def test_eleven_modules() -> None:
-    """ARCHITECTURE section 2 lists exactly these eleven modules in the independence contract."""
-    assert len(MODULE_PACKAGES) == 11
+def test_twelve_modules() -> None:
+    """ARCHITECTURE section 2 lists exactly these twelve modules (ADR 0049 added image_check) in the independence contract."""
+    assert len(MODULE_PACKAGES) == 12

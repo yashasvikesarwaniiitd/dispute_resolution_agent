@@ -278,6 +278,10 @@ def _item(step: Step, number: int, opened: datetime) -> str:
     if step.summary:
         parts.append(f'<p class="step-sum">{escape(step.summary)}</p>')
     said, findings = (step.quoted[0], step.quoted[1:]) if step.quoted else ("", ())
+    if step.quote_caption and step.quoted:  # observations: all of them, together
+        listed = "\n".join(f"- {q}" for q in step.quoted)
+        parts.append(recorded(step.quote_caption, listed))
+        said, findings = "", ()
     if said:
         parts.append(
             recorded(f"Its reasoning, exactly as recorded · proposed by {step.proposer}", said)

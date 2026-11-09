@@ -33,11 +33,21 @@ NEEDED = (
     "JIRA_API_TOKEN",
     "JIRA_PROJECT_KEY",
 )
+#: The photo check's live sign-in (ADR 0049), added only when `.env` holds the app registration's
+#: id and secret. Without them the live site replays recorded verdicts and needs none of these.
+PHOTO_CHECK = (
+    "AZURE_TENANT_ID",
+    "FOUNDRY_PROJECT_ENDPOINT",
+    "FOUNDRY_MODEL_DEPLOYMENT",
+    "FOUNDRY_CLIENT_ID",
+    "FOUNDRY_CLIENT_SECRET",
+)
 
 
 def toml_block(values: dict[str, str]) -> str:
     """`NAME = "value"` lines. JSON string escaping is valid TOML basic-string escaping."""
-    return "\n".join(f"{name} = {json.dumps(values[name])}" for name in NEEDED) + "\n"
+    names = [*NEEDED, *(name for name in PHOTO_CHECK if name in values)]
+    return "\n".join(f"{name} = {json.dumps(values[name])}" for name in names) + "\n"
 
 
 def collect(
@@ -64,7 +74,17 @@ def collect(
         "JIRA_API_TOKEN": plain(settings.jira_api_token),
         "JIRA_PROJECT_KEY": plain(settings.jira_project_key),
     }
-    return values, [name for name in NEEDED if not values[name].strip()]
+    wanted = list(NEEDED)
+    if settings.foundry_client_id or settings.foundry_client_secret:
+        values |= {
+            "AZURE_TENANT_ID": plain(settings.azure_tenant_id),
+            "FOUNDRY_PROJECT_ENDPOINT": plain(settings.foundry_project_endpoint),
+            "FOUNDRY_MODEL_DEPLOYMENT": plain(settings.foundry_model_deployment),
+            "FOUNDRY_CLIENT_ID": plain(settings.foundry_client_id),
+            "FOUNDRY_CLIENT_SECRET": plain(settings.foundry_client_secret),
+        }
+        wanted += PHOTO_CHECK
+    return values, [name for name in wanted if not values[name].strip()]
 
 
 def main() -> int:
@@ -93,8 +113,13 @@ def main() -> int:
     if sys.platform != "win32":
         print("This copies with Windows' `clip`; on another system, extend this script.")
         return 2
-    subprocess.run(["clip"], input=toml_block(values).encode("utf-8"), check=True)
-    print(f"Copied the Secrets block ({len(NEEDED)} settings) to the clipboard. Not shown.")
+    block = toml_block(values)
+    subprocess.run(["clip"], input=block.encode("utf-8"), check=True)
+    print(
+        f"Copied the Secrets block ({block.count(chr(10))} settings) to the clipboard. Not shown."
+    )
+    if "FOUNDRY_CLIENT_SECRET" in values:
+        print("It includes the photo check's Foundry sign-in (ADR 0049).")
     print("Paste it into Streamlit: your app > Settings > Secrets, then Save.")
     print(f"\nThe console password (give it to whoever should use the app): {password}")
     print("\nClear the clipboard afterwards by copying something else.")

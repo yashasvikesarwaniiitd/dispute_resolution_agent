@@ -74,6 +74,10 @@ modules:
     enabled: true                                 # Phase 7 (P7-12): patterns as caution only (I7)
     adapter: sql_context                          # off again: enabled false, adapter "null"
 
+  image_check:
+    enabled: false                                  # ADR 0049: a vision model describes the parcel photo after a Return
+    adapter: recorded
+
   evals:
     enabled: true
     adapter: default

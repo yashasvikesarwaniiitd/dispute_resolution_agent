@@ -62,7 +62,8 @@ EVIDENCE: dict[str, str] = {
     "shipment.measured_dims": "Hub measurement",
     "shipment.zone": "Delivery zone",
     "ledger.entries": "Billing entries",
-    "shipment.image_description": "Parcel image",
+    "shipment.image_description": "Hub's photo note",
+    "parcel.image_check": "Photo check",
     "shipment.history": "Earlier shipments of this item",
     "ops.finding": "Hub finding",
     "seller_reply": "Seller's reply",
@@ -94,7 +95,7 @@ RULE: dict[str, str] = {
     "not followed.",
     "B3": "Code proved one definite error, so the credit amount is code's own figure.",
     "B4": "Code proved more than one error, so there is no single amount to credit.",
-    "B5": "The round contains a parcel photo, and images need a person's judgement.",
+    "B5": "The hub flagged the parcel photo, and photos need a person's judgement.",
     "B6": "A re-measure the agent asked for is still outstanding.",
     "B7": "The hub's measured size is more than 5% larger than declared, so the seller is "
     "asked for evidence.",
@@ -147,7 +148,7 @@ def handed_over(code: ReviewCode, detail: str) -> tuple[str, str]:
     """Why a case is with a person, as one sentence and the rule code behind it.
 
     "B5: the round contains image evidence ..." becomes ("Proposal escalated: the round
-    contains a parcel photo, and images need a person's judgement.", "B5"). A detail with no
+    flagged the parcel photo, and photos need a person's judgement.", "B5"). A detail with no
     known code is kept as recorded after the reason's words.
     """
     head = reason(code)

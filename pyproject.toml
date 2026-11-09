@@ -204,7 +204,7 @@ modules = [
   "dispute_agent.modules.approvals", "dispute_agent.modules.evidence",
   "dispute_agent.modules.cross_case", "dispute_agent.modules.evals",
   "dispute_agent.modules.model_gateway", "dispute_agent.modules.input_screen",
-  "dispute_agent.modules.tracing",
+  "dispute_agent.modules.tracing", "dispute_agent.modules.image_check",
 ]
 
 [[tool.importlinter.contracts]]

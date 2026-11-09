@@ -74,6 +74,7 @@ Add one line per ADR: number, title, status.
 | 0046 | The case desk: a reviewer takes over, returns or closes a case handed to a person | accepted (D66) |
 | 0047 | Hosted, the site password stands in for the review token; the reviewer chooses a listed approver | accepted (D67, D69) |
 | 0048 | The console rebuilt from the Claude Design handoff, on Streamlit (v2 components); email subjects name the shipment | accepted (D70) |
+| 0049 | The image check: after a person returns a photo case, gpt-5-mini describes the parcel photo for the person; parcel photos on every screen | accepted (D71) |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 

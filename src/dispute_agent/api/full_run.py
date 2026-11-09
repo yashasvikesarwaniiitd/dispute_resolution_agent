@@ -181,6 +181,8 @@ def open_world(
     kill_switch: Any = None,
     status_known: bool = True,
     live: Live | None = None,
+    image_checker: Any = None,
+    photos: Any = None,
 ) -> World:
     """A synthetic dispute opened on the whole line, ready to drive, reply to and tick."""
     built = fixture(name)
@@ -238,6 +240,8 @@ def open_world(
         interpreter=interpreter,
         modules={module: module not in modules_off for module in _ALL_ON},
         **({"kill_switch": kill_switch} if kill_switch is not None else {}),
+        image_checker=image_checker,
+        photos=photos,
     )
     engine = create_sqlite_engine(folder / "cases.sqlite3")
     apply_schema(engine, schema_sql_path().read_text(encoding="utf-8"))
