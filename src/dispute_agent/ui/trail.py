@@ -142,6 +142,8 @@ def recommendation(proposal: Proposal) -> Recommendation:
     if proposal.reasoner == "llm":
         version = f"{proposal.prompt_name} {proposal.prompt_version}".strip()
         by = f"AI ({proposal.model_id or 'model'}, instructions {version})"
+    elif proposal.reasoner == "human":  # ADR 0050: a person decided, from code's menu
+        by = f"{(proposal.decided_by or 'a person').removeprefix('human:')}, a person"
     else:
         by = "Rules engine (the AI was off or not needed)"
     if proposal.fallback_used:
@@ -188,7 +190,11 @@ def build(
     trail = Trail(str(case.id), case.facts.shipment_ref, label, tone, case.closed_at is None)
     if usage is not None:
         trail.ai_calls, trail.ai_cost = usage
-    proposals = list(work.proposals.for_case(case.id))
+    every_proposal = list(work.proposals.for_case(case.id))
+    # The agent's proposals pair with its investigation rounds, in order. A person's decisions
+    # (ADR 0050) pair with their HUMAN_DECIDED_CASE events instead, so they never shift that.
+    proposals = [p for p in every_proposal if p.reasoner != "human"]
+    by_people = [p for p in every_proposal if p.reasoner == "human"]
     assessments = work.assessments.for_case(case.id)
     every = list(work.approvals.for_case(case.id))
     approvals = _decided(every)
@@ -222,6 +228,8 @@ def build(
         elif kind == InboundEventType.TIMER_FIRED:
             add(Step(at, Actor.SYSTEM, "A deadline passed", tone=Tone.WAITING))
             after = "After a deadline passed"
+        elif kind == InboundEventType.HUMAN_DECIDED_CASE and by_people:
+            add(_decided_by_person(at, by_people.pop(0)))
         elif kind in PERSON_STEP:
             add(Step(at, Actor.PERSON, PERSON_STEP[kind]))
             if kind == InboundEventType.HUMAN_RETURNED_CASE:
@@ -444,11 +452,30 @@ def _verified(
     )
 
 
+def _decided_by_person(at: datetime, decided: Proposal) -> Step:
+    """A person's verdict (ADR 0050): what they chose, and their note exactly as recorded."""
+    who = (decided.decided_by or "a person").removeprefix("human:")
+    return Step(
+        at,
+        Actor.PERSON,
+        f"A person decided: {ACTION[decided.action]}",
+        summary="Code acts on it as on any proposal: code's amount, the pack's draft, the same "
+        "checks, and an approval before anything is sent.",
+        quoted=(decided.rationale,),
+        quote_caption=f"Their note, exactly as recorded · by {who}",
+        lines=(f"proposal {decided.id}", f"reason code: {decided.action_parameters.reason_code}")
+        if decided.action_parameters.reason_code
+        else (f"proposal {decided.id}",),
+    )
+
+
 PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
     InboundEventType.HUMAN_TOOK_CASE: "A person took the case over",
     InboundEventType.HUMAN_RETURNED_CASE: "A person returned the case to the agent",
     InboundEventType.HUMAN_REOPENED_CASE: "A person reopened the case",
     InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL: "A person confirmed the seller's withdrawal",
+    InboundEventType.HUMAN_DECIDED_CASE: "A person decided the case",
+    InternalEventType.HUMAN_DECISION_REFUSED: "The person's decision could not be carried out",
 }
 
 

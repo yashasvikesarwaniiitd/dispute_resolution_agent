@@ -155,7 +155,8 @@ CREATE TABLE inbox (
   event_type       TEXT    NOT NULL CHECK (event_type IN (
                      'DISPUTE_RAISED','SELLER_REPLY_RECEIVED','DISPUTE_WITHDRAWN','DELIVERY_FAILURE_RECEIVED',
                      'OPS_FINDING_RECEIVED','APPROVAL_DECIDED','TIMER_FIRED','HUMAN_TOOK_CASE',
-                     'HUMAN_RETURNED_CASE','HUMAN_REOPENED_CASE','HUMAN_CONFIRMED_WITHDRAWAL')),
+                     'HUMAN_RETURNED_CASE','HUMAN_REOPENED_CASE','HUMAN_CONFIRMED_WITHDRAWAL',
+                     'HUMAN_DECIDED_CASE')),   -- ADR 0050 (migration 0003)
   event_json       TEXT    NOT NULL CHECK (json_valid(event_json)),   -- the full InboundEvent
   received_at      TEXT    NOT NULL CHECK (received_at GLOB '????-??-??T??:??:??.??????Z'),
   status           TEXT    NOT NULL CHECK (status IN ('PENDING','PROCESSED','DEFERRED','UNROUTABLE','FAILED')),
@@ -247,7 +248,7 @@ CREATE TABLE proposals (
   action          TEXT    NOT NULL CHECK (action IN ('propose_credit','uphold_charge','request_seller_evidence',
                                                      'request_remeasurement','escalate_to_human','wait')),
   confidence      TEXT    NOT NULL CHECK (confidence IN ('low','medium','high')),
-  reasoner        TEXT    NOT NULL CHECK (reasoner IN ('rules_only','llm')),
+  reasoner        TEXT    NOT NULL CHECK (reasoner IN ('rules_only','llm','human')),   -- 'human': ADR 0050 (migration 0003)
   fallback_used   INTEGER NOT NULL CHECK (fallback_used IN (0,1)),
   proposal_json   TEXT    NOT NULL CHECK (json_valid(proposal_json)),
   prompt_name     TEXT,

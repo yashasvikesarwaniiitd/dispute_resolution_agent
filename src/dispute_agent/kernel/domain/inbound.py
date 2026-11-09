@@ -119,6 +119,24 @@ class HumanConfirmedWithdrawal(InboundPayload):
     note: str = Field(default="", max_length=500)
 
 
+class HumanDecidedCase(InboundPayload):
+    """A person decides a case with them, choosing from code's menu (ADR 0050).
+
+    Only the choice travels: never an amount or a message text. Code derives the credit from
+    the assessment (I9) and the pack drafts the message, exactly as for the agent's proposal.
+    `reason_code` names the code-proven error a credit is for; `requested_items` are taken
+    from the closed list of evidence a seller may be asked for (ADR 0043).
+    """
+
+    type: Literal["HUMAN_DECIDED_CASE"] = "HUMAN_DECIDED_CASE"
+    action: Literal[
+        "uphold_charge", "propose_credit", "request_remeasurement", "request_seller_evidence"
+    ]
+    reason_code: str | None = Field(default=None, max_length=40)
+    requested_items: tuple[str, ...] = Field(default=(), max_length=6)
+    note: str = Field(min_length=1, max_length=500)
+
+
 PAYLOADS: dict[InboundEventType, type[InboundPayload]] = {
     InboundEventType.SELLER_REPLY_RECEIVED: SellerReplyReceived,
     InboundEventType.DISPUTE_WITHDRAWN: DisputeWithdrawn,
@@ -130,6 +148,7 @@ PAYLOADS: dict[InboundEventType, type[InboundPayload]] = {
     InboundEventType.HUMAN_RETURNED_CASE: HumanReturnedCase,
     InboundEventType.HUMAN_REOPENED_CASE: HumanReopenedCase,
     InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL: HumanConfirmedWithdrawal,
+    InboundEventType.HUMAN_DECIDED_CASE: HumanDecidedCase,
     # DISPUTE_RAISED's facts travel to intake separately (api/events.py); its stored
     # payload is the bare root.
     InboundEventType.DISPUTE_RAISED: InboundPayload,
@@ -143,6 +162,7 @@ HUMAN_EVENTS = frozenset(
         InboundEventType.HUMAN_RETURNED_CASE,
         InboundEventType.HUMAN_REOPENED_CASE,
         InboundEventType.HUMAN_CONFIRMED_WITHDRAWAL,
+        InboundEventType.HUMAN_DECIDED_CASE,
     }
 )
 
@@ -172,6 +192,7 @@ __all__ = [
     "DeliveryFailureReceived",
     "DisputeWithdrawn",
     "HumanConfirmedWithdrawal",
+    "HumanDecidedCase",
     "HumanReopenedCase",
     "HumanReturnedCase",
     "HumanTookCase",

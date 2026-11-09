@@ -1,6 +1,12 @@
 """The case desk: what a signed-in reviewer can do with a case handed to a person (ADR 0046).
 
-Three decisions, each an existing transition the engine already guards:
+Four decisions, each a transition the engine guards:
+
+- **Decide** (`HUMAN_DECIDED_CASE`, T49-T50, ADR 0050): the person chooses from code's menu -
+  uphold the charge, credit code's proven amount, ask the hub to remeasure, ask the seller
+  for evidence. Only the choice is recorded: code works out the amount and the pack drafts
+  the message, and a credit or message still waits for an approval of its exact amount or
+  text. A note saying why is required, like a return's reason.
 
 - **Take over** (`HUMAN_TOOK_CASE`, T33-T36): the agent stops; the person owns the case.
   With `notify_seller`, a handed-to-a-person notice is drafted and goes through the review
@@ -33,6 +39,7 @@ from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.events import InboundEvent
 from dispute_agent.kernel.domain.inbound import (
     HumanConfirmedWithdrawal,
+    HumanDecidedCase,
     HumanReturnedCase,
     HumanTookCase,
 )
@@ -89,6 +96,36 @@ class CaseDesk:
             InboundEventType.HUMAN_RETURNED_CASE,
             case,
             HumanReturnedCase(reason=reason.strip()[:500]),
+        )
+
+    def decide(
+        self,
+        case: Case,
+        action: str,
+        note: str,
+        *,
+        reason_code: str | None = None,
+        requested_items: tuple[str, ...] = (),
+    ) -> None:
+        """Record the person's verdict. Code acts on it on the runner's next tick (ADR 0050)."""
+        _with_a_person(case)
+        if not note.strip():
+            raise DomainValidationError(
+                "a decision needs a note saying why: it is kept on the case's record"
+            )
+        if action == "propose_credit" and not reason_code:
+            raise DomainValidationError("a credit needs the code-proven error it is for")
+        if action == "request_seller_evidence" and not requested_items:
+            raise DomainValidationError("choose at least one item to ask the seller for")
+        self._record(
+            InboundEventType.HUMAN_DECIDED_CASE,
+            case,
+            HumanDecidedCase(
+                action=action,
+                reason_code=reason_code,
+                requested_items=requested_items,
+                note=note.strip()[:500],
+            ),
         )
 
     def confirm_withdrawal(self, case: Case, note: str = "") -> None:

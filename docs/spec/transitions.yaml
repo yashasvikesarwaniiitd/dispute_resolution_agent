@@ -152,6 +152,8 @@ steps:
   apply_approval:  {in: [AWAITING_APPROVAL],  produces: [approval_granted, approval_rejected, escalate],
                     note: "rejection of a FOLLOW_UP intent -> escalate(follow_up_rejected); rejection of a credit -> escalate(credit_rejected) (D40: the reviewer disagrees with a code-proven amount, so a person owns the case); over rejection cap -> escalate(approval_rejected_limit); execution re-check fails -> escalate(policy_denied)"}
   hand_off:        {in: [NEEDS_HUMAN_REVIEW], produces: [human_took_case, follow_up_allow, follow_up_require_approval, follow_up_blocked]}
+  human_verdict:   {in: [NEEDS_HUMAN_REVIEW], produces: [verdict_allow, verdict_require_approval, rest],
+                    note: "ADR 0050: a person's choice from code's menu, acted on exactly as a proposal (amount by code, draft by the pack, the same policy). rest = HUMAN_DECISION_REFUSED: policy or code refused it, and the case stays with the person"}
 
 transitions:
   - {id: T00, from: null,               to: RECEIVED,            trigger: case_opened}
@@ -279,6 +281,15 @@ transitions:
   - {id: T38, from: NEEDS_HUMAN_REVIEW, to: WITHDRAWN,           trigger: human_confirmed_withdrawal,
      guards: [actor_is_human],
      effects: {cancel_timers: all, clear_review_reason: true, record_outcome: true}}
+  # A person decides (ADR 0050): the human_verdict step, started by HUMAN_DECIDED_CASE.
+  - {id: T49, from: NEEDS_HUMAN_REVIEW, to: AWAITING_APPROVAL,   trigger: verdict_require_approval,
+     guards: [actor_is_human],
+     effects: {clear_review_reason: true, schedule_timers: [APPROVAL_EXPIRY]},
+     note: "the person's credit or message waits for an approval of its exact amount or text, like the agent's"}
+  - {id: T50, from: NEEDS_HUMAN_REVIEW, to: EXECUTING,           trigger: verdict_allow,
+     guards: [actor_is_human, intent_is_not_credit, action_planned],
+     effects: {clear_review_reason: true},
+     note: "never a credit (C7): a credit always waits for approval"}
 
   # Reopening
   - {id: T39, from: CLOSED_NO_RESPONSE, to: GATHERING_EVIDENCE,  trigger: seller_reply_received,
@@ -360,6 +371,7 @@ accept:
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
     HUMAN_CONFIRMED_WITHDRAWAL: ignore
+    HUMAN_DECIDED_CASE: ignore
   AWAITING_OPS:
     DISPUTE_RAISED: absorb
     SELLER_REPLY_RECEIVED: defer
@@ -377,6 +389,7 @@ accept:
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
     HUMAN_CONFIRMED_WITHDRAWAL: ignore
+    HUMAN_DECIDED_CASE: ignore
   AWAITING_APPROVAL:
     DISPUTE_RAISED: absorb
     SELLER_REPLY_RECEIVED: "transition:seller_reply_received | defer"        # T13/T14; follow-up pending -> defer
@@ -394,6 +407,7 @@ accept:
     HUMAN_RETURNED_CASE: ignore
     HUMAN_REOPENED_CASE: ignore
     HUMAN_CONFIRMED_WITHDRAWAL: ignore
+    HUMAN_DECIDED_CASE: ignore
   NEEDS_HUMAN_REVIEW:
     DISPUTE_RAISED: absorb
     SELLER_REPLY_RECEIVED: absorb
@@ -411,6 +425,7 @@ accept:
     HUMAN_RETURNED_CASE: transition:human_returned_case
     HUMAN_REOPENED_CASE: ignore
     HUMAN_CONFIRMED_WITHDRAWAL: transition:human_confirmed_withdrawal
+    HUMAN_DECIDED_CASE: step:human_verdict                                   # T49 | T50 | rest (ADR 0050)
   RESOLVED_UPHELD:
     DISPUTE_RAISED: "transition:dispute_raised_again | transition:late_inbound"
     SELLER_REPLY_RECEIVED: "transition:seller_reply_received | transition:late_inbound"
@@ -429,7 +444,7 @@ input_event_types: [DISPUTE_RAISED, SELLER_REPLY_RECEIVED, DISPUTE_WITHDRAWN, DE
                     OPS_FINDING_RECEIVED, APPROVAL_DECIDED, TIMER_FIRED.SELLER_REMINDER,
                     TIMER_FIRED.SELLER_DECISION, TIMER_FIRED.OPS_TIMEOUT, TIMER_FIRED.APPROVAL_EXPIRY,
                     TIMER_FIRED.VERIFY_RETRY, TIMER_FIRED.EVIDENCE_RETRY, HUMAN_TOOK_CASE, HUMAN_RETURNED_CASE, HUMAN_REOPENED_CASE,
-                    HUMAN_CONFIRMED_WITHDRAWAL]
+                    HUMAN_CONFIRMED_WITHDRAWAL, HUMAN_DECIDED_CASE]
 
 # Differences from docs/FLOW.md section 2. Each is decided; the reason is stated.
 discrepancies:

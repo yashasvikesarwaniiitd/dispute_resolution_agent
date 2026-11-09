@@ -44,6 +44,7 @@ from dispute_agent.kernel.domain.inbound import (
     ApprovalDecided,
     DeliveryFailureReceived,
     DisputeWithdrawn,
+    HumanDecidedCase,
     HumanReturnedCase,
     HumanTookCase,
     OpsFindingReceived,
@@ -383,8 +384,15 @@ class Dispatcher:
         if default is not None and default.name == name and case.state in AUTO_STATES:
             final = self._advance(case, recorded)  # the state's own step (verify, apply_approval)
         else:
+            # A person's decision travels to its step with the person (ADR 0050); P3 has
+            # already checked the actor is a person.
+            decision = (
+                (event.payload, event.actor)
+                if isinstance(event.payload, HumanDecidedCase)
+                else None
+            )
             moved, events = self.orchestrator.run_named(
-                case, name, recorded.id, commit=self._commit
+                case, name, recorded.id, commit=self._commit, decision=decision
             )
             self._write(events)
             final = self._advance(moved, recorded) if moved.state is not case.state else moved

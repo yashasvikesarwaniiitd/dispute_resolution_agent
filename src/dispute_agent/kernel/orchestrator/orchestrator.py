@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from dispute_agent.kernel.domain.enums import TERMINAL_STATES as _TERMINAL
 from dispute_agent.kernel.domain.enums import (
@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.enums import CauseKind
     from dispute_agent.kernel.domain.events import Event
     from dispute_agent.kernel.domain.ids import EventId, IntentId
+    from dispute_agent.kernel.domain.inbound import HumanDecidedCase
     from dispute_agent.kernel.domain.models import Actor, Case
     from dispute_agent.kernel.domain.patterns import CaseOutcome, PatternRecord
     from dispute_agent.kernel.ports import Clock, IdGenerator, Tracer
@@ -100,6 +101,13 @@ class Step(Protocol):
     name: str
 
     def run(self, case: Case, now: datetime) -> StepOutcome: ...
+
+
+@runtime_checkable
+class DecidingStep(Step, Protocol):
+    """A step that acts on one person's decision, given at dispatch (ADR 0050)."""
+
+    def with_decision(self, choice: HumanDecidedCase, actor: Actor) -> Step: ...
 
 
 @dataclass(frozen=True)
@@ -348,14 +356,21 @@ class Orchestrator:
         causation_id: EventId,
         *,
         commit: Callable[[Case, Case], Case] | None = None,
+        decision: tuple[HumanDecidedCase, Actor] | None = None,
     ) -> tuple[Case, tuple[Event, ...]]:
         """Run one named step once - an event step such as `reminder` (accept matrix).
 
         The same conversions as the loop: ModuleUnavailable becomes a named escalation (I6),
         a rest is no transition, and the outcome lands through `land` with its effects.
+        `decision` is a person's choice for a step that acts on one (`human_verdict`,
+        ADR 0050): the registered step is bound to it for this run only.
         """
         events: list[Event] = []
         step = self._steps.get(name)
+        if step is not None and decision is not None:
+            if not isinstance(step, DecidingStep):
+                raise TypeError(f"step {name} does not act on a person's decision")
+            step = step.with_decision(*decision)
         if step is None:
             applied = self._escalate(
                 case,

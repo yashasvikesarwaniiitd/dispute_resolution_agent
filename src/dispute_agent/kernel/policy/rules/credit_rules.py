@@ -44,9 +44,12 @@ class CreditReasonProven:
         configured = set(ctx.policy.credits.reason_codes) & set(PROVEN_REASONS)
         if credit.reason_code not in configured:
             return deny(self.rule_id, f"credit_reason_unproven: {credit.reason_code!r} unknown")
-        if len(assessment.definite_errors) > 1:
+        chosen_by_a_person = ctx.proposal is not None and ctx.proposal.reasoner == "human"
+        if len(assessment.definite_errors) > 1 and not chosen_by_a_person:
             # One credit per case (money-rules.md section 4): two proven errors are a
-            # person's call, not a choice between two amounts.
+            # person's call, not a choice between two amounts. A person who chose one of
+            # them has made that call (ADR 0050); the amount is still code's, the reason
+            # must still be proven, and the credit still waits for an approval.
             return escalate(self.rule_id, "multiple_definite_errors")
         if credit.reason_code not in assessment.definite_errors:
             return deny(self.rule_id, "credit_reason_unproven: not in definite_errors")

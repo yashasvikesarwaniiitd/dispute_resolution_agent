@@ -30,7 +30,8 @@ from dispute_agent.modules.approvals.streamlit_ui.console import (
     reviewer_named,
     sign_in,
 )
-from dispute_agent.ui import data, photo_check
+from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
+from dispute_agent.ui import case_sheet, data, photo_check
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import money, when
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
     from streamlit.delta_generator import DeltaGenerator
 
     from dispute_agent.kernel.domain.ids import ApprovalId
-    from dispute_agent.kernel.domain.models import Actor
+    from dispute_agent.kernel.domain.models import Actor, Case
     from dispute_agent.ui.seller import Ticket
 
 LINES = "review_lines"  # what was decided this session, said in a line each
@@ -274,11 +275,12 @@ def _photo(column: DeltaGenerator, ticket: Ticket) -> None:
 
 
 def _person_card(ticket: Ticket, reviewer: Actor) -> None:
-    """One case with a person: why, what the agent last proposed, and the decisions."""
+    """One case with a person: the task, the facts, and the decisions (ADR 0046, ADR 0050)."""
     with data.reader() as work:
         case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
-        proposals = list(work.proposals.for_case(case.id))
+        proposals = [p for p in work.proposals.for_case(case.id) if p.reasoner != "human"]
         paid = work.actions.has_verified_credit(case.id)
+        sheet = case_sheet.build(work, case)
     review = case.review_reason
     rec = recommendation(proposals[-1]) if proposals else None
     key = ticket.case_id
@@ -288,58 +290,137 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         left, right = st.columns(2, gap="large")
         if review is not None:
             left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
+        left.markdown(case_sheet.task_html(sheet), unsafe_allow_html=True)
         _photo(left, ticket)
         with right, st.container(key=f"panel-person-{key}"):
-            st.markdown(view.choices(rec), unsafe_allow_html=True)
+            st.markdown(case_sheet.facts_html(sheet), unsafe_allow_html=True)
+            st.markdown(view.last_proposal(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
-        withdraw_offered = can_confirm_withdrawal(case)
-        with st.form(f"desk-{key}", border=False):
-            note = st.text_area(
-                "Your note (needed to return it to the agent)", key=f"person-note-{key}", height=68
+        _decision_form(ticket, reviewer, case, sheet, paid=paid)
+
+
+#: The desk's own choices, after the verdicts code's menu allows (ADR 0046).
+TAKE_OVER = "Take it over"
+RETURN = "Return it to the agent"
+WITHDRAW = "Confirm the seller's withdrawal"
+_DESK_EFFECT = {
+    TAKE_OVER: "You handle it outside the agent from here; the agent stops. Tick the box below "
+    "to tell the seller (that email goes through review first).",
+    RETURN: "The agent starts a new round from fresh evidence. On a photo case a vision model "
+    "also checks the photo, and the case comes back here with its verdict.",
+    WITHDRAW: "The case closes as withdrawn, as the seller asked.",
+}
+
+
+def _decision_form(
+    ticket: Ticket, reviewer: Actor, case: Case, sheet: case_sheet.Sheet, *, paid: bool
+) -> None:
+    key = ticket.case_id
+    options = [v.label for v in sheet.verdicts] + [TAKE_OVER]
+    if not paid:
+        options.append(RETURN)
+    if can_confirm_withdrawal(case):
+        options.append(WITHDRAW)
+    effects = {v.label: v.effect for v in sheet.verdicts} | _DESK_EFFECT
+    st.markdown("<h3>Your decision</h3>", unsafe_allow_html=True)
+    if sheet.no_verdict:
+        st.caption(sheet.no_verdict)
+    with st.form(f"desk-{key}", border=False):
+        choice = st.radio(
+            "Your decision",
+            options,
+            index=None,
+            captions=[effects[o] for o in options],
+            key=f"choice-{key}",
+            label_visibility="collapsed",
+        )
+        items = st.multiselect(
+            "Only for Ask the seller for evidence: what to ask for",
+            list(EVIDENCE_ITEMS),
+            key=f"items-{key}",
+        )
+        notify = st.checkbox(
+            "Only for Take it over: tell the seller a person is handling it",
+            key=f"notify-{key}",
+        )
+        note = st.text_area(
+            "Why you decided this (kept on the case's record)", key=f"person-note-{key}", height=68
+        )
+        sent = st.form_submit_button("Record my decision", type="primary")
+        if paid:
+            st.caption(
+                "A credit on this case is already verified, so it cannot go back to the agent."
             )
-            notify = st.checkbox(
-                "When taking over, tell the seller a person is handling it (the email goes through "
-                "review first)",
-                key=f"notify-{key}",
-            )
-            row = st.container(horizontal=True, gap="small", vertical_alignment="center")
-            take = row.form_submit_button("Take over", type="primary")
-            back = row.form_submit_button("Return to the agent", disabled=paid)
-            withdraw = row.form_submit_button("Confirm withdrawal") if withdraw_offered else False
-            if paid:
-                row.caption(
-                    "A credit on this case is already verified, so it cannot go back to the agent."
-                )
-        if take:
-            _desk(
-                reviewer,
-                ticket,
-                lambda desk, c: desk.take_over(c, notify_seller=notify, note=note),
-                said=f"took over {ticket.shipment_ref}. The agent has stopped."
-                + (
-                    " The handed-to-a-person email to the seller now waits for your approval."
-                    if notify
-                    else ""
-                ),
-            )
-        elif back and not note.strip():
-            st.error("Write a note first: it is recorded with the case when you return it.")
-        elif back:
-            _desk(
-                reviewer,
-                ticket,
-                lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
-                said=f"returned {ticket.shipment_ref} to the agent. It starts a new round from "
-                "fresh evidence; on a photo case that round also runs the photo check, and the "
-                "case comes back here with its verdict.",
-            )
-        elif withdraw:
-            _desk(
-                reviewer,
-                ticket,
-                lambda desk, c: desk.confirm_withdrawal(c, note),
-                said=f"confirmed the seller's withdrawal on {ticket.shipment_ref}.",
-            )
+    if sent:
+        _record(ticket, reviewer, sheet, choice, note, tuple(items), notify=notify, paid=paid)
+
+
+def _record(
+    ticket: Ticket,
+    reviewer: Actor,
+    sheet: case_sheet.Sheet,
+    choice: str | None,
+    note: str,
+    items: tuple[str, ...],
+    *,
+    notify: bool,
+    paid: bool,
+) -> None:
+    """The chosen decision, recorded through the desk (checked again there and by dispatch)."""
+    if choice is None:
+        st.error("Choose a decision first.")
+        return
+    if choice == TAKE_OVER:
+        _desk(
+            reviewer,
+            ticket,
+            lambda desk, c: desk.take_over(c, notify_seller=notify, note=note),
+            said=f"took over {ticket.shipment_ref}. The agent has stopped."
+            + (" The email telling the seller now waits for your approval." if notify else ""),
+        )
+        return
+    if not note.strip():
+        st.error("Write why you decided this first: it is recorded with the case.")
+        return
+    if choice == RETURN:
+        _desk(
+            reviewer,
+            ticket,
+            lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
+            said=f"returned {ticket.shipment_ref} to the agent. It starts a new round from "
+            "fresh evidence; on a photo case that round also runs the photo check, and the "
+            "case comes back here with its verdict.",
+        )
+        return
+    if choice == WITHDRAW:
+        _desk(
+            reviewer,
+            ticket,
+            lambda desk, c: desk.confirm_withdrawal(c, note),
+            said=f"confirmed the seller's withdrawal on {ticket.shipment_ref}.",
+        )
+        return
+    verdict = next((v for v in sheet.verdicts if v.label == choice), None)
+    if verdict is None:
+        st.error("That decision is no longer offered. Refresh the page.")
+        return
+    asking = verdict.action == "request_seller_evidence"
+    if asking and not items:
+        st.error("Tick at least one item to ask the seller for.")
+        return
+    _desk(
+        reviewer,
+        ticket,
+        lambda desk, c: desk.decide(
+            c,
+            verdict.action,
+            note,
+            reason_code=verdict.reason_code,
+            requested_items=items if asking else (),
+        ),
+        said=f"decided {ticket.shipment_ref}: {verdict.label[0].lower()}{verdict.label[1:]}. "
+        f"{verdict.effect} Anything that needs approval appears under Awaiting your approval.",
+    )
 
 
 def _said(text: str) -> None:

@@ -102,6 +102,8 @@ class InboundEventType(StrEnum):
     HUMAN_RETURNED_CASE = "HUMAN_RETURNED_CASE"
     HUMAN_REOPENED_CASE = "HUMAN_REOPENED_CASE"
     HUMAN_CONFIRMED_WITHDRAWAL = "HUMAN_CONFIRMED_WITHDRAWAL"
+    #: ADR 0050: a person decides the case from code's menu (uphold, credit, remeasure, ask).
+    HUMAN_DECIDED_CASE = "HUMAN_DECIDED_CASE"
 
 
 class InternalEventType(StrEnum):
@@ -133,6 +135,8 @@ class InternalEventType(StrEnum):
     EVENT_IGNORED = "EVENT_IGNORED"
     REMINDER_SKIPPED = "REMINDER_SKIPPED"
     NOTICE_NOT_SENT = "NOTICE_NOT_SENT"
+    #: ADR 0050: a person's decision that policy or code refused; the case stays with them.
+    HUMAN_DECISION_REFUSED = "HUMAN_DECISION_REFUSED"
     CASE_OUTCOME_RECORDED = "CASE_OUTCOME_RECORDED"
     MODEL_ROUTE_FAILOVER = "MODEL_ROUTE_FAILOVER"
 

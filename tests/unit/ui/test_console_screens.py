@@ -216,15 +216,46 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
     assert "Why it is with a person" in text and "Proposal escalated" in text
     assert "image evidence" in text  # the reason's detail, shown as text
     assert [c for image in at.image for c in image.captions] == ["Parcel photo"]  # to judge
+    # ADR 0050: the task, the facts side by side, and code's choices with what each does.
+    assert "Decide whose measurement to trust" in text
+    x = chr(0xD7)  # the multiplication sign the card writes sizes with
+    assert f"20 {x} 15 {x} 10 cm · 480 g" in text and f"30 {x} 22 {x} 15 cm · 1,100 g" in text
 
-    take = next(b for b in at.button if b.label == "Take over")
-    take.click().run()
+    choice = at.radio[0]
+    assert choice.options[:3] == [
+        "Uphold the charge",
+        "Ask the hub to remeasure",
+        "Ask the seller for evidence",
+    ]
+    choice.set_value("Take it over")
+    next(b for b in at.button if b.label == "Record my decision").click().run()
     assert not at.exception
     with sqlite3.connect(desk_case["cases"]) as conn:
         rows = conn.execute(
             "SELECT event_type, source, event_json FROM inbox WHERE event_type = 'HUMAN_TOOK_CASE'"
         ).fetchall()
     assert len(rows) == 1 and rows[0][1] == "ops_console" and "human:owner" in rows[0][2]
+
+
+def test_a_reviewer_decides_a_case_and_the_choice_is_recorded(desk_case: dict[str, Any]) -> None:
+    """ADR 0050: a verdict is recorded for the runner; nothing is sent from the page (I2)."""
+    at = AppTest.from_function(_review, default_timeout=60).run()
+    at.text_input[0].input(desk_case["token"])
+    at.button[0].click().run()
+    at.radio[0].set_value("Uphold the charge")
+    record = next(b for b in at.button if b.label == "Record my decision")
+    record.click().run()
+    assert at.error and "Write why" in at.error[0].value  # a note is needed
+    at.text_area[0].input("The photo shows a box the size the hub measured.")
+    next(b for b in at.button if b.label == "Record my decision").click().run()
+    assert not at.exception
+    with sqlite3.connect(desk_case["cases"]) as conn:
+        rows = conn.execute(
+            "SELECT event_json FROM inbox WHERE event_type = 'HUMAN_DECIDED_CASE'"
+        ).fetchall()
+    assert len(rows) == 1
+    assert '"action":"uphold_charge"' in rows[0][0].replace(" ", "")
+    assert "human:owner" in rows[0][0]
 
 
 class TestHostedReviewSignIn:

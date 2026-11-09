@@ -39,6 +39,9 @@ from dispute_agent.kernel.domain.actions import (
 from dispute_agent.kernel.domain.enums import (
     ActionType,
     ApprovalSubject,
+    CaseState,
+    Confidence,
+    FindingKind,
     IntentSource,
     IntentStatus,
     MessageKind,
@@ -64,12 +67,16 @@ from dispute_agent.kernel.domain.errors import (
     TransientPortError,
 )
 from dispute_agent.kernel.domain.hashing import payload_hash
-from dispute_agent.kernel.domain.ids import ActionId, ApprovalId, IntentId
+from dispute_agent.kernel.domain.ids import ActionId, ApprovalId, IntentId, ProposalId
 from dispute_agent.kernel.domain.models import ReviewReason
 from dispute_agent.kernel.domain.reasoning import (
+    ActionParameters,
     CaseBriefing,
     ContactStatus,
     DraftContext,
+    Finding,
+    PatternInfluence,
+    Proposal,
     ScreenResult,
 )
 from dispute_agent.kernel.domain.values import Money
@@ -94,9 +101,10 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.actions import Action, ActionPayload, PolicyVerdict
     from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle
     from dispute_agent.kernel.domain.ids import EvidenceItemId
-    from dispute_agent.kernel.domain.models import Case
+    from dispute_agent.kernel.domain.inbound import HumanDecidedCase
+    from dispute_agent.kernel.domain.models import Actor, Case
     from dispute_agent.kernel.domain.patterns import CautionSignal, PatternRecord
-    from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal, ReplyReading
+    from dispute_agent.kernel.domain.reasoning import DraftedMessage, ReplyReading
     from dispute_agent.kernel.domain.values import UntrustedText
     from dispute_agent.kernel.ports import (
         ApprovalStore,
@@ -237,6 +245,62 @@ class InvestigateStep:
         return self._act_on(
             case, proposal, assessment, now, briefing.allowed_actions, briefing.screen_results
         )
+
+    def act_for_person(
+        self,
+        case: Case,
+        choice: HumanDecidedCase,
+        actor: Actor,
+        proposal_id: ProposalId,
+        now: datetime,
+    ) -> StepOutcome:
+        """A person's decision, acted on exactly as a proposal is (ADR 0050).
+
+        The person replaces the reasoner, nothing else: the menu is code's (asked as it stands
+        when a proposal is acted on), the credit amount is code's from the assessment (I9), the
+        message is the pack's draft, and the same policy, approvals and executor follow. What
+        the screen and the reasoner's checks are for - deciding whether a person is needed - is
+        already answered, so no screen results are passed: the person read those texts.
+        """
+        assessment = self.assessments.latest(case.id)
+        if assessment is None:
+            return _escalate(ReviewCode.INTERNAL_ERROR, "no assessment for this round")
+        menu = tuple(
+            a
+            for a in self.pack.allowed_actions(CaseState.INVESTIGATING, assessment)
+            if a not in (ProposalAction.ESCALATE_TO_HUMAN, ProposalAction.WAIT)
+        )
+        action = ProposalAction(choice.action)
+        if action not in menu:
+            return _escalate(ReviewCode.POLICY_DENIED, f"{action.value} is not on this case's menu")
+        proposal = Proposal(
+            id=proposal_id,
+            case_id=case.id,
+            gather_round=case.gather_round,
+            action=action,
+            confidence=Confidence.HIGH,
+            rationale=choice.note,
+            findings=(
+                Finding(
+                    kind=FindingKind.VERIFIED_FACT,
+                    statement=f"Decided by {actor.id} after reviewing the case.",
+                ),
+            ),
+            action_parameters=ActionParameters(
+                reason_code=choice.reason_code, requested_items=choice.requested_items
+            ),
+            pattern_influence=PatternInfluence(considered=False, changed_recommendation=False),
+            reasoner="human",
+            decided_by=actor.id,
+            briefing_hash=payload_hash(
+                {"case": str(case.id), "round": case.gather_round, "decided_by": actor.id}
+            ),
+            created_at=now,
+        )
+        if self.proposals is not None:
+            self.proposals.add(proposal)  # on the record before anything is checked (I8)
+        self._pattern_signals = ()
+        return self._act_on(case, proposal, assessment, now, menu, ())
 
     def _before_reasoning(self, case: Case, menu: tuple[ProposalAction, ...]) -> StepOutcome | None:
         """What stops a round before any model call (I6, I15).

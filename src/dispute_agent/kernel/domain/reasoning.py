@@ -14,7 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from dispute_agent.kernel.domain.case import CaseFacts
 from dispute_agent.kernel.domain.enums import (
@@ -25,6 +25,7 @@ from dispute_agent.kernel.domain.enums import (
     ProposalAction,
     ScreenKind,
 )
+from dispute_agent.kernel.domain.errors import DomainValidationError
 from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceBundle, Fact
 from dispute_agent.kernel.domain.ids import CaseId, EvidenceItemId, PayloadHash, ProposalId
 from dispute_agent.kernel.domain.image import ImageAttachment
@@ -141,7 +142,8 @@ class Proposal(BaseModel):
     action_parameters: ActionParameters
     pattern_influence: PatternInfluence
     manipulation_flags: tuple[str, ...] = ()
-    reasoner: Literal["rules_only", "llm"]
+    #: "human": a person chose this from code's menu (ADR 0050); `decided_by` names them.
+    reasoner: Literal["rules_only", "llm", "human"]
     fallback_used: bool = False
     prompt_name: str | None = None
     prompt_version: str | None = None
@@ -150,11 +152,21 @@ class Proposal(BaseModel):
     model_route: str | None = None
     briefing_hash: PayloadHash
     created_at: datetime
+    #: The person who decided, for a `human` proposal and only then (ADR 0050).
+    decided_by: str | None = None
 
     @field_validator("created_at")
     @classmethod
     def _aware(cls, value: datetime) -> datetime:
         return require_aware(value, "created_at")
+
+    @model_validator(mode="after")
+    def _person_named_only_for_a_person(self) -> Proposal:
+        if (self.reasoner == "human") != (self.decided_by is not None):
+            raise DomainValidationError("decided_by is set exactly for a human proposal")
+        if self.reasoner == "human" and self.prompt_hash is not None:
+            raise DomainValidationError("a person's decision has no prompt")
+        return self
 
 
 class ReplyAttachment(BaseModel):

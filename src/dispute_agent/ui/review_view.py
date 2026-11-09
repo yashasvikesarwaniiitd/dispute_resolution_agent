@@ -174,29 +174,24 @@ def person_reason(code: ReviewCode, detail: str) -> str:
     )
 
 
-def choices(rec: Recommendation | None) -> str:
+def last_proposal(rec: Recommendation | None) -> str:
+    """What the agent (or the rules engine) last proposed, as context for the person."""
     last = (
         f"<p><strong>{escape(rec.action)}</strong>, by {escape(rec.by)}</p>"
         if rec is not None
         else '<p class="muted">No proposal is recorded.</p>'
     )
-    return (
-        f"<h3>Last proposal</h3>{last}<h3>What each choice does</h3>"
-        '<dl class="pairs"><dt>Take over</dt><dd>You handle it from here. The agent stops.</dd>'
-        "<dt>Return to the agent</dt><dd>The agent starts a new round from fresh evidence. "
-        "On a photo case, a vision model also checks the photo and the case comes back to a "
-        "person with its verdict. Needs a note.</dd></dl>"
-    )
+    return f"<h4>The agent's last proposal</h4>{last}"
 
 
 __all__ = [
     "TEST_ADDRESS",
     "approve_label",
-    "choices",
     "finding_words",
     "if_approve_credit",
     "if_approve_email",
     "kind_title",
+    "last_proposal",
     "marked_body",
     "person_reason",
     "recommends",

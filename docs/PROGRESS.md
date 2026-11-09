@@ -75,6 +75,7 @@ Add one line per ADR: number, title, status.
 | 0047 | Hosted, the site password stands in for the review token; the reviewer chooses a listed approver | accepted (D67, D69) |
 | 0048 | The console rebuilt from the Claude Design handoff, on Streamlit (v2 components); email subjects name the shipment | accepted (D70) |
 | 0049 | The image check: after a person returns a photo case, gpt-5-mini describes the parcel photo for the person; parcel photos on every screen | accepted (D71) |
+| 0050 | A person decides a case from code's menu (uphold, credit a proven error, remeasure, ask the seller), acted on as a proposal and approved like the agent's; the With-a-person card shows the task, facts and choices | accepted (D72) |
 
 ## Note from Phase 0: the section 4 domain models have no task card
 

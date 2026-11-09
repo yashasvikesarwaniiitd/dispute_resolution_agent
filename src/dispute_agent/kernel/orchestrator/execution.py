@@ -65,7 +65,7 @@ if TYPE_CHECKING:
 
     from dispute_agent.kernel.domain.actions import Action, Approval, PolicyVerdict
     from dispute_agent.kernel.domain.models import Case
-    from dispute_agent.kernel.domain.reasoning import DraftedMessage
+    from dispute_agent.kernel.domain.reasoning import DraftedMessage, Proposal
     from dispute_agent.kernel.executor.executor import ActionExecutor, WritePort
     from dispute_agent.kernel.ports import (
         ApprovalStore,
@@ -73,6 +73,7 @@ if TYPE_CHECKING:
         IdGenerator,
         IntentStore,
         Ledger,
+        ProposalStore,
     )
 
 #: Verification gives up after this long and the action becomes UNKNOWN (ADR 0010).
@@ -141,6 +142,9 @@ class ApplyApprovalStep:
     modules: Mapping[str, bool] = field(default_factory=dict)
     config: PolicyConfig = field(default_factory=PolicyConfig)
     assessments: AssessmentStore | None = None
+    #: Where the proposal behind a plan is found, so the re-check knows who decided it - R14
+    #: lets a person choose between two proven errors (ADR 0050). None: nobody chose.
+    proposals: ProposalStore | None = None
     name: str = "apply_approval"
 
     def run(self, case: Case, now: datetime) -> StepOutcome:
@@ -167,6 +171,13 @@ class ApplyApprovalStep:
         if decision is not ApprovalDecision.APPROVED:
             return _escalate(ReviewCode.APPROVAL_EXPIRED, f"approval is {decision.value}")
         return self._approved(case, intent, now)
+
+    def _proposal(self, case: Case, intent: ActionIntent) -> Proposal | None:
+        if self.proposals is None or intent.source_kind is not IntentSource.PROPOSAL:
+            return None
+        return next(
+            (p for p in self.proposals.for_case(case.id) if str(p.id) == intent.source_ref), None
+        )
 
     def _rejected(self, case: Case, intent: ActionIntent, approval: Approval) -> StepOutcome:
         if intent.action_type is ActionType.POST_CREDIT:
@@ -195,6 +206,7 @@ class ApplyApprovalStep:
             policy=self.config,
             now=now,
             kernel_facts=_kernel_facts(intent, self.intents, self.actions),
+            proposal=self._proposal(case, intent),
         )
         if intent.action_type is ActionType.POST_CREDIT:
             ctx = ctx.model_copy(update=_credit_ctx(case, self.actions, self.ledger))

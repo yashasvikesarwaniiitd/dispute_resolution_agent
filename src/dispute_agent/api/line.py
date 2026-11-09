@@ -18,6 +18,7 @@ from dispute_agent.kernel.orchestrator.dispatch import Dispatcher
 from dispute_agent.kernel.orchestrator.effects import TransitionEffects
 from dispute_agent.kernel.orchestrator.execution import ApplyApprovalStep, ExecuteStep, VerifyStep
 from dispute_agent.kernel.orchestrator.handoff import HandOffStep
+from dispute_agent.kernel.orchestrator.human_verdict import HumanVerdictStep
 from dispute_agent.kernel.orchestrator.image_check import ImageCheckRound
 from dispute_agent.kernel.orchestrator.investigate import InvestigateStep
 from dispute_agent.kernel.orchestrator.orchestrator import Orchestrator, Step, phase_1_steps
@@ -106,7 +107,7 @@ class Line:
             )
         )
         drafter = TemplateDrafter()
-        return {
+        built: dict[str, Step] = {
             **phase_1_steps(),
             "eligibility": EligibilityStep(self.pack, facts=self._eligibility_facts),
             "gather_evidence": GatherEvidenceStep(
@@ -177,6 +178,7 @@ class Line:
                 modules=self.modules,
                 config=self.policy,
                 assessments=work.assessments,
+                proposals=work.proposals,
             ),
             "execute": ExecuteStep(
                 intents=work.intents,
@@ -222,6 +224,12 @@ class Line:
                 config=self.policy,
             ),
         }
+        # A person's decision is acted on by the investigate step's own code (ADR 0050).
+        built["human_verdict"] = HumanVerdictStep(
+            investigate=built["investigate"],  # type: ignore[arg-type]  # an InvestigateStep
+            ids=self.ids,
+        )
+        return built
 
     def _eligibility_facts(self, case: Case) -> CaseFacts:
         """The delivery status from the evidence source, when the dispute did not carry it."""
