@@ -153,6 +153,10 @@ def test_a_reviewer_signs_in_sees_the_recommendation_and_approves(desk: dict[str
     text = _text(at)
     assert "What the agent recommends" in text and "Credit the seller" in text
     assert "₹1,820.00" in text and "Rules engine" in text
+    captions = [c for image in at.image for c in image.captions]
+    assert captions == ["Parcel photo"], (
+        "an approval card shows the photo too, not only a person card"
+    )
 
     approve = next(b for b in at.button if b.label == "Approve the ₹1,820.00 credit")
     approve.click().run()
@@ -211,6 +215,7 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
     text = _text(at)
     assert "Why it is with a person" in text and "Proposal escalated" in text
     assert "image evidence" in text  # the reason's detail, shown as text
+    assert [c for image in at.image for c in image.captions] == ["Parcel photo"]  # to judge
 
     take = next(b for b in at.button if b.label == "Take over")
     take.click().run()

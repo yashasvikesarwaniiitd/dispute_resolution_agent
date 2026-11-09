@@ -40,6 +40,8 @@ from dispute_agent.ui.theme import chip, escape, line
 from dispute_agent.ui.trail import recommendation
 
 if TYPE_CHECKING:
+    from streamlit.delta_generator import DeltaGenerator
+
     from dispute_agent.kernel.domain.ids import ApprovalId
     from dispute_agent.kernel.domain.models import Actor
     from dispute_agent.ui.seller import Ticket
@@ -216,6 +218,7 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
         left, right = st.columns(2, gap="large")
         left.markdown(view.recommends(card.recommendation), unsafe_allow_html=True)
+        _photo(left, ticket)
         with right, st.container(key=f"panel-{aid}"):
             if item.is_credit:
                 proposer = (
@@ -255,13 +258,24 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
             _decide(reviewer, card, note, approving=False)
 
 
+def _photo(column: DeltaGenerator, ticket: Ticket) -> None:
+    """The parcel photo, and what the photo check saw if it has run (ADR 0049), on any card."""
+    photo = photo_for(ticket.shipment_ref)
+    if photo is not None:  # the thing a person is being asked to judge
+        column.image(str(photo), caption="Parcel photo", width="stretch")
+    with data.reader() as work:
+        case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
+        checked = photo_check.latest(work.evidence.bundle(case.id, case.gather_round).items)
+    if checked is not None:
+        column.markdown(photo_check.html(checked), unsafe_allow_html=True)
+
+
 def _person_card(ticket: Ticket, reviewer: Actor) -> None:
     """One case with a person: why, what the agent last proposed, and the decisions."""
     with data.reader() as work:
         case = work.cases.get(ticket.case_id)  # type: ignore[arg-type]
         proposals = list(work.proposals.for_case(case.id))
         paid = work.actions.has_verified_credit(case.id)
-        checked = photo_check.latest(work.evidence.bundle(case.id, case.gather_round).items)
     review = case.review_reason
     rec = recommendation(proposals[-1]) if proposals else None
     key = ticket.case_id
@@ -271,11 +285,7 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         left, right = st.columns(2, gap="large")
         if review is not None:
             left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
-        photo = photo_for(ticket.shipment_ref)
-        if photo is not None:  # the thing a person is being asked to judge
-            left.image(str(photo), caption="Parcel photo", width="stretch")
-        if checked is not None:  # ADR 0049: what the vision model saw, after a Return
-            left.markdown(photo_check.html(checked), unsafe_allow_html=True)
+        _photo(left, ticket)
         with right, st.container(key=f"panel-person-{key}"):
             st.markdown(view.choices(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
