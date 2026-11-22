@@ -79,7 +79,14 @@ function cases(root, d, send) {
 
 function table(root, d, send) {
   const cols = (d.columns || []);
-  const grid = /^[0-9a-z.()% ,-]+$/i.test(d.grid || '') ? d.grid : cols.map(() => '1fr').join(' ');
+  const asked = /^[0-9a-z.()% ,-]+$/i.test(d.grid || '') ? d.grid : cols.map(() => '1fr').join(' ');
+  // Every row is its own grid, so columns line up only if their widths ignore content: a plain
+  // `1fr` never shrinks below its widest item, and one long chip pushed that row's columns
+  // out of line with the header. `minmax(0, 1fr)` is the same share with no content floor.
+  // No backslashes here: this script is a Python string, where "\b" would become a backspace.
+  const grid = asked.split(' ')
+    .map((t) => (/^[0-9.]+fr$/.test(t) ? 'minmax(0, ' + t + ')' : t))
+    .join(' ');
   const wrap = el('div', 'pick-table');
   wrap.setAttribute('role', 'table');
   if (d.label) wrap.setAttribute('aria-label', String(d.label));

@@ -47,6 +47,13 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-foc
   min-height: var(--control-h); border-radius: var(--radius-control); color: var(--color-muted); font-weight: 500;
   font-size: var(--text-sm); transition: background-color var(--dur) ease; }
 .stApp [data-testid="stTopNavLink"]:hover { background: var(--color-paper-2); }
+/* Icon and label on one centre line. The label is an inline paragraph in a 28px line box, so
+   the font's baseline sat it ~3px below the icon. A tight line height shrinks the box to the
+   text, and the link (already a centred flex row) centres it beside the icon. Display is
+   left alone: making the label a flex box stretched every pill to fill the bar. */
+.stApp [data-testid="stTopNavLink"] > span:last-child,
+.stApp [data-testid="stTopNavLink"] [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stTopNavLink"] [data-testid="stMarkdownContainer"] p { line-height: 1.2; margin: 0; }
 .stApp [data-testid="stTopNavLink"][aria-current="page"], .stApp [data-testid="stTopNavLink"].active {
   background: var(--color-paper-3); color: var(--color-ink); font-weight: 600; }
 
@@ -275,6 +282,12 @@ button.pick-row::before { content: none; }
 .pick-head { min-height: 36px; color: var(--color-muted); font-weight: 600; border-bottom: 1px solid var(--color-rule-2); }
 .pick-tint { background: var(--color-paper-2); }
 .pick-right { text-align: right; justify-self: end; }
+/* Cells hold to their column (the grid gives them no content floor): ids and figures stay on
+   one line, and a long status chip wraps inside its cell instead of widening the column. */
+.pick-row > span { min-width: 0; }
+.pick-row .pick-num { white-space: nowrap; }
+.pick-row .chip { white-space: normal; height: auto; min-height: 24px; padding: 4px 10px; line-height: 1.25;
+  max-width: 100%; border-radius: 12px; }
 .pick-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .pick-link { font-weight: 600; white-space: nowrap; }
 .pick-empty { padding: var(--space-sm) 10px; }

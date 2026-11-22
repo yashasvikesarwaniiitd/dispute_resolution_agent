@@ -80,7 +80,7 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
             "label": "Your shipments",
             "selectable": True,
             "selected": st.session_state.get(SHIP),
-            "grid": "1.1fr 1.2fr .5fr 1.1fr 1.1fr 1.4fr",
+            "grid": "1.05fr 1fr .4fr .95fr 1.05fr 2.1fr",
             "columns": [
                 {"label": "Shipment"},
                 {"label": "Status"},
