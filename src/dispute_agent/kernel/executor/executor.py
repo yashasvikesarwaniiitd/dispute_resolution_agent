@@ -381,6 +381,11 @@ class ActionExecutor:
                 return self._to_unknown(action_id, now, f"lookup_ambiguous:{exc}")
             except TransientPortError:
                 found = None
+            except (PortError, ModuleUnavailable) as exc:
+                # The lookup cannot run at all: an expired sign-in, a missing scope, a disabled
+                # module. Letting it escape left the action PLANNED and the case in EXECUTING,
+                # retried every tick and never handed to a person (live demo, 2026-11-22).
+                return self._lookup_failed(action_id, now, attempts_before, exc)
             if found is not None:
                 return self._to_sent(action_id, now, found, "found_by_lookup")
 
@@ -422,7 +427,8 @@ class ActionExecutor:
                     found = port.find_sent(key)
                 except AmbiguousOutcome as unclear:
                     return self._to_unknown(action_id, now, f"lookup_ambiguous:{unclear}")
-                except TransientPortError:
+                except (PortError, ModuleUnavailable):
+                    # Could not look; the send itself says nothing was written: FAILED below.
                     found = None
                 if found is not None:
                     return self._to_sent(action_id, now, found, "found_by_lookup")
@@ -510,6 +516,11 @@ class ActionExecutor:
             # Until this was handled it escaped `verify` entirely and the step would have
             # died with an unhandled error on every perfectly normal send.
             return ExecutionResult(Outcome.BLOCKED, action_id, "not_visible_yet")
+        except (PortError, ModuleUnavailable) as exc:
+            # The far end cannot be read at all (an expired sign-in does not fix itself). It
+            # was sent and cannot be proven: UNKNOWN, so a person looks now rather than the
+            # step failing on every tick (I4).
+            return self._to_unknown(action_id, now, f"read_back_failed:{type(exc).__name__}")
 
         mismatches = [
             name
@@ -562,6 +573,23 @@ class ActionExecutor:
             action_id, ActionStatus.SENT, now, sent_at=now, external_ref=external_ref
         )
         return ExecutionResult(Outcome.SENT, action_id, reason, external_ref)
+
+    def _lookup_failed(
+        self, action_id: ActionId, now: datetime, attempts_before: int, cause: Exception
+    ) -> ExecutionResult:
+        """The look-before-write could not run. On a first attempt nothing was ever sent, so
+        FAILED is the truth; after an earlier attempt it may have been, so UNKNOWN (I4)."""
+        reason = f"lookup_failed:{type(cause).__name__}"
+        if attempts_before > 0:
+            return self._to_unknown(action_id, now, reason)
+        self._actions.set_status(
+            action_id,
+            ActionStatus.FAILED,
+            now,
+            last_error_code="lookup_failed",
+            last_error_detail=str(cause)[:300],
+        )
+        return ExecutionResult(Outcome.FAILED, action_id, reason)
 
     def _to_unknown(self, action_id: ActionId, now: datetime, reason: str) -> ExecutionResult:
         self._actions.set_status(

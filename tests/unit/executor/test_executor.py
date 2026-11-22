@@ -44,7 +44,10 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.domain.errors import (
     AmbiguousOutcome,
+    AuthPortError,
+    ExternalNotFound,
     KillSwitchEngaged,
+    ModuleUnavailable,
     PermanentPortError,
     PolicyRefused,
     TransientPortError,
@@ -520,6 +523,58 @@ class TestFailures:
         result = executor(store).execute(action.id, port, APPROVED, NOW)
         assert result.outcome is Outcome.FAILED
         assert result.reason == "transient_exhausted"
+
+
+class TestALookupThatCannotRunNeverStrandsTheCase:
+    """Live demo, 2026-11-22: the Gmail sign-in had expired, so the look-before-write raised
+    AuthPortError. Nothing caught it, the action stayed PLANNED, and the case sat in
+    EXECUTING - "the agent is working on it" - for hours, never reaching a person."""
+
+    def plan_one(self, store: FakeActionStore) -> ActionId:
+        action, _ = executor(store).plan(CASE, message_intent(), ctx(), NOW, ActionId("act_01HQ"))
+        return action.id
+
+    def test_on_a_first_attempt_it_fails_because_nothing_was_ever_sent(self) -> None:
+        store = FakeActionStore(approval=an_approval())
+        action_id = self.plan_one(store)
+        port = FakePort(lookup_error=AuthPortError("Gmail refused the request (401)"))
+        result = executor(store).execute(action_id, port, APPROVED, NOW)
+        assert result.outcome is Outcome.FAILED
+        assert result.reason == "lookup_failed:AuthPortError"
+        assert store.rows[str(action_id)].status is ActionStatus.FAILED
+        assert port.sends == []
+
+    def test_after_an_earlier_attempt_it_is_unknown_because_that_one_may_have_sent(
+        self,
+    ) -> None:
+        store = FakeActionStore(approval=an_approval())
+        action_id = self.plan_one(store)
+        store.rows[str(action_id)] = store.rows[str(action_id)].model_copy(update={"attempts": 1})
+        port = FakePort(lookup_error=AuthPortError("expired"))
+        result = executor(store).execute(action_id, port, APPROVED, NOW)
+        assert result.outcome is Outcome.UNKNOWN
+        assert store.rows[str(action_id)].status is ActionStatus.UNKNOWN
+        assert port.sends == []
+
+    def test_a_disabled_module_or_a_missing_mailbox_is_handled_the_same_way(self) -> None:
+        for error in (ModuleUnavailable("email"), ExternalNotFound("404")):
+            store = FakeActionStore(approval=an_approval())
+            action_id = self.plan_one(store)
+            port = FakePort(lookup_error=error)
+            result = executor(store).execute(action_id, port, APPROVED, NOW)
+            assert result.outcome is Outcome.FAILED
+            assert port.sends == []
+
+    def test_a_read_back_that_cannot_run_is_unknown_not_an_endless_wait(self) -> None:
+        store = FakeActionStore(approval=an_approval())
+        action_id = self.plan_one(store)
+        port = FakePort()
+        executor(store).execute(action_id, port, APPROVED, NOW)
+        port.read_error = AuthPortError("expired")
+        result = executor(store).verify(action_id, port, Receipt(), APPROVED, NOW)
+        assert result.outcome is Outcome.UNKNOWN
+        assert result.reason == "read_back_failed:AuthPortError"
+        assert store.rows[str(action_id)].status is ActionStatus.UNKNOWN
 
 
 class TestOnlyTheApprovedTextCanBeSent:
