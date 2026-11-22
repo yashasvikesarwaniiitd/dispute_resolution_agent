@@ -4,6 +4,8 @@ An AI agent that takes a dispute from **"I disagree with this charge"** to a **c
 
 It is built as a **general engine with domain packs**. The first pack, **shipping weight disputes**, runs end to end.
 
+**Live demo: [disputeresolutionagent.streamlit.app](https://disputeresolutionagent.streamlit.app/)** (password on request: it sends real email to a test address and opens real Jira issues in a test project).
+
 > An independent portfolio project on **synthetic data**. Not connected to, or affiliated with, any company's systems. Rates and limits are illustrative.
 
 ---
@@ -236,7 +238,7 @@ It can also be **hosted live** on Streamlit Community Cloud, sending real email 
 
 | Check | Result |
 |---|---|
-| Automated tests | More than 3,200 pass on every change, on the owner's machine and on GitHub. |
+| Automated tests | About 3,900 pass on every change, on the owner's machine and on GitHub (`make verify`: lint, strict types, architecture rules, then the tests). |
 | Scenario suite (`make eval`) | **57 of 57** scenarios pass. Across them: zero unapproved credits, zero duplicate emails, tickets or credits, zero unconfirmed outcomes counted as done, and no prompt injection succeeded in the 4 injection scenarios. |
 | Release gates | All 12 recorded gates pass (`config/release_gates.yaml`). |
 | AI choosing the right first step (live) | gpt-5-mini: 62% of 45 (2026-11-04), then 24% of 45 on an identical rerun (2026-11-05); rules only: 48% of 45. Both runs are below the 90 percent bar. **Caution:** the 45 scenarios rest on 13 distinct disputes, so these scores swing widely. Treat them as unsettled, not as a measured level. |
@@ -263,7 +265,7 @@ Building it this way caught real bugs before any user could. For example, the ru
 - **No productivity claim.** Nothing here measures real operator time.
 - **Patterns are hypotheses.** They only add caution, and only a structured finding from the right team confirms or dismisses one. The thresholds were set for synthetic data, not tuned on real disputes.
 - **Sign-ins expire.** With a personal Google app in testing, the Gmail sign-in must be renewed every 7 days. Until then, cases go to a person instead of emails going out.
-- **Runs on one machine.** It is not hosted. The review console is a local page.
+- **A demo deployment, not a service.** The console is hosted on Streamlit Community Cloud behind one password, on synthetic data, sending only to a test address (ADR 0045). It is a single small instance, not a scaled service.
 
 ---
 
@@ -353,7 +355,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (46 decision records) |
+| Why each decision was made | `docs/adr/` (50 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

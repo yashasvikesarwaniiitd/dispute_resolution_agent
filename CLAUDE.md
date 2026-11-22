@@ -18,7 +18,7 @@ You are the principal engineer. The owner is a technical AI product manager (Pyt
 
 An action-taking agent that takes a shipping weight dispute from "the seller disagrees with a charge" to a verified outcome. It gathers evidence, recalculates the charge in code, investigates, emails the seller, raises Jira issues, requests human approval for credits, posts credits to a simulated ledger, and verifies every result. A later module finds patterns across disputes and opens linked investigations. Code owns every decision; the AI investigates and proposes.
 
-Real integrations: Outlook (Microsoft Graph) and Jira Cloud, on test accounts only. Simulated: ledger and shipment data. All data is synthetic. The first domain pack models a public logistics weight-dispute workflow; all rates and limits are illustrative configuration, not any company's real tariff.
+Real integrations: Gmail (Gmail API, ADR 0038) and Jira Cloud, on test accounts only. An Outlook (Microsoft Graph) adapter is built but not live. Simulated: ledger and shipment data. All data is synthetic. The first domain pack models a public logistics weight-dispute workflow; all rates and limits are illustrative configuration, not any company's real tariff.
 
 ## 3. Safety invariants
 
@@ -36,7 +36,7 @@ Never violate these. Each needs at least one test that tries to break it.
 | I8 | Case state changes only through the state machine, and every change writes an event with its cause. |
 | I9 | Money and weight calculations are deterministic code. Every number in an outbound message must match stored evidence or calculation output. |
 | I10 | The kill switch stops all external writes. It is checked inside the executor, not only at the entry point. |
-| I11 | Synthetic data only. No real seller data. Real calls only to the owner's test Outlook and Jira. |
+| I11 | Synthetic data only. No real seller data. Real calls only to the owner's test Gmail (or Outlook) and Jira. |
 | I12 | Secrets never appear in the repo, logs, prompts or test fixtures. |
 | I13 | Message kinds that policy lists for review need a stored approval record before sending, and the text sent must be identical to the text approved (hash check). Other kinds send automatically, but only after policy, number validation, contact limits and read-back verification. |
 | I14 | Every model call goes through `ModelGateway`. Foundry authentication is Microsoft Entra ID only. The one permitted provider API key is the secondary Anthropic key in the `ANTHROPIC_API_KEY` environment variable: read only by the `anthropic_direct` adapter's settings loader, restricted by code to Haiku models, never in the repo, logs, config files or Claude Code settings. The only other secret of that kind is the local review-console token `REVIEW_CONSOLE_TOKEN` (ADR 0018), under the same rules. Prompt and response content is not exported to telemetry unless `telemetry.capture_content` is explicitly enabled for a test run. |

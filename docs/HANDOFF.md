@@ -12,7 +12,7 @@ All phases are built (0 to 7, with 4P and 4+; 4b is covered by 4P and 4+). The d
 
 **Waiting on the owner:**
 1. Done 2026-11-04: P6-12 passed (traces reach Application Insights with no content).
-2. Real channels: Jira is connected and tested live (D58). Outlook waits: the personal account needs its own directory (an Azure sign-up the owner is postponing to keep its free credit).
+2. Real channels: Jira (D58) and Gmail (ADR 0038, D62) are connected and tested live. Outlook waits: the personal account needs its own directory (an Azure sign-up the owner is postponing to keep its free credit).
 3. Done 2026-11-04: pattern_analyst passed its live eval and is active (D57). Still optional: `make agents-sync` for the reply-reader agent so the third red-team route can run.
 
 Foundry spend so far: about $0.70 of the $150 cap (the image check's eval added US$0.044, D71).
@@ -23,7 +23,7 @@ Foundry spend so far: about $0.70 of the $150 cap (the image check's eval added 
 
 - An action-taking agent that takes a shipping weight dispute from "seller disagrees" to a verified outcome, and later finds repeat causes across disputes.
 - Code owns the case lifecycle and every decision. The AI reads evidence and proposes one step.
-- Real integrations: Outlook (Microsoft Graph) and Jira Cloud, on test accounts. Simulated: ledger and shipment data. All data is synthetic.
+- Real integrations: Gmail (Gmail API) and Jira Cloud, on test accounts; an Outlook adapter is built but not live. A password-protected console is hosted on Streamlit Community Cloud (ADR 0045). Simulated: ledger and shipment data. All data is synthetic.
 - The reasoning runs in Microsoft Foundry Agent Service (tool-less prompt agents on a `gpt-5-mini` deployment in South India) behind a `ModelGateway` port.
 - Built as a kernel plus pluggable modules. Cross-case intelligence is built last into a socket that exists from Phase 0.
 
