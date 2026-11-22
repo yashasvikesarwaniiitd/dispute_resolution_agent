@@ -294,10 +294,15 @@ class TestAnApprovalIsActedOn:
     def world(self, monkeypatch: pytest.MonkeyPatch) -> Any:
         from dispute_agent.ui import data as console_data
 
+        # Today, not the fixed NOW: the Review screen stamps its decision with the real clock,
+        # and an approval expires 72 h after it is requested. With a fixed date the decision
+        # landed after the expiry once that date was 3 days old, so the case correctly went to
+        # a person and the test failed from 2026-11-10 on for a reason that was not the product.
+        today = datetime.now(UTC).replace(microsecond=0)
         world = open_world(
             "calc_error_high_value",
             policy=PolicyConfig(),
-            clock=FakeClock(NOW),
+            clock=FakeClock(today),
             ids=FakeIdGenerator(),
             decide=lambda _a: None,  # the decision comes from the Review screen
         )

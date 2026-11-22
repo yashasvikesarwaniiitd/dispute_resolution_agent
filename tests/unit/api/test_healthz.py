@@ -115,17 +115,23 @@ class TestTheAppFactory:
         assert modules_by_name(first.get("/healthz").json())["input_screen"]["enabled"] is True
         assert modules_by_name(second.get("/healthz").json())["input_screen"]["enabled"] is False
 
-    def test_the_shipped_config_builds(self) -> None:
-        """If this fails, `make run-api` fails."""
+    def test_the_shipped_config_builds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If this fails, `make run-api` fails.
+
+        Pinned to the committed `modules.yaml`. Without the pin the git-ignored
+        `modules.local.yaml` wins when it exists, so the test checked the owner's machine
+        rather than what ships, and passed there while failing on every clean clone.
+        """
+        monkeypatch.setenv("MODULES_FILE", "modules.yaml")
         application = build_application(config_dir=SHIPPED_CONFIG, app_env="local")
         # Phase 7: the whole line runs offline with cross_case on; model_gateway stays off.
+        # image_check ships off (ADR 0049); only a local or hosted modules file turns it on.
         assert set(application.registry.enabled_names()) == {
             "approvals",
             "cross_case",
             "email",
             "evals",
             "evidence",
-            "image_check",
             "input_screen",
             "ledger",
             "reasoning",
@@ -133,7 +139,8 @@ class TestTheAppFactory:
             "tracing",
         }
 
-    def test_the_shipped_config_builds_under_ci(self) -> None:
+    def test_the_shipped_config_builds_under_ci(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MODULES_FILE", "modules.yaml")  # what ships, not the local file
         build_application(config_dir=SHIPPED_CONFIG, app_env="ci")
 
     def test_a_missing_file_fails_fast_and_says_where(self, tmp_path: Path) -> None:
