@@ -76,6 +76,19 @@ class SqliteInboxStore:
             raise NotFound(f"no inbox row {inbox_id}")
         return dict(row._mapping)
 
+    def assign_case(self, inbox_id: InboxId, case_id: CaseId) -> None:
+        """Name the case a still-PENDING event belongs to, so dispatch routes it by case id.
+
+        For a dispute intake has already routed (a reopen): the event carries no case id of
+        its own, and the dispatcher would otherwise find no routing rule for it.
+        """
+        self._conn.execute(
+            update(inbox_table)
+            .where(inbox_table.c.id == str(inbox_id))
+            .where(inbox_table.c.status == InboxStatus.PENDING.value)
+            .values(case_id=str(case_id))
+        )
+
     def mark_processed(self, inbox_id: InboxId, case_id: CaseId, event_id: EventId) -> None:
         """PROCESSED needs both ids: the schema refuses the status without them, because an
         event that was processed but belongs to no case is a contradiction."""

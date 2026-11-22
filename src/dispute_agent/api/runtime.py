@@ -18,7 +18,7 @@ from dispute_agent.api.events import SubmitResult, input_event
 from dispute_agent.infra.sqlite.inbox_store import SqliteInboxStore
 from dispute_agent.kernel.domain.enums import InboundEventType
 from dispute_agent.kernel.domain.errors import DuplicateEvent
-from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId
+from dispute_agent.kernel.domain.ids import CaseId, CorrelationId, EventId, InboxId
 from dispute_agent.kernel.domain.inbound import HUMAN_EVENTS
 
 #: What an unauthenticated endpoint may accept (Phase 6 safety review, MED-2): a reply is
@@ -113,6 +113,8 @@ class Runtime:
                 opened_event_id=EventId(self._ids.new_id("evt")),
                 causation_id=EventId(self._ids.new_id("evt")),
             )
+            if result.reopened_from is not None:
+                return self._reopen(work, inbox, inbox_id, result.case)
             if result.created:
                 work.cases.insert(result.case)
 
@@ -147,6 +149,36 @@ class Runtime:
                     else advanced.case.review_reason.render()
                 ),
             )
+
+    def _reopen(
+        self, work: SqliteUnitOfWork, inbox: SqliteInboxStore, inbox_id: InboxId, case: Case
+    ) -> SubmitResult:
+        """A new dispute on a recently closed soft-terminal case (orchestrator.md section 2).
+
+        Intake hands the closed case back for its own reaction table to decide: reopen it for
+        a fresh round (T42/T48, inside the window and under the cap) or give it to a person
+        (T44/T43). That is a transition, so the event is dispatched like any other inbound
+        event. It used to be treated like a dispute on an open case - recorded, then the
+        state's own step run - but a closed case has no step, so the seller's new dispute was
+        written to the trail and nothing happened (live demo, 2026-11-22).
+        """
+        inbox.assign_case(inbox_id, case.id)
+        dispatched = self._line.dispatcher(work).dispatch(inbox_id)
+        after = work.cases.get(case.id)
+        log.info(
+            "dispute_reopened",
+            case_id=str(after.id),
+            correlation_id=str(after.correlation_id),
+            reaction=dispatched.reaction,
+            state=after.state.value,
+        )
+        return SubmitResult(
+            inbox_id=str(inbox_id),
+            duplicate=False,
+            case_id=str(after.id),
+            state=after.state.value,
+            review_reason=None if after.review_reason is None else after.review_reason.render(),
+        )
 
     def submit_inbound(self, event: InboundEvent) -> DispatchResult:
         """Any inbound event but a new dispute: a reply, a finding, a withdrawal, a bounce.
