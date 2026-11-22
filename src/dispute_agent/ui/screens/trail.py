@@ -52,13 +52,23 @@ ACTOR = {
     Actor.HUB: "Hub",
     Actor.SYSTEM: "System",
 }
+#: The key to the timeline: every actor a step can name, in the order a case meets them,
+#: one per row as "pill - what it does". Labels match `ACTOR` exactly, so the key and the
+#: timeline say the same words.
+KEY = (
+    ("Seller", "raised the dispute, or replied to the agent"),
+    ("Code", "fixed checks and calculations; no AI"),
+    ("AI", "proposes the next step when the AI is on"),
+    ("Rules engine", "proposes the next step when the AI is off"),
+    ("Reviewer", "a person who approves or decides"),
+    ("Hub", "the hub team, answering a remeasurement"),
+    ("System", "the service's own bookkeeping"),
+)
 LEGEND = (
-    '<ul class="legend" aria-label="Who does what">'
-    f"<li>{actor('Code')}fixed checks and calculations, no AI</li>"
-    f"<li>{actor('Rules engine').replace('Rules engine', 'AI or rules engine')}proposes what to do</li>"
-    f"<li>{actor('Reviewer')}a person who approves</li>"
-    f"<li>{actor('System')}the service's own bookkeeping</li>"
-    "<li>Times are UTC.</li></ul>"
+    '<p class="legend-head">Who did each step</p>'
+    '<ul class="legend" aria-label="Who did each step">'
+    + "".join(f"<li>{actor(name)}<span>{escape(what)}</span></li>" for name, what in KEY)
+    + '</ul><p class="legend-note">All times are UTC.</p>'
 )
 ONWARD = {
     CaseState.AWAITING_APPROVAL: ("review", "Decide on the Review screen →"),
