@@ -144,7 +144,7 @@ def test_s15_a_recurring_anomaly_opens_one_linked_investigation(tmp_path: Path) 
 
     w.clock.advance(DAY)  # day 11: the analyzer runs on the runner's tick
     report = w.runtime.runner.tick()
-    assert report.jobs_run == ["cross_case"] and report.failures == []
+    assert "cross_case" in report.jobs_run and report.failures == []
 
     patterns = w.rows("SELECT id, dimension, match_value, status FROM pattern_records")
     assert [(p[1], p[2], p[3]) for p in patterns] == [("scanner", "SCN-03-2", "UNCONFIRMED")]

@@ -36,6 +36,11 @@ OWNER = Actor(kind=ActorKind.HUMAN, id="human:owner")
 
 @pytest.fixture
 def app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    return running_app(tmp_path, monkeypatch)
+
+
+def running_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """The app on the whole line with fakes, as `make run-api` builds it."""
     (tmp_path / "modules.yaml").write_text(FULL_LINE, encoding="utf-8")
     (tmp_path / "policy.yaml").write_text(
         (ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"), encoding="utf-8"

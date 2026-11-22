@@ -83,7 +83,8 @@ def outcomes(tmp_path: Path, on: bool) -> list[tuple[str, str | None]]:
         clock.advance(timedelta(hours=1))
     report = rt.runner.tick()
     assert report.failures == []
-    assert report.jobs_run == (["cross_case"] if on else [])
+    # Only the cross-case job is in question here; the hub-findings job (P3-07) always runs.
+    assert ("cross_case" in report.jobs_run) is on
     assert (rt.runner.line.patterns is None) is (not on)
     return found
 

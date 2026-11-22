@@ -15,6 +15,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
+from dispute_agent.kernel.domain.enums import EvidenceStatus
+from dispute_agent.kernel.domain.evidence import EvidenceResult
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import (
     FIXTURES,
     cluster_members,
@@ -26,10 +28,16 @@ from dispute_agent.modules.evidence.synthetic_shipments.source import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from dispute_agent.kernel.domain.case import CaseFacts
-    from dispute_agent.kernel.domain.evidence import EvidenceRequirement, EvidenceResult
+    from dispute_agent.kernel.domain.evidence import EvidenceRequirement
+    from dispute_agent.kernel.domain.external import OpsFinding
     from dispute_agent.kernel.domain.ids import CaseId
     from dispute_agent.kernel.ports import Clock
+
+#: The evidence key the hub's answer fills (the pack's `FINDING`).
+FINDING_KEY = "ops.finding"
 
 
 @dataclass
@@ -38,6 +46,9 @@ class SyntheticLibrarySource:
 
     clock: Clock | None = None
     name: str = MODULE
+    #: The hub's real answer for a case, when one has come in from the ticketing system
+    #: (card P3-07). Set by the composition root; None answers from the fixtures alone.
+    received: Callable[[CaseId], OpsFinding | None] | None = None
     _by_shipment: dict[str, SyntheticShipmentSource] = field(default_factory=dict)
     _unknown: SyntheticShipmentSource | None = None
 
@@ -61,9 +72,35 @@ class SyntheticLibrarySource:
     def fetch(
         self, case_id: CaseId, facts: CaseFacts, requirement: EvidenceRequirement
     ) -> EvidenceResult:
+        if requirement.key == FINDING_KEY and self.received is not None:
+            answered = self.received(case_id)
+            if answered is not None:
+                return self._from_hub(answered)
         source = self._by_shipment.get(facts.shipment_ref, self._unknown)
         assert source is not None
         return source.fetch(case_id, facts, requirement)
+
+    def _from_hub(self, finding: OpsFinding) -> EvidenceResult:
+        """The hub's answer as the `ops.finding` item, in the fixture's own shape.
+
+        Sizes as strings so a Decimal survives JSON (I9), grams as an int. The comment's
+        words travel only as UntrustedText (I5): the figures are what code reads.
+        """
+        value: dict[str, object] = {"kind": finding.kind}
+        for side in ("length_cm", "width_cm", "height_cm"):
+            if side in finding.measured:
+                value[side] = str(finding.measured[side])
+        if "dead_grams" in finding.measured:
+            value["dead_grams"] = int(str(finding.measured["dead_grams"]))
+        now = self.clock.now() if self.clock is not None else finding.at
+        return EvidenceResult(
+            requirement_key=FINDING_KEY,
+            source=self.name,
+            status=EvidenceStatus.FOUND,
+            value=value,
+            untrusted=(finding.note,) if finding.note is not None else (),
+            retrieved_at=now,
+        )
 
     def shipments(self) -> tuple[str, ...]:
         return tuple(sorted(self._by_shipment))

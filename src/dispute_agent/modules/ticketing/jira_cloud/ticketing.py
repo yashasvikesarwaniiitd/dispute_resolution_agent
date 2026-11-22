@@ -30,6 +30,7 @@ import base64
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -41,19 +42,24 @@ from dispute_agent.kernel.domain.errors import (
     PermanentPortError,
     TransientPortError,
 )
-from dispute_agent.kernel.domain.external import IssueRef, IssueSnapshot
+from dispute_agent.kernel.domain.external import IssueRef, IssueSnapshot, OpsFinding
+from dispute_agent.kernel.domain.values import UntrustedText
+from dispute_agent.modules.ticketing.hub_comment import parse as parse_hub_comment
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from datetime import datetime
 
-    from dispute_agent.kernel.domain.external import IssueSpec, OpsFinding
+    from dispute_agent.kernel.domain.external import IssueSpec
     from dispute_agent.kernel.domain.ids import IdempotencyKey
 
 MODULE = "ticketing"
 ADAPTER = "jira_cloud"
 
 API = "/rest/api/3"
+#: Bounds on one read of the hub's answers: the agent's open issues are few, and a reply is
+#: one of the latest comments on its issue.
+MAX_ISSUES_READ = 50
+MAX_COMMENTS_READ = 20
 
 #: Every issue this system creates carries it, so a person can find all of them at once.
 AGENT_LABEL = "dispute-agent"
@@ -284,15 +290,38 @@ class JiraCloudTicketing:
         )
 
     def fetch_findings(self, since: datetime) -> Sequence[OpsFinding]:
-        """Not implemented here: a finding is read from custom fields the owner configures.
+        """The hub's answers: comments on the agent's own issues, newer than `since`.
 
-        Returning an empty sequence would read as "operations have found nothing", which is
-        a fact about a shipment rather than about this adapter. Raising says what is true.
+        Only issues carrying AGENT_LABEL are read, and only a comment in one of the fixed
+        forms of `hub_comment` is a finding; anything else is left for people. The comment
+        text travels as UntrustedText (I5): only the parsed figures can prove anything.
         """
-        raise NotImplementedError(
-            "ops findings need the custom field ids from config/modules.yaml "
-            "(integrations.md 2.4); the poller is card P3-07"
+        minutes = max(1, int((datetime.now(UTC) - since).total_seconds() // 60) + 1)
+        jql = (
+            f'project = "{self.project_key}" AND labels = "{AGENT_LABEL}" '
+            f"AND updated >= -{minutes}m"
         )
+        listed = self._post(
+            f"{API}/search/jql",
+            json={"jql": jql, "maxResults": MAX_ISSUES_READ, "fields": ["summary"]},
+            read_only=True,
+        )
+        found: list[OpsFinding] = []
+        for issue in listed.get("issues", []):
+            key = issue.get("key") or self._get(
+                f"{API}/issue/{issue['id']}", params={"fields": "summary"}
+            ).get("key")
+            if not key:
+                continue
+            comments = self._get(
+                f"{API}/issue/{key}/comment",
+                params={"orderBy": "-created", "maxResults": MAX_COMMENTS_READ},
+            )
+            for comment in comments.get("comments", []):
+                finding = _finding(str(key), comment, since)
+                if finding is not None:
+                    found.append(finding)
+        return tuple(sorted(found, key=lambda f: f.at))
 
     # -- http -------------------------------------------------------------------------------
 
@@ -382,6 +411,29 @@ class JiraCloudTicketing:
             return {}
         parsed = response.json()
         return dict(parsed) if isinstance(parsed, dict) else {}
+
+
+def _finding(issue_key: str, comment: dict[str, Any], since: datetime) -> OpsFinding | None:
+    """One comment as a finding, when it is newer than `since` and in a fixed form."""
+    try:
+        created = datetime.fromisoformat(str(comment.get("created", "")))
+    except ValueError:
+        return None
+    if created.tzinfo is None or created <= since:
+        return None
+    text = normalise(from_adf(comment.get("body")))
+    answer = parse_hub_comment(text)
+    if answer is None:
+        return None
+    comment_id = str(comment.get("id", ""))
+    return OpsFinding(
+        issue_key=issue_key,
+        finding_id=f"comment:{comment_id}",
+        kind=answer.kind,  # the parser yields only the allowed kinds
+        measured=dict(answer.measured),
+        note=UntrustedText.create(text, "jira_comment", f"{issue_key}:{comment_id}"),
+        at=created,
+    )
 
 
 def _stored_key(raw: dict[str, Any]) -> IdempotencyKey | None:

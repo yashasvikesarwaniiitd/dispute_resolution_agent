@@ -452,15 +452,57 @@ class TestErrorMapping:
             system.find_issue(KEY)
 
 
-class TestFindingsAreNotSilentlyEmpty:
-    def test_it_refuses_rather_than_reporting_nothing_found(self) -> None:
-        """An empty sequence would read as "operations have found nothing", which is a
-        statement about a shipment. Raising says what is actually true: this adapter cannot
-        answer yet."""
+class TestTheHubAnswersInAComment:
+    """Card P3-07: a comment in a fixed form on the agent's own issue is the hub's finding."""
+
+    @staticmethod
+    def _comment(cid: str, text: str, created: str) -> dict[str, Any]:
+        return {"id": cid, "body": to_adf(text), "created": created}
+
+    def _jira(self, comments: list[dict[str, Any]]) -> Jira:
+        return (
+            Jira()
+            .on(
+                "POST",
+                "/search/jql",
+                httpx.Response(200, json={"issues": [{"id": "10056", "key": "WD-56"}]}),
+            )
+            .on("GET", "/issue/WD-56/comment", httpx.Response(200, json={"comments": comments}))
+        )
+
+    def test_a_remeasurement_comment_becomes_a_finding_with_untrusted_words(self) -> None:
+        from datetime import UTC, datetime
+        from decimal import Decimal
+
+        from dispute_agent.kernel.domain.values import UntrustedText
+
+        jira = self._jira(
+            [
+                self._comment(
+                    "3", "Remeasured: 22 x 15 x 10 cm, 1.10 kg", "2026-11-22T23:40:00.000+0530"
+                ),
+                self._comment(
+                    "2", "The previous measurement is correct.", "2026-11-22T23:35:00.000+0530"
+                ),
+                self._comment("1", "Measurement confirmed", "2026-11-20T10:00:00.000+0530"),
+            ]
+        )
+        found = jira.system().fetch_findings(datetime(2026, 11, 22, 17, 0, tzinfo=UTC))
+        assert [f.finding_id for f in found] == ["comment:3"]  # free text and old ones skipped
+        [finding] = found
+        assert finding.issue_key == "WD-56" and finding.kind == "remeasured"
+        assert finding.measured["length_cm"] == Decimal("22")
+        assert finding.measured["dead_grams"] == 1100
+        assert isinstance(finding.note, UntrustedText)  # I5: a person's words
+
+    def test_only_the_agent_s_own_issues_are_searched(self) -> None:
         from datetime import UTC, datetime
 
-        with pytest.raises(NotImplementedError, match=r"modules.yaml"):
-            Jira().system().fetch_findings(datetime(2026, 3, 1, tzinfo=UTC))
+        jira = self._jira([])
+        jira.system().fetch_findings(datetime(2026, 11, 22, 17, 0, tzinfo=UTC))
+        search = jira.body_of(0)
+        assert f'labels = "{AGENT_LABEL}"' in search["jql"]
+        assert f'project = "{PROJECT}"' in search["jql"]
 
 
 class TestTheTokenIsAPassword:
