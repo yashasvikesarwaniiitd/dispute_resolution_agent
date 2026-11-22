@@ -24,7 +24,8 @@ import structlog
 from sqlalchemy import select
 
 from dispute_agent.infra.sqlite.tables import actions as actions_table
-from dispute_agent.kernel.domain.enums import ActionType, ActorKind, InboundEventType
+from dispute_agent.infra.sqlite.tables import cases as cases_table
+from dispute_agent.kernel.domain.enums import ActionType, ActorKind, CaseState, InboundEventType
 from dispute_agent.kernel.domain.events import InboundEvent
 from dispute_agent.kernel.domain.inbound import OpsFindingReceived
 from dispute_agent.kernel.domain.models import Actor
@@ -62,11 +63,27 @@ def case_for_issue(engine: Engine) -> Callable[[str], str | None]:
     return find
 
 
+def waiting_on_hub(engine: Engine) -> Callable[[str], bool]:
+    """Whether a case is waiting for the hub's answer right now."""
+
+    def waiting(case_id: str) -> bool:
+        with engine.connect() as conn:
+            row = conn.execute(
+                select(cases_table.c.state).where(cases_table.c.id == case_id)
+            ).first()
+        return row is not None and str(row[0]) == CaseState.AWAITING_OPS.value
+
+    return waiting
+
+
 @dataclass
 class HubFindingsJob:
     fetch: Callable[[datetime], Sequence[OpsFinding]]
     submit: Callable[[InboundEvent], object]
     case_for: Callable[[str], str | None]
+    #: A reply with no measurement is passed on only while its case waits on the hub: a
+    #: "thanks" under a closed case's issue must not reopen it. None passes everything.
+    waiting: Callable[[str], bool] | None = None
     #: case id -> the hub's latest answer on that case's issue; read by `answers_for`.
     answers: dict[str, OpsFinding] = field(default_factory=dict)
     every: timedelta = timedelta(seconds=60)
@@ -86,6 +103,9 @@ class HubFindingsJob:
             case_id = self.case_for(finding.issue_key)
             if case_id is None:
                 continue  # not an issue a case opened (a pattern investigation, say)
+            unread = finding.kind == "inspected" and not finding.measured
+            if unread and self.waiting is not None and not self.waiting(case_id):
+                continue  # small talk after the answer, not a new answer
             kept = self.answers.get(case_id)
             if kept is None or finding.at >= kept.at:
                 self.answers[case_id] = finding
@@ -110,4 +130,4 @@ def answers_for(job: HubFindingsJob) -> Callable[[CaseId], OpsFinding | None]:
     return lambda case_id: job.answers.get(str(case_id))
 
 
-__all__ = ["HubFindingsJob", "answers_for", "case_for_issue"]
+__all__ = ["HubFindingsJob", "answers_for", "case_for_issue", "waiting_on_hub"]

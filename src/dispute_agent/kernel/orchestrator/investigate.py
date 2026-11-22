@@ -766,9 +766,16 @@ class InvestigateStep:
         if action is ProposalAction.REQUEST_REMEASUREMENT:
             return IssuePayload(
                 summary=f"Remeasure {case.facts.shipment_ref}",
+                # How to answer, in the forms code reads (ADR 0052). The old text pointed at
+                # "the finding fields", which no Jira project has.
                 description=(
                     f"Please remeasure shipment {case.facts.shipment_ref} "
-                    f"(claim {case.facts.claim_ref}) and record the result in the finding fields."
+                    f"(claim {case.facts.claim_ref}).\n\n"
+                    "Reply with a comment whose first line is one of:\n"
+                    "Remeasured: <length> x <width> x <height> cm, <weight> kg "
+                    "(for example: Remeasured: 30 x 22 x 15 cm, 1.10 kg)\n"
+                    "Measurement confirmed (if the original measurement stands)\n\n"
+                    "Any other reply is passed to a person to read."
                 ),
             )
 

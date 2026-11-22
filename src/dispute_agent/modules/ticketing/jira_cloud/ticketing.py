@@ -422,15 +422,19 @@ def _finding(issue_key: str, comment: dict[str, Any], since: datetime) -> OpsFin
     if created.tzinfo is None or created <= since:
         return None
     text = normalise(from_adf(comment.get("body")))
-    answer = parse_hub_comment(text)
-    if answer is None:
+    if not text:
         return None
+    answer = parse_hub_comment(text)
     comment_id = str(comment.get("id", ""))
+    # A reply code cannot read is still a reply: "inspected", with no measurement, and the
+    # words as untrusted text for a person. Ignoring it left the case waiting on the hub
+    # after the hub had answered (WD-66, live). It can never prove anything (I5, I9).
+    kind = answer.kind if answer is not None else "inspected"
     return OpsFinding(
         issue_key=issue_key,
         finding_id=f"comment:{comment_id}",
-        kind=answer.kind,  # the parser yields only the allowed kinds
-        measured=dict(answer.measured),
+        kind=kind,  # the parser yields only the allowed kinds
+        measured=dict(answer.measured) if answer is not None else {},
         note=UntrustedText.create(text, "jira_comment", f"{issue_key}:{comment_id}"),
         at=created,
     )

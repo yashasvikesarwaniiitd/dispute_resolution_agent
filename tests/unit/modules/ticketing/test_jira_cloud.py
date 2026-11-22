@@ -488,12 +488,33 @@ class TestTheHubAnswersInAComment:
             ]
         )
         found = jira.system().fetch_findings(datetime(2026, 11, 22, 17, 0, tzinfo=UTC))
-        assert [f.finding_id for f in found] == ["comment:3"]  # free text and old ones skipped
-        [finding] = found
+        # The old comment is skipped; the plain confirmation is read (ADR 0052).
+        assert [(f.finding_id, f.kind) for f in found] == [
+            ("comment:2", "no_fault_found"),
+            ("comment:3", "remeasured"),
+        ]
+        finding = found[1]
         assert finding.issue_key == "WD-56" and finding.kind == "remeasured"
         assert finding.measured["length_cm"] == Decimal("22")
         assert finding.measured["dead_grams"] == 1100
         assert isinstance(finding.note, UntrustedText)  # I5: a person's words
+
+    def test_a_reply_code_cannot_read_still_reaches_a_person_with_its_words(self) -> None:
+        """ADR 0052: never dropped. No measurement, so it can prove nothing (I9)."""
+        from datetime import UTC, datetime
+
+        jira = self._jira(
+            [
+                self._comment(
+                    "7",
+                    "Box was crushed on arrival, please check with the seller.",
+                    "2026-11-23T01:10:00.000+0530",
+                )
+            ]
+        )
+        [finding] = jira.system().fetch_findings(datetime(2026, 11, 22, 17, 0, tzinfo=UTC))
+        assert finding.kind == "inspected" and finding.measured == {}
+        assert finding.note is not None and "crushed" in finding.note.text
 
     def test_only_the_agent_s_own_issues_are_searched(self) -> None:
         from datetime import UTC, datetime

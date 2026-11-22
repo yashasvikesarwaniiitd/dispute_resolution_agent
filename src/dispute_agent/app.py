@@ -770,12 +770,18 @@ def _build_runtime(
     if modules.get("ticketing") and registry.adapter_name("ticketing") != "disabled":
         # Card P3-07: the hub answers on the agent's own Jira issue; the job reads it into
         # the case, and the evidence source hands it to that case's next round.
-        from dispute_agent.api.hub_findings import HubFindingsJob, answers_for, case_for_issue
+        from dispute_agent.api.hub_findings import (
+            HubFindingsJob,
+            answers_for,
+            case_for_issue,
+            waiting_on_hub,
+        )
 
         hub = HubFindingsJob(
             fetch=adapters.ticketing.fetch_findings,
             submit=runner.submit,
             case_for=case_for_issue(engine),
+            waiting=waiting_on_hub(engine),
         )
         runner.jobs.append(hub)
         if hasattr(adapters.evidence, "received"):

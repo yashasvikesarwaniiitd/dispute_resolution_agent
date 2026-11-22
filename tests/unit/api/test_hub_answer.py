@@ -161,6 +161,57 @@ def test_the_confirmation_email_names_where_its_amount_came_from(app: Any) -> No
     assert ("₹76.00", "amount credited") in numbers
 
 
+def _reply(app: Any, key: str, finding_id: str, text: str) -> None:
+    """A hub reply code could not read, as the Jira adapter passes it on (ADR 0052)."""
+    app.state.application.adapters.ticketing.post_finding(
+        OpsFinding(
+            issue_key=key,
+            finding_id=finding_id,
+            kind="inspected",
+            note=UntrustedText.create(text, "jira_comment", f"{key}:{finding_id}"),
+            at=datetime.now(UTC),
+        )
+    )
+
+
+def test_a_reply_code_cannot_read_moves_the_case_to_a_person_with_its_words(app: Any) -> None:
+    """WD-66: the hub answered and the case kept waiting. A reply is never dropped."""
+    case_id = _waiting_on_the_hub(app)
+    key = _issue_key(app, case_id)
+    _reply(app, key, "comment:5", "Box was crushed on arrival, please check with the seller.")
+    _job(app)._last_run = None
+    app.state.application.runtime.runner.tick()
+
+    assert _state(app, case_id) is not CaseState.AWAITING_OPS
+    with _work(app) as work:
+        steps = build(work, work.cases.get(CaseId(case_id))).steps
+    [hub] = [s for s in steps if s.title == "The hub sent its finding"]
+    assert "not with a measurement code can read" in hub.summary
+    assert hub.quoted == ("Box was crushed on arrival, please check with the seller.",)
+    with _work(app) as work:
+        assessment = work.assessments.latest(CaseId(case_id))
+    assert assessment is not None and assessment.definite_errors == ()  # words prove nothing
+
+
+def test_small_talk_after_the_answer_does_not_reopen_anything(app: Any) -> None:
+    case_id = _waiting_on_the_hub(app)
+    key = _issue_key(app, case_id)
+    _reply(app, key, "comment:6", "Box was crushed on arrival.")
+    job, runner = _job(app), app.state.application.runtime.runner
+    job._last_run = None
+    runner.tick()
+    moved = _state(app, case_id)
+    assert moved is not CaseState.AWAITING_OPS
+    _reply(app, key, "comment:8", "Thanks, all done.")  # the case is no longer waiting
+    job._last_run = None
+    runner.tick()
+    with _work(app) as work:
+        rows = work.connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM inbox WHERE event_type = 'OPS_FINDING_RECEIVED'"
+        ).scalar()
+    assert rows == 1  # only the answer while it waited
+
+
 def test_reading_twice_delivers_the_answer_once(app: Any) -> None:
     case_id = _waiting_on_the_hub(app)
     key = _issue_key(app, case_id)
