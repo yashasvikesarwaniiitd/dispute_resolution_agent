@@ -65,6 +65,10 @@ class Shipment:
     #: hub's measurement (what the charge should be) and on the seller's declared size.
     card_on_measured: str = ""
     card_on_declared: str = ""
+    #: The card on the declared size, as an amount alone, for the shipments table: what the
+    #: seller would expect to pay, beside what they were charged. Worked out for display only;
+    #: the ledger keeps one charge per shipment (a second debit would read as a duplicate).
+    on_declared: str = ""
     #: Charged minus the card on the hub's measurement, when the bill is higher; else "".
     over_card: str = ""
 
@@ -135,6 +139,7 @@ def _cards(pack: WeightDisputePack, s: Any) -> dict[str, str]:
     return {
         "card_on_measured": _card_line(on_measured),
         "card_on_declared": _card_line(on_declared),
+        "on_declared": render_fact(on_declared.amount),
         "over_card": render_fact(Money.from_paise(over)) if over > 0 else "",
     }
 

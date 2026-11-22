@@ -32,6 +32,14 @@ def test_a_right_bill_on_a_bigger_measurement_shows_what_the_declared_size_would
     assert s.over_card == ""  # type: ignore[attr-defined]
 
 
+def test_the_table_shows_the_card_on_the_declared_weight_beside_the_charge() -> None:
+    """The two table columns: what the seller expects to pay, and what they were billed."""
+    rows = _by_ref()
+    assert rows["SHP-000002"].on_declared == "₹980.00"  # type: ignore[attr-defined]
+    assert rows["SHP-000001"].on_declared == "₹76.00"  # type: ignore[attr-defined]
+    assert all(s.on_declared for s in catalogue())  # every row has a figure
+
+
 def _ticket(ref: str, *, is_open: bool, at: datetime, label: str) -> Any:  # Any: a stand-in
     return SimpleNamespace(shipment_ref=ref, is_open=is_open, updated_at=at, label=label)
 

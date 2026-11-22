@@ -80,11 +80,12 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
             "label": "Your shipments",
             "selectable": True,
             "selected": st.session_state.get(SHIP),
-            "grid": "1.2fr 1.4fr .6fr .9fr 1.5fr",
+            "grid": "1.1fr 1.2fr .5fr 1.1fr 1.1fr 1.4fr",
             "columns": [
                 {"label": "Shipment"},
                 {"label": "Status"},
                 {"label": "Zone"},
+                {"label": "Expected", "align": "right"},
                 {"label": "Charged", "align": "right"},
                 {"label": "Your ticket"},
             ],
@@ -95,6 +96,7 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
                         {"kind": "num", "text": s.ref},
                         {"kind": "text" if s.status == "Delivered" else "error", "text": s.status},
                         s.zone,
+                        {"kind": "num", "text": s.on_declared},
                         {"kind": "num", "text": s.charged},
                         _ticket_cell(latest_ticket_for(s, mine)),
                     ],
@@ -103,6 +105,11 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
             ],
         },
         key="shipments",
+    )
+    st.markdown(
+        '<p class="muted">Expected: what the rate card gives for the size and weight you '
+        "declared. Charged: what you were billed after the hub weighed the parcel.</p>",
+        unsafe_allow_html=True,
     )
     if clicked["pick"] in refs and clicked["pick"] != st.session_state.get(SHIP):
         st.session_state[SHIP] = clicked["pick"]
