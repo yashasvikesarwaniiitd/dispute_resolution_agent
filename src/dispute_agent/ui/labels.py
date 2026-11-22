@@ -6,7 +6,7 @@ what it names: a case that is "With a person" is in NEEDS_HUMAN_REVIEW, nothing 
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -184,16 +184,26 @@ def money(amount: Decimal) -> str:
     return f"₹{amount:,.2f}"
 
 
+#: The console's one display zone: India Standard Time. India keeps no daylight saving, so a
+#: fixed offset is exact and needs no tz database. Stored times stay UTC; only display moves.
+IST = timezone(timedelta(hours=5, minutes=30), "IST")
+
+
+def local(moment: datetime) -> datetime:
+    """A stored time (UTC, or naive meaning UTC) in the display zone."""
+    aware = moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+    return aware.astimezone(IST)
+
+
 def clock(moment: datetime) -> str:
-    """The time alone ("16:08"), for steps inside one case's timeline."""
-    utc = moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
-    return f"{utc:%H:%M}"
+    """The time alone ("21:38"), for steps inside one case's timeline."""
+    return f"{local(moment):%H:%M}"
 
 
 def when(moment: datetime) -> str:
-    """Every time on every screen, one way: "7 Nov 2026, 16:08 UTC" (one zone, no seconds)."""
-    utc = moment.astimezone(UTC) if moment.tzinfo else moment.replace(tzinfo=UTC)
-    return f"{utc.day} {utc:%b %Y, %H:%M} UTC"
+    """Every time on every screen, one way: "7 Nov 2026, 21:38 IST" (one zone, no seconds)."""
+    shown = local(moment)
+    return f"{shown.day} {shown:%b %Y, %H:%M} IST"
 
 
 def words(code: str) -> str:
@@ -205,6 +215,7 @@ __all__ = [
     "ACTION",
     "EVIDENCE",
     "FINDING",
+    "IST",
     "MESSAGE",
     "REASON",
     "RULE",
@@ -212,6 +223,7 @@ __all__ = [
     "Tone",
     "clock",
     "handed_over",
+    "local",
     "money",
     "reason",
     "rule_words",

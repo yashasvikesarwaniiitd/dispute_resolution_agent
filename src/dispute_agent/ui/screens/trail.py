@@ -19,7 +19,7 @@ import streamlit as st
 from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import Journey, Mark, journey
-from dispute_agent.ui.labels import Tone, clock, when
+from dispute_agent.ui.labels import Tone, clock, local, when
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.seller import tickets
 from dispute_agent.ui.theme import actor, chip, escape, recorded
@@ -68,7 +68,7 @@ LEGEND = (
     '<p class="legend-head">Who did each step</p>'
     '<ul class="legend" aria-label="Who did each step">'
     + "".join(f"<li>{actor(name)}<span>{escape(what)}</span></li>" for name, what in KEY)
-    + '</ul><p class="legend-note">All times are UTC.</p>'
+    + '</ul><p class="legend-note">All times are India Standard Time (IST).</p>'
 )
 ONWARD = {
     CaseState.AWAITING_APPROVAL: ("review", "Decide on the Review screen →"),
@@ -269,7 +269,8 @@ def timeline(trail: Trail, opened: datetime) -> str:
 
 
 def _item(step: Step, number: int, opened: datetime) -> str:
-    stamp = clock(step.at) if step.at.date() == opened.date() else when(step.at)
+    # The same day as seen in IST, not in UTC: 23:00 UTC is already tomorrow in India.
+    stamp = clock(step.at) if local(step.at).date() == local(opened).date() else when(step.at)
     who = ACTOR.get(step.actor, step.actor.value)
     rail = f'<div class="rail" aria-hidden="true"><span class="dot dot--{step.mark.value}"></span></div>'
     if step.minor:

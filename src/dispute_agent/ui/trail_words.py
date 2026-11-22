@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.actions import CreditPayload, IssuePayload, MessagePayload
-from dispute_agent.kernel.domain.enums import CaseState
+from dispute_agent.kernel.domain.enums import ActionStatus, CaseState
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.ui.labels import EVIDENCE, MESSAGE, clock, words
 from dispute_agent.ui.photo_check import IMAGE_CHECK as PHOTO_CHECK
@@ -102,8 +102,50 @@ def approved(approval: Approval, approver: str) -> str:
     return f"{approver or 'A person'} {approval.decision.value.lower()} {what}"
 
 
+def went_out(action: Action) -> bool:
+    """The far end accepted it: it was sent, posted or opened (verified or not yet)."""
+    return action.sent_at is not None or action.status in (
+        ActionStatus.SENT,
+        ActionStatus.VERIFIED,
+    )
+
+
+def action_words(payload: ActionPayload | None) -> tuple[str, str]:
+    """(verb phrase, object) for an action that did not go out: ("send", "the explanation email")."""
+    if isinstance(payload, CreditPayload):
+        return "post", "the credit"
+    if isinstance(payload, MessagePayload):
+        return "send", MESSAGE.get(payload.kind, "the email")
+    if isinstance(payload, IssuePayload):
+        return "open", "the hub's ticket"
+    return "take", "the action"
+
+
 def executed(action: Action, payload: ActionPayload | None) -> tuple[str, str, tuple[str, ...]]:
-    """The title, the line and the Details of an action the agent took."""
+    """The title, the line and the Details of an action the agent took.
+
+    Only an action the far end accepted is titled as done. One that failed, or whose fate is
+    unknown, says so: the timeline once read "Sent the explanation email" for an email that
+    was never sent, because the title ignored the action's status (live demo, 2026-11-22).
+    """
+    if not went_out(action):
+        verb, what = action_words(payload)
+        code = action.last_error_code or ""
+        reason = (f"Recorded reason: {code}",) if code else ()
+        if action.status is ActionStatus.FAILED:
+            return (
+                f"Could not {verb} {what}",
+                "Nothing went out. A person decides what happens next.",
+                reason,
+            )
+        if action.status is ActionStatus.UNKNOWN:
+            return (
+                f"Could not confirm whether {what} went out",
+                "The agent will not try again, in case it did. A person checks and says what "
+                "happened.",
+                reason,
+            )
+        return f"Trying to {verb} {what}", "", reason
     ref = action.external_ref or ""
     if isinstance(payload, CreditPayload):
         return (
@@ -181,4 +223,14 @@ def waiting(
     return "Now: the agent is working on it."
 
 
-__all__ = ["LATER", "approved", "evidence", "executed", "proved", "recalculation", "waiting"]
+__all__ = [
+    "LATER",
+    "action_words",
+    "approved",
+    "evidence",
+    "executed",
+    "proved",
+    "recalculation",
+    "waiting",
+    "went_out",
+]

@@ -14,6 +14,7 @@ Cases with a person are taken over or returned through `CaseDesk` (ADR 0046).
 
 from __future__ import annotations
 
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -33,10 +34,17 @@ from dispute_agent.modules.approvals.streamlit_ui.console import (
 from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
 from dispute_agent.ui import case_sheet, data, photo_check
 from dispute_agent.ui import review_view as view
-from dispute_agent.ui.desk import CaseDesk, can_confirm_withdrawal
+from dispute_agent.ui.desk import DONE, NOT_DONE, CaseDesk, can_confirm_withdrawal
 from dispute_agent.ui.labels import money, when
 from dispute_agent.ui.photos import photo_for
-from dispute_agent.ui.review import Card, not_yet_applied, queue, with_a_person
+from dispute_agent.ui.review import (
+    Card,
+    Unknown,
+    not_yet_applied,
+    queue,
+    unknown_actions,
+    with_a_person,
+)
 from dispute_agent.ui.theme import chip, escape, line
 from dispute_agent.ui.trail import recommendation
 
@@ -55,6 +63,9 @@ ACTED = "review_acted"
 #: Cases with a person acted on this session, with the case's `updated_at` at that moment.
 #: Hidden only until the agent changes the case, so a Return that comes back shows again.
 ACTED_CASES = "review_acted_cases"
+#: When each of those was acted on (epoch seconds): a card hidden this long comes back even if
+#: the agent refused the decision and the case never changed.
+ACTED_AT = "review_acted_at"
 
 
 def page() -> None:
@@ -70,7 +81,12 @@ def page() -> None:
         cards = queue(work, console)
         acted = set(st.session_state.get(ACTED, ()))
         cards = [c for c in cards if str(c.item.approval.id) not in acted]
-        people = not_yet_applied(with_a_person(work), st.session_state.get(ACTED_CASES, {}))
+        people = not_yet_applied(
+            with_a_person(work),
+            st.session_state.get(ACTED_CASES, {}),
+            acted_at=st.session_state.get(ACTED_AT, {}),
+            now=time.time(),
+        )
         extra = {c.item.approval.id: _credit_basis(work, c) for c in cards if c.item.is_credit}
 
     st.markdown(
@@ -281,6 +297,7 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         proposals = [p for p in work.proposals.for_case(case.id) if p.reasoner != "human"]
         paid = work.actions.has_verified_credit(case.id)
         sheet = case_sheet.build(work, case)
+        unknown = unknown_actions(work, case.id)
     review = case.review_reason
     rec = recommendation(proposals[-1]) if proposals else None
     key = ticket.case_id
@@ -296,7 +313,7 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
             st.markdown(case_sheet.facts_html(sheet), unsafe_allow_html=True)
             st.markdown(view.last_proposal(rec), unsafe_allow_html=True)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
-        _decision_form(ticket, reviewer, case, sheet, paid=paid)
+        _decision_form(ticket, reviewer, case, sheet, paid=paid, unknown=unknown)
 
 
 #: The desk's own choices, after the verdicts code's menu allows (ADR 0046).
@@ -312,8 +329,18 @@ _DESK_EFFECT = {
 }
 
 
+#: A person's answer to "did it happen?", as the reviewer reads it.
+HAPPENED = {"Yes, it happened": DONE, "No, it did not happen": NOT_DONE}
+
+
 def _decision_form(
-    ticket: Ticket, reviewer: Actor, case: Case, sheet: case_sheet.Sheet, *, paid: bool
+    ticket: Ticket,
+    reviewer: Actor,
+    case: Case,
+    sheet: case_sheet.Sheet,
+    *,
+    paid: bool,
+    unknown: list[Unknown],
 ) -> None:
     key = ticket.case_id
     options = [v.label for v in sheet.verdicts] + [TAKE_OVER]
@@ -343,6 +370,19 @@ def _decision_form(
             "Only for Take it over: tell the seller a person is handling it",
             key=f"notify-{key}",
         )
+        answers: dict[str, str] = {}
+        for u in unknown:
+            # T37: a case goes back to the agent only once a person says what happened.
+            said = st.radio(
+                f"Only for Return it to the agent: did {u.what} actually happen? "
+                f"Check {u.where}. The agent could not confirm it, so it will not try again.",
+                list(HAPPENED),
+                index=None,
+                horizontal=True,
+                key=f"happened-{key}-{u.action_id}",
+            )
+            if said is not None:
+                answers[str(u.action_id)] = HAPPENED[said]
         note = st.text_area(
             "Why you decided this (kept on the case's record)", key=f"person-note-{key}", height=68
         )
@@ -352,7 +392,18 @@ def _decision_form(
                 "A credit on this case is already verified, so it cannot go back to the agent."
             )
     if sent:
-        _record(ticket, reviewer, sheet, choice, note, tuple(items), notify=notify, paid=paid)
+        _record(
+            ticket,
+            reviewer,
+            sheet,
+            choice,
+            note,
+            tuple(items),
+            notify=notify,
+            paid=paid,
+            unknown=unknown,
+            answers=answers,
+        )
 
 
 def _record(
@@ -365,6 +416,8 @@ def _record(
     *,
     notify: bool,
     paid: bool,
+    unknown: list[Unknown],
+    answers: dict[str, str],
 ) -> None:
     """The chosen decision, recorded through the desk (checked again there and by dispatch)."""
     if choice is None:
@@ -386,7 +439,17 @@ def _record(
         _desk(
             reviewer,
             ticket,
-            lambda desk, c: desk.return_to_agent(c, note, credit_verified=paid),
+            lambda desk, c: desk.return_to_agent(
+                c,
+                note,
+                credit_verified=paid,
+                unknown=[u.action_id for u in unknown],
+                resolutions={
+                    u.action_id: answers[str(u.action_id)]
+                    for u in unknown
+                    if str(u.action_id) in answers
+                },
+            ),
             said=f"returned {ticket.shipment_ref} to the agent. It starts a new round from "
             "fresh evidence; on a photo case that round also runs the photo check, and the "
             "case comes back here with its verdict.",
@@ -440,6 +503,7 @@ def _desk(reviewer: Actor, ticket: Ticket, act: object, *, said: str) -> None:
         0, f"{who} {said} Recorded; the agent applies it within a few seconds."
     )
     st.session_state.setdefault(ACTED_CASES, {})[ticket.case_id] = ticket.updated_at.isoformat()
+    st.session_state.setdefault(ACTED_AT, {})[ticket.case_id] = time.time()
     st.toast("Recorded. The agent applies it within a few seconds.")
     st.rerun()
 

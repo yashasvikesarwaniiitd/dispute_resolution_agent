@@ -300,7 +300,33 @@ def build(
                 executions += 1
                 if action is not None:
                     title, summary, lines = said.executed(action, plan(action))
-                    add(Step(at, Actor.CODE, title, lines, summary=summary))
+                    if said.went_out(action):
+                        add(Step(at, Actor.CODE, title, lines, summary=summary))
+                    else:
+                        # Never shown as done: no check mark for something not proven sent.
+                        add(
+                            Step(
+                                at,
+                                Actor.CODE,
+                                title,
+                                lines,
+                                summary=summary,
+                                tone=Tone.ATTENTION,
+                                mark=Mark.ATTENTION,
+                            )
+                        )
+                if to_state is CaseState.NEEDS_HUMAN_REVIEW:
+                    note, _t = _policy_note(to_state, review, message=False)
+                    add(
+                        Step(
+                            at,
+                            Actor.SYSTEM,
+                            "Handed to a person",
+                            (note,),
+                            minor=True,
+                            mark=Mark.MINOR,
+                        )
+                    )
             elif step == "verify":
                 action = actions[verifications] if verifications < len(actions) else None
                 verifications += 1

@@ -16,7 +16,8 @@ Four decisions, each a transition the engine guards:
   and its audit event). It is *not* shown to the investigator today - its reviewer notes
   come from rejected approvals only (BACKLOG). A case whose credit is already verified
   cannot return (the transition's own guard; checked here first so the reviewer is told
-  rather than ignored).
+  rather than ignored). Nor can one with an action whose fate is unknown until the person
+  says whether it happened (T37 `unknown_actions_resolved`; also checked here first).
 - **Confirm a withdrawal** (`HUMAN_CONFIRMED_WITHDRAWAL`, T38): only when the case is with a
   person *because* the seller wrote that they withdraw. The transition alone would accept it
   for any case; the desk does not offer it for one.
@@ -42,17 +43,24 @@ from dispute_agent.kernel.domain.inbound import (
     HumanDecidedCase,
     HumanReturnedCase,
     HumanTookCase,
+    UnknownActionResolution,
 )
 from dispute_agent.modules.approvals.streamlit_ui.console import HUMAN_PREFIX
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
     from datetime import datetime
 
     from dispute_agent.kernel.domain.events import InboundPayload
+    from dispute_agent.kernel.domain.ids import ActionId
     from dispute_agent.kernel.domain.models import Actor, Case
     from dispute_agent.kernel.ports import Clock
 
 SOURCE = "ops_console"
+#: A person's answer for an action whose fate the agent could not confirm (T37).
+DONE = "confirmed_done"
+NOT_DONE = "confirmed_not_done"
+RESOLUTIONS = (DONE, NOT_DONE)
 
 
 class Inbox(Protocol):
@@ -81,7 +89,22 @@ class CaseDesk:
             HumanTookCase(notify_seller=notify_seller, note=note.strip()[:500]),
         )
 
-    def return_to_agent(self, case: Case, reason: str, *, credit_verified: bool) -> None:
+    def return_to_agent(
+        self,
+        case: Case,
+        reason: str,
+        *,
+        credit_verified: bool,
+        unknown: Sequence[ActionId] = (),
+        resolutions: Mapping[ActionId, str] | None = None,
+    ) -> None:
+        """Send the case back for a new round (T37).
+
+        `unknown` is every action on the case whose fate is unknown; `resolutions` is the
+        person's answer for each ("confirmed_done" or "confirmed_not_done"). T37 refuses a
+        Return that leaves one unanswered, and the refusal is only a line on the trail, so
+        it is checked here first, where the person can be told.
+        """
         _with_a_person(case)
         if not reason.strip():
             raise DomainValidationError(
@@ -92,10 +115,26 @@ class CaseDesk:
                 "this case already has a verified credit, so it cannot go back to the agent; "
                 "take it over instead"
             )
+        answered = dict(resolutions or {})
+        if any(answered.get(a) not in RESOLUTIONS for a in unknown):
+            raise DomainValidationError(
+                "say whether each action the agent could not confirm actually happened, "
+                "before returning the case"
+            )
         self._record(
             InboundEventType.HUMAN_RETURNED_CASE,
             case,
-            HumanReturnedCase(reason=reason.strip()[:500]),
+            HumanReturnedCase(
+                reason=reason.strip()[:500],
+                unknown_action_resolutions=tuple(
+                    UnknownActionResolution(
+                        action_id=a,
+                        resolution=answered[a],  # checked above: one of RESOLUTIONS
+                        evidence_note=reason.strip()[:500],
+                    )
+                    for a in unknown
+                ),
+            ),
         )
 
     def decide(
@@ -167,4 +206,4 @@ def _with_a_person(case: Case) -> None:
         raise DomainValidationError("this case is no longer waiting for a person")
 
 
-__all__ = ["SOURCE", "CaseDesk", "can_confirm_withdrawal"]
+__all__ = ["DONE", "NOT_DONE", "RESOLUTIONS", "SOURCE", "CaseDesk", "can_confirm_withdrawal"]
