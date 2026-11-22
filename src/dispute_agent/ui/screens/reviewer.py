@@ -23,8 +23,9 @@ import streamlit as st
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.actions import CreditPayload
-from dispute_agent.kernel.domain.enums import ActionStatus
+from dispute_agent.kernel.domain.enums import ActionStatus, ActorKind
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
+from dispute_agent.kernel.domain.models import Actor
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.approvals.streamlit_ui.console import (
     ReviewConsole,
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
     from streamlit.delta_generator import DeltaGenerator
 
     from dispute_agent.kernel.domain.ids import ApprovalId
-    from dispute_agent.kernel.domain.models import Actor, Case
+    from dispute_agent.kernel.domain.models import Case
     from dispute_agent.ui.seller import Ticket
 
 LINES = "review_lines"  # what was decided this session, said in a line each
@@ -104,7 +105,7 @@ def page() -> None:
                 unsafe_allow_html=True,
             )
         for card in cards:
-            _card(card, reviewer, extra.get(card.item.approval.id, (None, money(Decimal(0)))))
+            _card(card, reviewer, extra.get(card.item.approval.id, (None, money(Decimal(0)), None)))
     with handed:
         for said in st.session_state.get(DESK_LINES, []):
             st.markdown(line(said), unsafe_allow_html=True)
@@ -118,7 +119,13 @@ def page() -> None:
 
 def _signed_in() -> Actor | None:
     if "reviewer" in st.session_state:
-        actor: Actor = st.session_state["reviewer"]
+        # Rebuilt from its plain values on every run. A deploy that only pulls code reloads
+        # the modules but keeps sessions, and the stored object is then an instance of the
+        # OLD Actor class: its kind no longer `is` ActorKind.HUMAN, and the console refused
+        # the signed-in owner as "a system actor" (found in live QA, 2026-11-23).
+        stored = st.session_state["reviewer"]
+        actor = Actor(kind=ActorKind(str(stored.kind.value)), id=str(stored.id))
+        st.session_state["reviewer"] = actor
         note, switch = st.columns([5, 1], vertical_alignment="center")
         note.caption(
             f"Signed in as {actor.id.removeprefix('human:')}. Your name is recorded against each "
@@ -181,8 +188,9 @@ def _count(cards: list[Card], people: int) -> str:
     return waiting + handed
 
 
-def _credit_basis(work: object, card: Card) -> tuple[str | None, str]:
-    """The duplicate debit a duplicate-charge credit returns, and what is already credited."""
+def _credit_basis(work: object, card: Card) -> tuple[str | None, str, str | None]:
+    """The duplicate debit a duplicate-charge credit returns, what is already credited, and
+    the charge on the hub's re-measurement for a remeasurement credit."""
     case_id = card.item.approval.request.case_id
     latest = work.assessments.latest(case_id)  # type: ignore[attr-defined]
     dup = latest.duplicate_debit_total if latest is not None else None
@@ -201,7 +209,14 @@ def _credit_basis(work: object, card: Card) -> tuple[str | None, str]:
         if dup is not None and card.item.credit_reason == "duplicate_charge"
         else None
     )
-    return duplicate, money(already)
+    remeasured = (
+        render_fact(latest.recalculated_remeasured)
+        if latest is not None
+        and latest.recalculated_remeasured is not None
+        and card.item.credit_reason == "remeasurement_lower"
+        else None
+    )
+    return duplicate, money(already), remeasured
 
 
 def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
@@ -223,7 +238,7 @@ def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
             )
 
 
-def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
+def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]) -> None:
     item, ticket = card.item, card.case
     aid = item.approval.id
     request = item.approval.request
@@ -248,7 +263,11 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str]) -> None:
                 )
                 st.markdown(
                     view.if_approve_credit(
-                        item, proposer=proposer, duplicate=basis[0], already=basis[1]
+                        item,
+                        proposer=proposer,
+                        duplicate=basis[0],
+                        already=basis[1],
+                        remeasured=basis[2],
                     ),
                     unsafe_allow_html=True,
                 )

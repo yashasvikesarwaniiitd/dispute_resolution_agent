@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.actions import CreditPayload, IssuePayload, MessagePayload
 from dispute_agent.kernel.domain.enums import ActionStatus, CaseState
+from dispute_agent.kernel.domain.values import Money
+from dispute_agent.kernel.policy.credit import lowest_proven_correct_charge
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.ui.labels import EVIDENCE, MESSAGE, clock, words
 from dispute_agent.ui.photo_check import IMAGE_CHECK as PHOTO_CHECK
@@ -52,6 +54,24 @@ def evidence(bundle: EvidenceBundle, *, asked_later: bool) -> tuple[str, tuple[s
     return summary, (("Found: " + ", ".join(found) + ".") if found else "No item was found.",)
 
 
+def proven_charge(found: ChargeAssessment | None) -> tuple[str, str] | None:
+    """(correct charge, overcharge) on the lowest charge code PROVED, as the credit uses it.
+
+    A lower remeasurement proves a charge on the hub's new figures, not on its first ones, so
+    the plain recalculation (`f_recalculated`) still reads "correct = charged" while the
+    credit is the difference. Showing the plain figures beside "proved a remeasurement lower"
+    read as "overcharged ₹0.00, credited ₹76.00" (live QA, 2026-11-23). None when no lower
+    charge is proven.
+    """
+    if found is None or found.charged is None:
+        return None
+    correct = lowest_proven_correct_charge(found)
+    if correct is None or correct.to_paise() >= found.charged.to_paise():
+        return None
+    over = Money.from_paise(found.charged.to_paise() - correct.to_paise())
+    return render_fact(correct), render_fact(over)
+
+
 def recalculation(
     found: ChargeAssessment | None, *, closed_ineligible: bool
 ) -> tuple[str, tuple[str, ...]]:
@@ -63,6 +83,14 @@ def recalculation(
     charged, correct, over = (
         facts.get(k) for k in ("f_charged", "f_recalculated", "f_discrepancy")
     )
+    proven = proven_charge(found)
+    if proven is not None:
+        correct, over = proven
+        if found.recalculated_remeasured is not None:
+            details = (
+                *details,
+                f"Charge on the hub's re-measurement: {render_fact(found.recalculated_remeasured)}",
+            )
     if closed_ineligible:
         return (
             "Worked out before the scan history was read. Not used, because the shipment turned "
@@ -230,6 +258,7 @@ __all__ = [
     "evidence",
     "executed",
     "proved",
+    "proven_charge",
     "recalculation",
     "waiting",
     "went_out",

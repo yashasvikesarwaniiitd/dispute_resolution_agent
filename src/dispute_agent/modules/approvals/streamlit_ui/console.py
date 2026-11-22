@@ -25,7 +25,7 @@ from __future__ import annotations
 import hmac
 import re
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.enums import ActorKind, ApprovalDecision
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
@@ -154,7 +154,12 @@ class ReviewConsole:
         return self.store.pending()
 
     def view(
-        self, approval: Approval, *, intents: IntentStore, assessments: AssessmentStore
+        self,
+        approval: Approval,
+        *,
+        intents: IntentStore,
+        assessments: AssessmentStore,
+        actions: Any = None,
     ) -> PendingItem:
         """What the reviewer sees for one approval: the stored text and its numbers' sources.
 
@@ -174,6 +179,14 @@ class ReviewConsole:
             else assessments.latest(approval.request.case_id)
         )
         facts = {fact.fact_id: fact for fact in (assessment.facts if assessment else ())}
+        if actions is not None:
+            # Facts code established after the assessment, exactly as R09 reads them when it
+            # clears the message: `credited_amount`, from the VERIFIED ledger credit. Without
+            # them every credit confirmation showed its amount as "NO SOURCE FOUND - do not
+            # approve", though policy had verified it (found in live QA, 2026-11-23).
+            from dispute_agent.kernel.orchestrator.execution import _kernel_facts
+
+            facts.update({f.fact_id: f for f in _kernel_facts(intent, intents, actions)})
         payload = intent.payload
         if getattr(payload, "type", None) == "credit":
             from dispute_agent.kernel.policy.numbers import render_fact

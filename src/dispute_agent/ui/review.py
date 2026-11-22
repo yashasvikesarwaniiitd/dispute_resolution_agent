@@ -37,7 +37,9 @@ def queue(work: SqliteUnitOfWork, console: ReviewConsole) -> list[Card]:
     """Everything awaiting a decision, oldest first, each with its case and recommendation."""
     cards = []
     for approval in console.queue():
-        item = console.view(approval, intents=work.intents, assessments=work.assessments)
+        item = console.view(
+            approval, intents=work.intents, assessments=work.assessments, actions=work.actions
+        )
         case = work.cases.get(approval.request.case_id)
         proposals = list(work.proposals.for_case(case.id))
         cards.append(

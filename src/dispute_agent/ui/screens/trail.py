@@ -141,14 +141,19 @@ def page() -> None:
     st.session_state["case"] = selected
     is_open = next(t.is_open for t in everyone if t.case_id == selected)
     with main:
-        st.fragment(_case, run_every=REFRESH_S if is_open else None)(selected)
+        st.fragment(_case, run_every=REFRESH_S if is_open else None)(selected, is_open)
 
 
-def _case(case_id: str) -> None:
+def _case(case_id: str, was_open: bool = False) -> None:
     with data.reader() as work:
         case = work.cases.get(case_id)  # type: ignore[arg-type]
         trail = build(work, case, usage=data.ai_usage(case.id), policy=data.policy())
         where = journey(work, case)
+    if was_open and not trail.is_open:
+        # It closed while this card refreshed on its own. Redraw the whole page once, so the
+        # case list beside it stops showing the old status ("Checking it happened" next to
+        # "Resolved: credited", found in live QA) and the refresh stops.
+        st.rerun(scope="app")
     with st.container(key="card-case"):
         photo = photo_for(case.facts.shipment_ref)
         text, picture = st.columns([3, 1], gap="large") if photo else (st.container(), None)

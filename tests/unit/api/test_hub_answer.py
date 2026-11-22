@@ -8,6 +8,7 @@ the hub-findings job carries that into the case. Code then proves the lower reme
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -22,6 +23,7 @@ from dispute_agent.kernel.domain.external import OpsFinding
 from dispute_agent.kernel.domain.ids import CaseId
 from dispute_agent.kernel.domain.values import UntrustedText
 from dispute_agent.ui.desk import CaseDesk
+from dispute_agent.ui.trail import build
 from tests.unit.api.test_reopen_dispute import OWNER, _raise, _state, _work, running_app
 
 if TYPE_CHECKING:
@@ -106,6 +108,57 @@ def test_a_remeasurement_on_jira_moves_the_case_and_code_proves_it(app: Any) -> 
         assessment = work.assessments.latest(CaseId(case_id))
     assert assessment is not None
     assert "remeasurement_lower" in assessment.definite_errors  # code proved it (I9)
+    # The timeline says what the hub found, and the figures are the ones the credit uses:
+    # it once read "correct ₹152.00, overcharged ₹0.00" beside a ₹76.00 credit (live QA).
+    with _work(app) as work:
+        steps = build(work, work.cases.get(CaseId(case_id))).steps
+    said = [f"{s.title} | {s.summary}" for s in steps]
+    assert "The hub sent its finding | Re-measured the parcel: 20 x 15 x 10 cm, 0.48 kg." in said
+    assert any("correct ₹76.00, overcharged ₹76.00" in line for line in said)
+
+
+def test_the_confirmation_email_names_where_its_amount_came_from(app: Any) -> None:
+    """Every credit confirmation showed its amount as "NO SOURCE FOUND - do not approve":
+    the card read only the assessment's facts, not the credited amount R09 cleared it with."""
+    from dispute_agent.modules.approvals.streamlit_ui.console import UNKNOWN_SOURCE, ReviewConsole
+    from dispute_agent.ui.review import queue
+
+    case_id = _waiting_on_the_hub(app)
+    key = _issue_key(app, case_id)
+    app.state.application.adapters.ticketing.post_finding(
+        OpsFinding(
+            issue_key=key,
+            finding_id="comment:2",
+            kind="remeasured",
+            measured={
+                "length_cm": Decimal(20),
+                "width_cm": Decimal(15),
+                "height_cm": Decimal(10),
+                "dead_grams": 480,
+            },
+            at=datetime.now(UTC),
+        )
+    )
+    runner = app.state.application.runtime.runner
+    _job(app)._last_run = None
+    cards: list[Any] = []
+    for _ in range(20):  # approve the credit, then wait for its confirmation email
+        runner.tick()
+        with _work(app) as work:
+            console = ReviewConsole(store=work.approvals, clock=SystemClock(), reviewer=OWNER)
+            cards = [c for c in queue(work, console) if not c.item.is_credit]
+            for pending in work.approvals.pending(CaseId(case_id)):
+                if pending.request.amount is not None:
+                    work.approvals.decide(
+                        pending.id, ApprovalDecision.APPROVED, OWNER, datetime.now(UTC), "Yes."
+                    )
+        if cards:
+            break
+        time.sleep(0.25)
+    assert cards, "no confirmation email reached the queue"
+    numbers = cards[0].item.numbers
+    assert numbers and all(source != UNKNOWN_SOURCE for _, source in numbers)
+    assert ("₹76.00", "amount credited") in numbers
 
 
 def test_reading_twice_delivers_the_answer_once(app: Any) -> None:

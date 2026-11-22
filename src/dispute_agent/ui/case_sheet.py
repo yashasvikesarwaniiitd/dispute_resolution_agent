@@ -181,6 +181,10 @@ def _figures(assessment: ChargeAssessment | None) -> tuple[tuple[str, str], ...]
         rows.append(("Correct charge, by code", render_fact(assessment.recalculated)))
     if assessment.discrepancy is not None:
         rows.append(("Difference", render_fact(assessment.discrepancy)))
+    if assessment.recalculated_remeasured is not None:
+        rows.append(
+            ("Charge on the hub's re-measurement", render_fact(assessment.recalculated_remeasured))
+        )
     proven = [ERROR_WORDS.get(e, e) for e in assessment.definite_errors]
     rows.append(("Errors code proved", ", ".join(proven) if proven else "none"))
     return tuple(rows)

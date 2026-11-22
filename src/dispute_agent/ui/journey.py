@@ -24,6 +24,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.ui.labels import Tone, handed_over, state, words
+from dispute_agent.ui.trail_words import proven_charge
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -109,6 +110,16 @@ def journey(work: SqliteUnitOfWork, case: Case) -> Journey:
         else tuple((label, facts[key]) for key, label in FIGURES if key in facts)
     )
     lead, note = ("Overcharged" if latest and latest.definite_errors else ""), ""
+    proven = proven_charge(latest)
+    if figures and proven is not None:
+        # The credit's basis: the lowest charge code proved, not the first recalculation.
+        figures = (
+            ("Charged", facts.get("f_charged", "")),
+            ("Correct charge", proven[0]),
+            ("Overcharged", proven[1]),
+        )
+        if latest is not None and "remeasurement_lower" in latest.definite_errors:
+            note = "Worked out on the hub's re-measurement of the parcel."
     duplicate = latest.duplicate_debit_total if latest is not None else None
     if figures and latest and "duplicate_charge" in latest.definite_errors and duplicate:
         # The weight charge was right; the credit's basis is the second debit (HANDOFF 4.2).

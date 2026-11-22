@@ -94,8 +94,15 @@ def if_approve_credit(
     proposer: str,
     duplicate: str | None,
     already: str,
+    remeasured: str | None = None,
 ) -> str:
-    """The right half for a credit: the exact amount, how code set it, and its figures."""
+    """The right half for a credit: the exact amount, how code set it, and its figures.
+
+    `remeasured` is the charge on the hub's re-measurement, for a remeasurement credit. Its
+    figures then name the first recalculation for what it is, and leave out its overcharge:
+    "Overcharge ₹0.00" under "A credit of ₹76.00" read as a contradiction (live QA,
+    2026-11-23).
+    """
     reason_words = words(item.credit_reason or "")
     if duplicate is not None:
         how = "the second debit of the same weight charge, less anything already credited on this shipment"
@@ -109,6 +116,15 @@ def if_approve_credit(
         rows = [("Already credited on this shipment", already)]
         tail = ""
     figures = [(label.capitalize(), value) for label, value in item.evidence]
+    if remeasured is not None and duplicate is None:
+        rows.append(("Charge on the hub's re-measurement", remeasured))
+        figures = [
+            ("Charge on the hub's first measurement", value)
+            if label.lower() == "recalculated charge"
+            else (label, value)
+            for label, value in figures
+            if label.lower() != "overcharge"
+        ]
     return (
         "<h3>If you approve</h3>"
         f'<p>A credit of</p><p class="figure-lg">{escape(item.credit_amount)}</p>'

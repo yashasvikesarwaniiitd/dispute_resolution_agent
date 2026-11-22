@@ -223,7 +223,14 @@ def build(
             add(Step(at, Actor.SELLER, "The seller replied"))
             after = "After the seller replied"
         elif kind == InboundEventType.OPS_FINDING_RECEIVED:
-            add(Step(at, Actor.HUB, "The hub sent its finding"))
+            add(
+                Step(
+                    at,
+                    Actor.HUB,
+                    "The hub sent its finding",
+                    summary=_hub_said(work, case, rounds + 1),
+                )
+            )
             after = "After the hub's finding"
         elif kind == InboundEventType.TIMER_FIRED:
             add(Step(at, Actor.SYSTEM, "A deadline passed", tone=Tone.WAITING))
@@ -344,6 +351,26 @@ def build(
         line = said.waiting(case.state, pending, policy)
         add(Step(trail.steps[-1].at, Actor.SYSTEM, line, minor=True, mark=Mark.PENDING))
     return trail
+
+
+def _hub_said(work: SqliteUnitOfWork, case: Case, next_round: int) -> str:
+    """What the hub found, in the figures the next round gathered (the structured answer)."""
+    try:
+        item = work.evidence.bundle(case.id, next_round).by_key("ops.finding")
+    except Exception:  # not gathered yet, or no such round: say nothing rather than guess
+        return ""
+    value = item.result.value or {}
+    kind = value.get("kind")
+    if kind == "remeasured" and all(k in value for k in ("length_cm", "width_cm", "height_cm")):
+        size = f"{value['length_cm']} x {value['width_cm']} x {value['height_cm']} cm"
+        grams = value.get("dead_grams")
+        weight = f", {Decimal(str(grams)) / 1000:.2f} kg" if grams is not None else ""
+        return f"Re-measured the parcel: {size}{weight}."
+    if kind == "no_fault_found":
+        return "The hub stands by its measurement: no fault found."
+    if kind == "inspected":
+        return "The hub inspected the parcel but gave no new measurement."
+    return ""
 
 
 def _photo_checked(at: datetime, checked: photo_check.PhotoCheck) -> Step:
