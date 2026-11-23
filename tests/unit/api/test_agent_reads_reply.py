@@ -152,3 +152,41 @@ def test_the_agent_reads_the_reply_asks_the_hub_and_code_proves_the_credit(
     with _work(app) as work:
         [credit] = list(work.approvals.pending(CaseId(case_id)))
     assert credit.request.amount is not None and str(credit.request.amount.amount) == "76.00"
+
+
+def test_a_real_gmail_reply_is_read_not_flagged(app: Any, reader: StandInReader) -> None:
+    """ADR 0055, the live fault: a reply from Gmail quotes our email under the seller's words,
+    and its "Name <address> wrote:" line made the input screen flag every such reply, so the
+    case went to a person as an instruction attempt. Now only the seller's words are read."""
+    from fastapi.testclient import TestClient
+
+    own = "Here is the photo of the packed box beside a tape measure."
+    gmail = (
+        f"{own}\r\n\r\nOn Sun, 23 Nov 2026 at 11:10, Dispute desk <\r\n"
+        "support@example.invalid> wrote:\r\n\r\n> Hello,\r\n>\r\n"
+        "> Please reply to this email with a photo of the packed box.\r\n"
+    )
+    case_id = str(_raise(TestClient(app), "console-gmail")["case_id"])
+    with _work(app) as work:
+        CaseDesk(inbox=work.inbox, clock=SystemClock(), reviewer=OWNER).decide(
+            work.cases.get(CaseId(case_id)),
+            "request_seller_evidence",
+            "Ask for a photo.",
+            requested_items=(ASKED,),
+        )
+    assert _tick_until(app, case_id, {CaseState.AWAITING_SELLER}) is CaseState.AWAITING_SELLER
+    app.state.application.adapters.email.deliver(
+        InboundMessage(
+            external_message_id="reply-gmail-1",
+            internet_message_id="<reply-gmail-1@mail.example.invalid>",
+            from_addr=SELLER_CONTACT,
+            to_addr="support@example.invalid",
+            subject=UntrustedText.create("Re: SHP-000001", "seller_email", "reply-gmail-1"),
+            body=UntrustedText.create(gmail, "seller_email", "reply-gmail-1"),
+            received_at=datetime.now(UTC),
+        )
+    )
+    _job(app, SellerRepliesJob)._last_run = None
+    got = _tick_until(app, case_id, {CaseState.AWAITING_OPS, CaseState.NEEDS_HUMAN_REVIEW})
+    assert got is CaseState.AWAITING_OPS  # the agent acted; no false flag sent it to a person
+    assert [c.reply.text for c in reader.read] == [own]  # the reader saw the seller's words only

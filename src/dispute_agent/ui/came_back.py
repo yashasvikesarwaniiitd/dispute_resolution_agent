@@ -8,10 +8,13 @@ mail client appends) is left out of what is shown: it is the agent's own email c
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+
+# One rule for what is quoted, shared with the reply step (ADR 0055). Replies recorded before
+# that step stripped the quote still carry it, so the card strips it again for display.
+from dispute_agent.kernel.domain.mailbox import new_text
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -21,10 +24,6 @@ if TYPE_CHECKING:
 
 HUB = "ops.finding"
 REPLY = "seller_reply"
-#: Where a mail client starts quoting the message being replied to.
-_QUOTE_START = re.compile(
-    r"^\s*(?:On\s.+wrote:|-{2,}\s*Original Message\s*-{2,}|From:\s.+|>.*)\s*$", re.IGNORECASE
-)
 
 
 @dataclass(frozen=True)
@@ -54,16 +53,6 @@ def hub_answer(item: EvidenceItem) -> tuple[str, tuple[str, ...]]:
             tuple(u.text for u in item.result.untrusted),
         )
     return "", ()
-
-
-def new_text(reply: str) -> str:
-    """The reply above the quoted email it answers."""
-    kept: list[str] = []
-    for line in reply.replace("\r\n", "\n").split("\n"):
-        if _QUOTE_START.match(line):
-            break
-        kept.append(line)
-    return "\n".join(kept).strip() or reply.strip()
 
 
 #: The reply reader's intents, as a person reads them (ADR 0054).

@@ -39,6 +39,7 @@ from dispute_agent.kernel.domain.evidence import EvidenceItem, EvidenceResult
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import EvidenceItemId
 from dispute_agent.kernel.domain.inbound import SellerReplyReceived, parse_inbound
+from dispute_agent.kernel.domain.mailbox import reply_only
 from dispute_agent.kernel.domain.reasoning import (
     ContactStatus,
     ReplyAttachment,
@@ -106,6 +107,9 @@ class ReplyReader:
         return count
 
     def _item(self, case: Case, reply: SellerReplyReceived, now: datetime) -> EvidenceItem:
+        # Only the seller's own words are evidence: the quoted email below them is ours,
+        # and screening it flagged real replies as attacks (ADR 0055).
+        reply = reply.model_copy(update={"body": reply_only(reply.body)})
         reading, error = self._interpret(case, reply)
         result = EvidenceResult(
             requirement_key=SELLER_REPLY,
