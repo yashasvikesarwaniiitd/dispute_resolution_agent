@@ -1,3 +1,8 @@
 # Streamlit Community Cloud installs from here (ADR 0045): the project itself, with its
 # runtime dependencies from pyproject.toml. Local work uses uv and uv.lock instead.
+# The Review screen's "Ask about this shipment" (ADR 0058) needs the explainer's two libraries
+# from the `agents` group, which pip does not install from pyproject on its own.
+claude-agent-sdk>=0.2.178
+llama-index-core>=0.14.25
+llama-index-retrievers-bm25>=0.8.0
 .

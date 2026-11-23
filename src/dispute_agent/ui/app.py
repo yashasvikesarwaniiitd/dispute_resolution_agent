@@ -34,6 +34,7 @@ def main(
     hosted: bool = False,
     post: Callable[[dict[str, str]], tuple[int, dict[str, Any]]] | None = None,
     start: Callable[[], object] | None = None,
+    explain: Callable[[str, str], Any] | None = None,
 ) -> None:
     st.set_page_config(page_title="Dispute desk", page_icon=":material/balance:", layout="wide")
     st.html(stylesheet())
@@ -48,6 +49,8 @@ def main(
             return
     if post is not None:
         st.session_state["post"] = post
+    if explain is not None:  # composed by the entry point: nothing here imports app (ADR 0058)
+        st.session_state["explain"] = explain
     pages = {
         "seller": st.Page(
             seller.page,

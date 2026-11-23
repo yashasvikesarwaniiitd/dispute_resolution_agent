@@ -33,10 +33,10 @@ from dispute_agent.modules.approvals.streamlit_ui.console import (
     sign_in,
 )
 from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
-from dispute_agent.ui import case_sheet, data, photo_check
+from dispute_agent.ui import ask, case_sheet, data, photo_check, picker
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import DONE, NOT_DONE, CaseDesk, can_confirm_withdrawal
-from dispute_agent.ui.labels import handed_over, money, when
+from dispute_agent.ui.labels import clock, handed_over, money, when
 from dispute_agent.ui.labels import reason as reason_words
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.review import (
@@ -105,8 +105,27 @@ def page() -> None:
                 '<p class="muted">Nothing is waiting. Every credit and message has been decided.</p>',
                 unsafe_allow_html=True,
             )
-        for card in cards:
-            _card(card, reviewer, extra.get(card.item.approval.id, (None, money(Decimal(0)), None)))
+        else:
+            # One row per shipment: a credit and an email on one case are one shipment.
+            groups: dict[str, list[Card]] = {}
+            for card in cards:
+                groups.setdefault(card.case.case_id, []).append(card)
+            chosen, main = _shipments(
+                "waiting",
+                [g[0].case for g in groups.values()],
+                {
+                    cid: " · ".join(view.what(c.item).removeprefix("the ") for c in g)
+                    for cid, g in groups.items()
+                },
+            )
+            with main:
+                ask.panel(groups[chosen][0].case, "waiting")
+                for card in groups[chosen]:
+                    _card(
+                        card,
+                        reviewer,
+                        extra.get(card.item.approval.id, (None, money(Decimal(0)), None)),
+                    )
     with handed:
         for said in st.session_state.get(DESK_LINES, []):
             st.markdown(line(said), unsafe_allow_html=True)
@@ -114,8 +133,63 @@ def page() -> None:
             st.markdown(
                 '<p class="muted">No case is waiting for a person.</p>', unsafe_allow_html=True
             )
-        for person_case in people:
-            _person_card(person_case, reviewer)
+        else:
+            by_id = {t.case_id: t for t in people}
+            chosen, main = _shipments(
+                "person", list(people), {t.case_id: f"since {clock(t.updated_at)}" for t in people}
+            )
+            with main:
+                ask.panel(by_id[chosen], "person")
+                _person_card(by_id[chosen], reviewer)
+
+
+def _shipments(tab: str, shown: list[Ticket], aside: dict[str, str]) -> tuple[str, DeltaGenerator]:
+    """The tab's shipments on the left, as on The agent's steps, and the column beside them.
+
+    Returns the chosen case: the one clicked last, or the first when that one has left.
+    """
+    ids = [t.case_id for t in shown]
+    key = f"review-case-{tab}"
+    selected = st.session_state.get(key)
+    if selected not in ids:
+        selected = ids[0]
+    side, main = st.columns([1, 3], gap="large")
+    with side:
+        st.markdown(
+            f'<h2 class="side-head">Shipments <span class="muted">({len(ids)})</span></h2>',
+            unsafe_allow_html=True,
+        )
+        query = st.text_input(
+            "Find a shipment by number or status",
+            placeholder="Shipment or status",
+            label_visibility="collapsed",
+            key=f"review-search-{tab}",
+        )
+        q = query.strip().lower()
+        clicked = picker.show(
+            {
+                "view": "cases",
+                "selected": selected,
+                "empty": "No shipment matches that.",
+                "rows": [
+                    {
+                        "id": t.case_id,
+                        "title": t.shipment_ref,
+                        "aside": aside.get(t.case_id, ""),
+                        "status": t.label,
+                        "tone": t.tone.value,
+                    }
+                    for t in shown
+                    if not q or q in t.shipment_ref.lower() or q in t.label.lower()
+                ],
+            },
+            key=f"review-{tab}",
+        )
+        if clicked["pick"] in ids and clicked["pick"] != selected:
+            st.session_state[key] = clicked["pick"]
+            st.rerun()
+    st.session_state[key] = selected
+    return selected, main
 
 
 def _signed_in() -> Actor | None:

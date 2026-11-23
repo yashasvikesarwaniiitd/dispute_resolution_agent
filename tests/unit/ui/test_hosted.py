@@ -142,7 +142,11 @@ class TestConfiguration:
     def test_the_hosted_entry_composes_outside_the_package(self) -> None:
         entry = (ROOT / "streamlit_app.py").read_text(encoding="utf-8")
         assert "main(hosted=True" in entry and "create_app" in entry
-        assert (ROOT / "requirements.txt").read_text(encoding="utf-8").strip().endswith(".")
+        needs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+        assert needs.strip().endswith(".")
+        # ADR 0058: the Review screen's assistant runs hosted, so its libraries travel too.
+        for lib in ("claude-agent-sdk", "llama-index-core", "llama-index-retrievers-bm25"):
+            assert lib in needs, lib
 
 
 class TestTheSecretsBlock:

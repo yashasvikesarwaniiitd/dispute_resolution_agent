@@ -107,6 +107,18 @@ class TestTheReaderCannotWrite:
         with pytest.raises(CaseNotFoundError):
             CaseReader(database).timeline("case_nope")
 
+    def test_a_pinned_explainer_reads_its_one_case_and_no_other(
+        self, database: Path, policies: PolicyIndex
+    ) -> None:
+        """ADR 0058: the Review screen's chat cannot be led into another seller's case."""
+        tools = ExplainerTools(CaseReader(database), policies, only_case="case_1")
+        assert "case" in tools.call("case_overview", {"case_id": "case_1"})
+        for name in ("case_overview", "case_timeline", "case_decisions"):
+            assert tools.call(name, {"case_id": "case_2"}) == {
+                "error": "this conversation may read case 'case_1' only"
+            }
+        assert "passages" in tools.call("policy_lookup", {"query": "R16"})  # rules are shared
+
 
 class TestTheAgentIsBoxedIn:
     def test_no_built_in_tool_and_only_our_four(

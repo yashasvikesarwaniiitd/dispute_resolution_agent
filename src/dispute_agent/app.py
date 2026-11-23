@@ -1212,11 +1212,14 @@ EXPLAINER_CAP_USD = "0.25"
 EXPLAINER_USAGE_LOG = PROJECT_ROOT / "data" / "explainer_usage.jsonl"
 
 
-def build_case_explainer(settings: Settings, database: Path) -> Any:
+def build_case_explainer(
+    settings: Settings, database: Path, *, only_case: str | None = None
+) -> Any:
     """The read-only Case Explainer on the Claude Agent SDK (ADR 0039), Haiku only (I14).
 
     Built here and nowhere else, like every route to a model. Refuses to start without the
     key, with a non-Haiku model, or with an inactive prompt unless PROMPTS_ALLOW_INACTIVE.
+    `only_case` pins it to one case, as the Review screen's chat does (ADR 0058).
     """
     from decimal import Decimal
 
@@ -1241,7 +1244,9 @@ def build_case_explainer(settings: Settings, database: Path) -> Any:
             "prompt case_explainer/v1 is inactive; set PROMPTS_ALLOW_INACTIVE=true only for its check"
         )
     return CaseExplainer(
-        tools=ExplainerTools(reader=CaseReader(database), policies=default_index()),
+        tools=ExplainerTools(
+            reader=CaseReader(database), policies=default_index(), only_case=only_case
+        ),
         system_prompt=registry.system_text("case_explainer", "v1"),
         model=model,
         api_key=key.get_secret_value(),

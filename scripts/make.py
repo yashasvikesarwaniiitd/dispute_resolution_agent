@@ -97,7 +97,7 @@ def run_api() -> int:
 def run_console() -> int:
     """The operations console (ADR 0044): seller tickets, agent steps, review, ledger.
     Run beside `make run-api`; it reads the same stores and posts tickets to that service."""
-    return uv("streamlit", "run", "src/dispute_agent/ui/app.py", "--server.address", "127.0.0.1")
+    return uv("streamlit", "run", "console_app.py", "--server.address", "127.0.0.1")
 
 
 def hosted_secrets() -> int:

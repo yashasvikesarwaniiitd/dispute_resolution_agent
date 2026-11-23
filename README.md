@@ -193,7 +193,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 |---|---|---|---|
 | **Custom loop** (the engine) | Runs every case over days: state machine, policy rules, action gate | The decision-maker. The AI investigates and proposes; code decides. Kept custom on purpose: no framework is allowed to call write tools on the model's behalf. | Fifteen invariants, each with tests that try to break them |
 | **Custom agent loop** (the agentic investigator) | Works one case in steps (`REASONING_ENGINE=agent`) | Instead of answering once, the AI picks its own lookups: open a piece of evidence in full, read a policy rule, check its draft. Then it decides. Like an analyst who pulls the file before signing off. | Read-only tools only (evidence already gathered, local policy index). At most 4 steps, the case's usual call cap, every call through the guarded gateway. Its decision faces the same checks and policy as before. Off by default (ADR 0042) |
-| **Claude Agent SDK** | The **Case Explainer** (`make explain`) | A reviewer asks *"why did this case go to a person?"* and an assistant reads the case history and answers, citing its sources. | Four read-only tools. The database is opened read-only, so SQLite itself refuses writes. No built-in tools; anything else is denied; Haiku only; capped spend (ADR 0039) |
+| **Claude Agent SDK** | The **Case Explainer**: "Ask about this shipment" on the Review screen, and `make explain` | A reviewer asks *"why did this case go to a person?"* and an assistant reads the case history and answers, citing its sources. | Four read-only tools. The database is opened read-only, so SQLite itself refuses writes. No built-in tools; anything else is denied; Haiku only; capped spend (ADR 0039) |
 | **LlamaIndex** | **Policy lookup** for the Explainer | Finds the exact rule or decision record behind an answer, so "R16" becomes a sentence a new reviewer understands. | Local keyword search (BM25): no AI, no cost, no network; project documents only (ADR 0040) |
 | **LangGraph** | An experimental **two-pass investigator** (`REASONING_ENGINE=graph`) | Asks the AI twice. If the two answers disagree, the more cautious one wins and a person decides. A model that disagrees with itself shouldn't decide. | Still only proposes. Every AI call goes through the guarded gateway. Never less cautious than either pass (property-tested). Off by default (ADR 0041) |
 | **Claude Code** | How the whole product was built | Design, code, tests, reviews and documentation | – |
@@ -355,7 +355,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (57 decision records) |
+| Why each decision was made | `docs/adr/` (58 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

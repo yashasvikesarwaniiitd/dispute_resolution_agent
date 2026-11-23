@@ -366,3 +366,97 @@ def test_an_odd_approver_name_is_refused(name: str) -> None:
 
     with pytest.raises(DomainValidationError):
         reviewer_named(name)
+
+
+class TestAskAboutThisShipment:
+    """ADR 0058: the Review screen lists shipments, and the AI answers about the chosen one."""
+
+    def _signed_in(self, desk: dict[str, Any]) -> AppTest:
+        at = AppTest.from_function(_review, default_timeout=60).run()
+        at.text_input[0].input(desk["token"])
+        next(b for b in at.button if b.label == "Sign in").click().run()
+        assert not at.exception
+        return at
+
+    def test_a_starter_question_is_answered_about_the_chosen_shipment_only(
+        self, desk: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dispute_agent.modules.reasoning.explainer.agent import Answer
+        from dispute_agent.ui import ask
+
+        asked: list[tuple[str, str]] = []
+
+        def fake(case_id: str, question: str) -> Answer:  # no model, no cost
+            asked.append((case_id, question))
+            return Answer(
+                text="A credit of 182000 paise waits for you <b>(R13)</b>.",
+                cost_usd=0.001,
+                turns=3,
+                tools_used=("mcp__case__case_overview", "mcp__case__policy_lookup"),
+            )
+
+        monkeypatch.setattr(ask, "unavailable", lambda: None)
+        monkeypatch.setattr(ask, "_ask", fake)
+        at = self._signed_in(desk)
+        assert "Ask about" in _text(at) and "Shipments" in _text(at)
+        next(b for b in at.button if b.label == "Why does this need my approval?").click().run()
+        assert not at.exception
+        with SqliteUnitOfWork(create_sqlite_engine(desk["cases"]), clock=SystemClock()) as work:
+            case_id = str(work.cases.list_in_states(list(CaseState))[0].id)
+        assert [c for c, _ in asked] == [case_id]
+        assert asked[0][1].startswith(f"Case {case_id} (shipment ")
+        text = _text(at)
+        assert "&lt;b&gt;(R13)&lt;/b&gt;" in text  # the model's text is shown, never run as markup
+        assert "Read: Case overview · Policy rules" in text
+        assert f"{ask.ASK_LIMIT - 1} of {ask.ASK_LIMIT} questions left" in text
+        # The asked starter leaves the row; the others stay one click away.
+        assert all(b.label != "Why does this need my approval?" for b in at.button)
+
+    def test_a_follow_up_carries_the_earlier_turn(
+        self, desk: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dispute_agent.modules.reasoning.explainer.agent import Answer
+        from dispute_agent.ui import ask
+
+        prompts: list[str] = []
+
+        def fake(_case_id: str, question: str) -> Answer:
+            prompts.append(question)
+            return Answer("Because of R13.", 0.001, 2, ())
+
+        monkeypatch.setattr(ask, "unavailable", lambda: None)
+        monkeypatch.setattr(ask, "_ask", fake)
+        at = self._signed_in(desk)
+        next(b for b in at.button if b.label == "Why does this need my approval?").click().run()
+        at.chat_input[0].set_value("and who set that rule?").run()
+        assert not at.exception
+        assert "Reviewer: Why does this need my approval?" in prompts[1]
+        assert prompts[1].endswith("Question: and who set that rule?")
+
+    def test_the_assistant_is_off_without_a_key_and_after_the_session_limit(
+        self, desk: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dispute_agent.ui import ask
+
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        at = self._signed_in(desk)
+        assert "The assistant is off here" in _text(at)
+        assert at.chat_input[0].disabled
+        monkeypatch.setattr(ask, "unavailable", lambda: None)
+        at.session_state[ask.ASKED] = ask.ASK_LIMIT
+        at.run()
+        assert f"You have used all {ask.ASK_LIMIT} questions" in _text(at)
+        assert all(b.disabled for b in at.button if b.label in ask.STARTERS["waiting"])
+
+
+def test_the_assistant_prompt_and_sources() -> None:
+    from dispute_agent.ui import ask
+
+    turns = [{"q": f"q{i}", "a": f"a{i}"} for i in range(4)]
+    text = ask.prompt("case_9", "SHP-9", turns, "  why?  ")
+    assert text.startswith("Case case_9 (shipment SHP-9).")
+    assert "q0" not in text and "Reviewer: q3" in text  # only the last KEEP turns
+    assert text.endswith("Question: why?")
+    assert ask.sources(
+        ["mcp__case__case_timeline", "mcp__case__case_overview", "mcp__case__case_timeline", "Bash"]
+    ) == ["Timeline", "Case overview"]

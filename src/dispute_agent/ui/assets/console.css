@@ -405,3 +405,26 @@ button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color
 .stApp .card-section p + h3, .stApp .card-section figure + p, .stApp .card-section figure + h3 { margin-top: var(--space-md); }
 .stApp [class*="st-key-photo-person"] { margin-top: var(--space-lg); }
 .stApp [class*="st-key-photo-person"] img { border-radius: var(--radius-control); }
+
+/* Ask the AI about one shipment (ADR 0058): its own card above the shipment's cards. The AI
+   pill (diamond) names who answers; the reviewer's question sits right, the answer left. */
+.ask-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stApp .ask-title { font-size: var(--text-lg) !important; font-weight: 700; margin: 0; }
+.stApp .ask-note { color: var(--color-muted); font-size: var(--text-sm); margin: 4px 0 0; }
+.ask-q { display: flex; justify-content: flex-end; margin: var(--space-sm) 0 var(--space-xs); }
+.ask-q p { max-width: 80%; margin: 0; padding: 10px 14px; background: var(--color-board); color: var(--color-board-type);
+  border-radius: 14px 14px 4px 14px; }
+.ask-a { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 92%;
+  margin: 0 0 var(--space-sm); padding: 12px 14px; background: var(--color-paper-2); border-radius: 14px 14px 14px 4px; }
+.ask-a p { margin: 0; }
+.stApp .ask-read { font-size: var(--text-sm); color: var(--color-muted); margin: 2px 0 0; }
+.stApp [class*="st-key-ask-log-"] { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.stApp [class*="st-key-ask-chips-"] { flex-wrap: wrap; }
+.stApp [class*="st-key-ask-chips-"] button { min-height: 34px; border-radius: var(--radius-pill); padding: 0 14px;
+  font-size: var(--text-sm); background: var(--color-paper-2); border: 1px solid var(--color-rule-2); }
+.stApp [class*="st-key-ask-chips-"] button:hover:not(:disabled) { background: var(--color-paper-3); border-color: var(--color-ink-2); }
+.stApp [class*="st-key-card-ask"] [data-testid="stChatInput"] { background: var(--color-cotton); border: 1px solid var(--color-rule-2);
+  border-radius: var(--radius-control); }
+.stApp [class*="st-key-card-ask"] [data-testid="stChatInput"]:focus-within { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.stApp [class*="st-key-card-ask"] { margin-bottom: var(--space-md); }
+.stApp [class*="st-key-card-ask"] [data-testid="stChatInput"] textarea:focus-visible { outline: none; }

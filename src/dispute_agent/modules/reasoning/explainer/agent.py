@@ -91,8 +91,14 @@ class ExplainerTools:
 
     reader: CaseReader
     policies: PolicyIndex
+    #: Set by the Review screen's chat: the one case it may read. A name in a seller's text
+    #: can then never lead the model into another seller's case.
+    only_case: str | None = None
 
     def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        asked = str(args.get("case_id", ""))
+        if self.only_case and name != "policy_lookup" and asked != self.only_case:
+            return {"error": f"this conversation may read case {self.only_case!r} only"}
         try:
             if name == "case_overview":
                 return {"case": self.reader.overview(str(args["case_id"]))}

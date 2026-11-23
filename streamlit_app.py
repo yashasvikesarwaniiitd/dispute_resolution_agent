@@ -92,7 +92,16 @@ def _post(body: dict[str, str]) -> tuple[int, dict[str, Any]]:
     return answer.status_code, parsed if isinstance(parsed, dict) else {}
 
 
+def explain(case_id: str, question: str) -> Any:
+    """The Review screen's assistant (ADR 0058): the read-only explainer, pinned to one case."""
+    from dispute_agent.app import build_case_explainer
+    from dispute_agent.infra.settings import Settings
+    from dispute_agent.ui.data import CASES
+
+    return build_case_explainer(Settings(), CASES, only_case=case_id).ask(question)
+
+
 if __name__ == "__main__":  # Streamlit runs this file as __main__; a test may import it
     from dispute_agent.ui.app import main
 
-    main(hosted=True, post=_post, start=_service)
+    main(hosted=True, post=_post, start=_service, explain=explain)
