@@ -747,6 +747,7 @@ def _build_runtime(
         kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
         # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
         patterns=adapters.patterns if cross_case_on else None,
+        interpreter=build_reply_reader(settings, policy, clock, ids),
         **build_image_check(registry, settings, policy, clock, ids),
     )
     jobs: list[Any] = []
@@ -786,6 +787,19 @@ def _build_runtime(
         runner.jobs.append(hub)
         if hasattr(adapters.evidence, "received"):
             adapters.evidence.received = answers_for(hub)
+    email_adapter = registry.adapter_name("email")
+    if modules.get("email") and email_adapter != "disabled":
+        # ADR 0053: the seller's reply, read from the mailbox into the case.
+        from dispute_agent.api.seller_replies import SellerRepliesJob
+
+        runner.jobs.append(
+            SellerRepliesJob(
+                fetch=adapters.email.fetch_replies,
+                submit=runner.submit,
+                # The catalogued source for the mailbox (events-catalog.md section 2).
+                source="gmail" if email_adapter == "gmail_api" else "outlook",
+            )
+        )
     return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)
 
 
@@ -895,6 +909,46 @@ def build_model_gateway(
         secondary=second,
         secondary_cap_usd=policy.llm_secondary.spend_cap_usd,
     )
+
+
+def build_reply_reader(
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    *,
+    log_path: Path = MODEL_CALL_LOG,
+) -> ReplyInterpreter | None:
+    """The model that reads a seller's emailed reply on the running app (ADR 0054), or None.
+
+    None unless REPLY_READER names a route, so nothing is ever spent by default. The reader
+    is the project's own `seller_reply_interpreter` prompt, behind the same spending guard
+    as every model call (I14, ADR 0017). Haiku is real money from the first call, so its
+    budget is the Haiku route's own cap and paid usage is on by choosing it.
+    """
+    if settings.reply_reader is None:
+        return None
+    from dispute_agent.infra.sqlite.model_call_log import open_model_call_log
+    from dispute_agent.kernel.gateway.budgeted import BudgetedModelGateway
+    from dispute_agent.kernel.policy.config import LlmPrimaryConfig
+    from dispute_agent.modules.model_gateway.anthropic_direct.gateway import ROUTE
+    from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    gateway = BudgetedModelGateway(
+        primary=build_haiku_gateway(settings, policy),
+        route=ROUTE,
+        ledger=open_model_call_log(log_path),
+        limits=policy.llm,
+        money=LlmPrimaryConfig(
+            spend_cap_usd=policy.llm_secondary.spend_cap_usd, allow_paid_usage=True
+        ),
+        clock=clock,
+        ids=ids,
+    )
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    return LlmReplyInterpreter(prompts=registry, gateway=gateway)
 
 
 def build_haiku_gateway(settings: Settings, policy: PolicyConfig) -> ModelGateway:

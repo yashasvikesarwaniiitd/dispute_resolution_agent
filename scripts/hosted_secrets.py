@@ -44,9 +44,23 @@ PHOTO_CHECK = (
 )
 
 
+#: The reply reader (ADR 0054): Claude Haiku reads a seller's emailed reply. Added only when
+#: `.env` holds the Anthropic key; without it every reply goes to a person.
+REPLY_READER = (
+    "REPLY_READER",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL_HAIKU",
+    "LLM_SECONDARY_SPEND_CAP_USD",
+)
+
+
 def toml_block(values: dict[str, str]) -> str:
     """`NAME = "value"` lines. JSON string escaping is valid TOML basic-string escaping."""
-    names = [*NEEDED, *(name for name in PHOTO_CHECK if name in values)]
+    names = [
+        *NEEDED,
+        *(name for name in PHOTO_CHECK if name in values),
+        *(name for name in REPLY_READER if name in values),
+    ]
     return "\n".join(f"{name} = {json.dumps(values[name])}" for name in names) + "\n"
 
 
@@ -84,6 +98,14 @@ def collect(
             "FOUNDRY_CLIENT_SECRET": plain(settings.foundry_client_secret),
         }
         wanted += PHOTO_CHECK
+    if settings.anthropic_api_key is not None:
+        values |= {
+            "REPLY_READER": "anthropic_direct",
+            "ANTHROPIC_API_KEY": plain(settings.anthropic_api_key),
+            "ANTHROPIC_MODEL_HAIKU": plain(settings.anthropic_model_haiku),
+            "LLM_SECONDARY_SPEND_CAP_USD": plain(settings.llm_secondary_spend_cap_usd) or "10",
+        }
+        wanted += REPLY_READER
     return values, [name for name in wanted if not values[name].strip()]
 
 

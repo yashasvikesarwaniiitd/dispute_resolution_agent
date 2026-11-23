@@ -39,6 +39,7 @@ INBOUND_SOURCES = frozenset(
     {
         "dispute_api",
         "outlook",
+        "gmail",  # ADR 0053: the live mail channel (ADR 0038) has its own name
         "seller_portal",
         "jira",
         "approvals",

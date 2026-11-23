@@ -187,6 +187,27 @@ class TestTheSecretsBlock:
         names = tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
         assert "FOUNDRY_CLIENT_SECRET" in names
 
+    def test_the_reply_reader_comes_with_the_anthropic_key(self) -> None:
+        """ADR 0054: with the key in .env, the block switches the reply reader on."""
+        from pydantic import SecretStr
+
+        hs: object = self._module()
+        settings = Settings(
+            _env_file=None,
+            anthropic_api_key=SecretStr("k"),
+            anthropic_model_haiku="claude-haiku-5-5",
+        )
+        values, missing = hs.collect(settings, None, "pw")  # type: ignore[attr-defined]
+        names = tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
+        assert names["REPLY_READER"] == "anthropic_direct"
+        assert names["ANTHROPIC_MODEL_HAIKU"] == "claude-haiku-5-5"
+        assert not {"REPLY_READER", "ANTHROPIC_API_KEY"} & set(missing)
+
+    def test_without_the_key_there_is_no_reader(self) -> None:
+        hs: object = self._module()
+        values, _ = hs.collect(Settings(_env_file=None), None, "pw")  # type: ignore[attr-defined]
+        assert "REPLY_READER" not in tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
+
 
 class TestTheServiceAcrossReloads:
     """Streamlit unloads every watched module when a file changes - a push to GitHub does

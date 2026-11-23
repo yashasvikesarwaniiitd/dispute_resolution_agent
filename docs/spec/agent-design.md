@@ -79,6 +79,7 @@ Per-case call budget accounting: typically one interpreter call per reply, one i
 | B2 | Any manipulation flag, any screen flag, reply intent `contains_instruction_attempt` or `withdraws_dispute`, or a reply exists in the round that could not be read | `escalate_to_human` | |
 | B3 | `definite_errors` has exactly one error, and no live or verified credit on the line | `propose_credit` | `reason_code` = that error |
 | B4 | `definite_errors` has more than one error | `escalate_to_human` | |
+| B4a | A seller reply in the round that the reply reader read as `provides_requested_evidence`, every requested item `provided`, no manipulation flag; measured size larger than declared beyond `baseline.tolerance_pct`; no definite error; no remeasurement outstanding and no hub finding yet (ADR 0054) | `request_remeasurement` | |
 | B5 | A seller reply in the round, any image evidence item, or any conflicting-history evidence item — each needs judgement the baseline cannot do | `escalate_to_human` | |
 | B6 | A remeasurement is outstanding and nothing new | `wait` | |
 | B7 | Charge follows the rules, measured size larger than declared beyond `baseline.tolerance_pct`, and no evidence request sent yet | `request_seller_evidence` | items: "Photo of the packed box beside a tape measure", "Packaging dimensions at dispatch" |

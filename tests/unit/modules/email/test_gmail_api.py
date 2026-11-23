@@ -292,6 +292,41 @@ class TestReplies:
         assert reply.from_addr == SELLER and reply.received_at == NOW
         assert reply.internet_message_id == "<r1@example.invalid>"
 
+    def test_the_agent_s_own_email_in_its_inbox_is_never_a_reply(self) -> None:
+        """ADR 0053: the test seller is a +alias of this mailbox, so every email the agent
+        sends the seller also lands in this inbox. Read as a reply, it would answer itself."""
+        gmail = Gmail()
+        sent = gmail.channel().send(outbound(), KEY)
+        own = gmail.messages[sent.external_message_id]
+        own["labelIds"] = ["SENT", "INBOX"]  # sent to our own alias: Gmail files it in both
+        gmail.deliver(MAILBOX, "Re: SHP-000001", "Here is the photo.", NOW, "<seller-1@x>")
+        replies = gmail.channel().fetch_replies(NOW)
+        assert [r.internet_message_id for r in replies] == ["<seller-1@x>"]
+
+    def test_a_reply_s_files_are_listed_by_name_without_downloading_them(self) -> None:
+        """ADR 0054: the reply reader must know a photo came with the reply."""
+        gmail = Gmail()
+        gmail.deliver(MAILBOX, "Re: SHP-000001", "Photo attached.", NOW, "<seller-2@x>")
+        stored = gmail.messages["in1"]
+        text_part = dict(stored["payload"], mimeType="text/plain")
+        stored["payload"] = {
+            "mimeType": "multipart/mixed",
+            "headers": stored["payload"]["headers"],
+            "parts": [
+                text_part,
+                {
+                    "mimeType": "image/jpeg",
+                    "filename": "box_tape_measure.jpg",
+                    "body": {"attachmentId": "att-1", "size": 52311},
+                },
+            ],
+        }
+        [reply] = gmail.channel().fetch_replies(NOW)
+        assert [(a.name, a.content_type, a.size_bytes) for a in reply.attachments] == [
+            ("box_tape_measure.jpg", "image/jpeg", 52311)
+        ]
+        assert reply.body.text == "Photo attached."
+
     def test_a_bounce_is_routed_by_our_own_key(self) -> None:
         gmail = Gmail()
         sent = gmail.channel().send(outbound(), KEY)

@@ -188,6 +188,15 @@ def test_a_reply_code_cannot_read_moves_the_case_to_a_person_with_its_words(app:
     [hub] = [s for s in steps if s.title == "The hub sent its finding"]
     assert "not with a measurement code can read" in hub.summary
     assert hub.quoted == ("Box was crushed on arrival, please check with the seller.",)
+    # The person deciding next sees what came back, before the task.
+    from dispute_agent.ui import case_sheet
+
+    with _work(app) as work:
+        sheet = case_sheet.build(work, work.cases.get(CaseId(case_id)))
+    [answer] = sheet.came_back
+    assert answer.who == "The hub"
+    assert answer.words == ("Box was crushed on arrival, please check with the seller.",)
+    assert "What came back" in case_sheet.came_back_html(sheet)
     with _work(app) as work:
         assessment = work.assessments.latest(CaseId(case_id))
     assert assessment is not None and assessment.definite_errors == ()  # words prove nothing

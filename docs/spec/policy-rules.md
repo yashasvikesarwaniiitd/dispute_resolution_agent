@@ -99,11 +99,11 @@ Each entry: **Applies** (intents, stages) · **Fires when** · **Verdict, reason
 - **Negative tests:** fourth evidence request; UNKNOWN sends count towards the limit; positive control: evidence request + reminder + clarification, then `upheld_explanation` is not blocked.
 
 ### R05 contact_limit_daily
-- **Applies:** as R04, and also exempting `clarification_request` (it answers the seller's own reply, so it is not unsolicited contact; R04's per-case total still bounds it).
+- **Applies:** as R04, and also exempting `clarification_request` (it answers the seller's own reply, so it is not unsolicited contact) and `credit_confirmation` (telling the seller a credit was posted is owed, and the case cannot close without it; ADR 0054). R04's per-case total still bounds both.
 - **Fires when:** `messages_sent_today >= contact.max_messages_per_day` (day boundary in `contact.day_boundary_tz`).
 - **Verdict:** DENY `contact_limit_daily` (the reminder step turns this into REMINDER_SKIPPED).
 - **Config:** `contact.max_messages_per_day` (1), `contact.day_boundary_tz` (Asia/Kolkata). **Invariant:** I13.
-- **Negative tests:** a second evidence request on the same IST day; a send at 23:59 and one at 00:01 IST are different days; positive control: a clarification on the same day as the evidence request is not blocked (D19).
+- **Negative tests:** a second evidence request on the same IST day; a send at 23:59 and one at 00:01 IST are different days; positive controls: a clarification on the same day as the evidence request is not blocked (D19), nor is a credit confirmation (ADR 0054).
 
 ### R06 recipient_allowlisted
 - **Applies:** MSG; P and E.

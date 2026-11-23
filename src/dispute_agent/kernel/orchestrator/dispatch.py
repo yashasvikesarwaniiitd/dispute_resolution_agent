@@ -53,6 +53,7 @@ from dispute_agent.kernel.domain.inbound import (
     parse_inbound,
     reaction_key,
 )
+from dispute_agent.kernel.domain.mailbox import same_mailbox
 from dispute_agent.kernel.domain.models import Cause, ReviewReason
 from dispute_agent.kernel.orchestrator.orchestrator import AUTO_STATES
 
@@ -225,14 +226,14 @@ class Dispatcher:
             if case_id is not None:
                 threaded = self.cases.get(case_id)
                 # The same thread is not enough on its own: anyone can reply into a thread.
-                if threaded.facts.seller_contact.strip().lower() == sender:
+                if same_mailbox(threaded.facts.seller_contact, sender):
                     return threaded, "conversation"
 
         def matching(states: Collection[CaseState]) -> list[Case]:
             return [
                 c
                 for c in self.cases.list_in_states(states)
-                if c.facts.seller_contact.strip().lower() == sender
+                if same_mailbox(c.facts.seller_contact, sender)
                 and _names(subject, c.facts.shipment_ref)
                 and c.superseded_by_case_id is None
             ]
@@ -282,6 +283,12 @@ class Dispatcher:
             payload.authenticated_principal != case.facts.seller_ref
         ):
             return "principal_mismatch"
+        if isinstance(payload, SellerReplyReceived) and payload.received_at < case.opened_at:
+            # P5 (ADR 0054). A reply written before this case existed answers an earlier one.
+            # Found live: after a restart the mailbox was read again from two days back, and
+            # yesterday's reply about the same shipment was routed to today's new case,
+            # superseding the evidence request it had not yet sent.
+            return "reply_predates_case"
         return None
 
     # -- the matrix ---------------------------------------------------------------------------

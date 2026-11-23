@@ -326,6 +326,9 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
         left, right = st.columns(2, gap="large")
         if review is not None:
             left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
+        answers = case_sheet.came_back_html(sheet)
+        if answers:  # what the hub or the seller said, before the task it bears on
+            left.markdown(answers, unsafe_allow_html=True)
         left.markdown(case_sheet.task_html(sheet), unsafe_allow_html=True)
         _photo(left, ticket)
         with right, st.container(key=f"panel-person-{key}"):

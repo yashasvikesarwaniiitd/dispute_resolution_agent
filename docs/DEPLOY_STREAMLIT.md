@@ -61,6 +61,16 @@ For **live** checks the site needs its own Foundry sign-in. Your laptop's sign-i
 
 Each live check is one gpt-5-mini call (under US$0.005), logged and counted against the same spending caps as every other model call. To stop it, set the adapter back to `recorded`. When the secret expires, checks fail safe: the card says the sign-in failed and the case still reaches a person.
 
+## The reply reader (ADR 0054)
+
+When a seller answers an email, the agent reads the reply from the Gmail inbox within about a minute. Claude Haiku reads it (the `seller_reply_interpreter` prompt, which passed its evaluation suite on Haiku): what the seller means, and which of the items asked for arrived. If the seller sent the evidence asked for on a size dispute, the agent itself asks the hub to remeasure in Jira. Anything else - a question, a partial answer, a withdrawal, an attempt to instruct the agent - goes to a person, who sees the reply and the agent's reading on the Review card. No money moves on a reply: a credit still needs the hub's new measurement, code's proof and your approval.
+
+1. Your `.env` must hold `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL_HAIKU` (the project's Haiku id).
+2. Run `make hosted-secrets`. With the key present the block also carries `REPLY_READER = "anthropic_direct"`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL_HAIKU` and `LLM_SECONDARY_SPEND_CAP_USD`. Paste it into Streamlit's Secrets and Save.
+3. Reboot the app (**⋮ → Reboot app**): the service reads its settings when it starts.
+
+Each reply is one Haiku call (about US$0.0004), logged and counted against the Haiku route's own cap (`LLM_SECONDARY_SPEND_CAP_USD`, US$10 by default). To turn it off, delete the `REPLY_READER` line and reboot: every reply then goes to a person, as before. If a call fails or the cap is reached, the reply is recorded as unread and a person reads it.
+
 ## Good to know
 
 - **Data resets** when Streamlit restarts the app: cases and the simulated ledger start fresh. Emails sent and Jira issues opened are real and stay.

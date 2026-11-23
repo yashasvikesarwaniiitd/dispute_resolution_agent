@@ -76,6 +76,21 @@ class TestPerDay:
         assert result.verdict is VerdictKind.DENY
         assert result.reason == "contact_limit_daily"
 
+    def test_a_credit_confirmation_the_same_day_is_not_blocked(self) -> None:
+        """ADR 0054: the seller is owed the news that money was credited, and the case cannot
+        close without it. Found live, when the hub answered the same day as the request."""
+        from dispute_agent.kernel.domain.actions import MessagePayload
+        from dispute_agent.kernel.domain.enums import MessageKind
+
+        confirmation = message_intent(
+            payload=MessagePayload(
+                kind=MessageKind.CREDIT_CONFIRMATION, to=SELLER, subject="s", body="b"
+            )
+        )
+        result = ContactLimitDaily().evaluate(ctx(intent=confirmation, messages_sent_today=1))
+        assert result.verdict is VerdictKind.ALLOW
+        assert result.reason == "confirmation_exempt"
+
     def test_the_first_of_the_day_is_allowed(self) -> None:
         assert ContactLimitDaily().evaluate(ctx(messages_sent_today=0)).verdict is (
             VerdictKind.ALLOW

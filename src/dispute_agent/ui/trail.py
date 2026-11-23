@@ -27,7 +27,7 @@ from dispute_agent.kernel.domain.enums import (
     InboundEventType,
     InternalEventType,
 )
-from dispute_agent.ui import photo_check
+from dispute_agent.ui import came_back, photo_check
 from dispute_agent.ui import trail_words as said
 from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, words
 
@@ -215,12 +215,46 @@ def build(
     def plan(action: Action | None) -> ActionPayload | None:
         return plans.get(str(action.id)) if action is not None else None
 
-    for event in work.events.list_for_case(case.id):
+    history = list(work.events.list_for_case(case.id))
+    # Inbound events dispatch set aside, by the input event's id, with the reason. A reply
+    # set aside is not a reply to this case, so it must not read as one (ADR 0054, P5).
+    set_aside = {
+        str(e.causation_id): str(getattr(e.payload, "reaction", ""))
+        for e in history
+        if e.type == InternalEventType.EVENT_IGNORED and e.causation_id is not None
+    }
+    for event in history:
         at, kind, cause, payload = event.occurred_at, event.type, event.cause, event.payload
+        if kind == InboundEventType.SELLER_REPLY_RECEIVED and str(event.id) in set_aside:
+            why = (
+                "it was written before this case was opened"
+                if "reply_predates_case" in set_aside[str(event.id)]
+                else "it does not answer this case now"
+            )
+            add(
+                Step(
+                    at,
+                    Actor.SYSTEM,
+                    f"An email was set aside: {why}",
+                    minor=True,
+                    mark=Mark.MINOR,
+                )
+            )
+            continue
         if kind == InboundEventType.DISPUTE_RAISED:
             add(Step(at, Actor.SELLER, f"Dispute raised on {case.facts.shipment_ref}"))
         elif kind == InboundEventType.SELLER_REPLY_RECEIVED:
-            add(Step(at, Actor.SELLER, "The seller replied"))
+            reply_read, reply_words = _seller_said(work, case, rounds + 1)
+            add(
+                Step(
+                    at,
+                    Actor.SELLER,
+                    "The seller replied",
+                    summary=reply_read,
+                    quoted=reply_words,
+                    quote_caption="Their reply, exactly as recorded" if reply_words else "",
+                )
+            )
             after = "After the seller replied"
         elif kind == InboundEventType.OPS_FINDING_RECEIVED:
             summary, hub_words = _hub_said(work, case, rounds + 1)
@@ -360,25 +394,21 @@ def _hub_said(work: SqliteUnitOfWork, case: Case, next_round: int) -> tuple[str,
     """What the hub found, in the figures the next round gathered (the structured answer),
     and the hub's own words when code could not read an answer in them."""
     try:
-        item = work.evidence.bundle(case.id, next_round).by_key("ops.finding")
+        item = work.evidence.bundle(case.id, next_round).by_key(came_back.HUB)
     except Exception:  # not gathered yet, or no such round: say nothing rather than guess
         return "", ()
-    value = item.result.value or {}
-    kind = value.get("kind")
-    if kind == "remeasured" and all(k in value for k in ("length_cm", "width_cm", "height_cm")):
-        size = f"{value['length_cm']} x {value['width_cm']} x {value['height_cm']} cm"
-        grams = value.get("dead_grams")
-        weight = f", {Decimal(str(grams)) / 1000:.2f} kg" if grams is not None else ""
-        return f"Re-measured the parcel: {size}{weight}.", ()
-    if kind == "no_fault_found":
-        return "The hub stands by its measurement: no fault found.", ()
-    if kind == "inspected":
-        said = tuple(u.text for u in item.result.untrusted)
-        return (
-            "The hub replied, but not with a measurement code can read. A person reads it.",
-            said,
-        )
-    return "", ()
+    return came_back.hub_answer(item)
+
+
+def _seller_said(
+    work: SqliteUnitOfWork, case: Case, next_round: int
+) -> tuple[str, tuple[str, ...]]:
+    """What the agent read in the reply, and the seller's words without the quoted email."""
+    try:
+        item = work.evidence.bundle(case.id, next_round).by_key(came_back.REPLY)
+    except Exception:  # not read yet: say nothing rather than guess
+        return "", ()
+    return came_back.seller_reply(item)
 
 
 def _photo_checked(at: datetime, checked: photo_check.PhotoCheck) -> Step:

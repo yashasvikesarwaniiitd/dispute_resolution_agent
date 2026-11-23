@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     llm_secondary_spend_cap_usd: Decimal | None = None
     #: "I am knowingly testing a prompt that has not passed its eval suite." Off by default.
     prompts_allow_inactive: bool = False
+    #: The model that reads a seller's emailed reply on the running app (ADR 0054). Unset:
+    #: no reader, and every reply goes to a person. `anthropic_direct`: Claude Haiku with
+    #: ANTHROPIC_API_KEY, behind the spending guard, against the Haiku route's own cap.
+    reply_reader: Literal["anthropic_direct"] | None = None
     #: `single` (one model call per round), `graph` (two passes on LangGraph, ADR 0041) or
     #: `agent` (chooses its own read-only lookups, up to four turns, ADR 0042).
     reasoning_engine: Literal["single", "graph", "agent"] = "single"

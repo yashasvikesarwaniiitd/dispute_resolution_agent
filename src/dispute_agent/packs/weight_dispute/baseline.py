@@ -61,6 +61,8 @@ IMAGE_KEY = "shipment.image_description"
 HISTORY_KEY = "shipment.history"
 DECLARED_KEY = "shipment.declared_dims"
 MEASURED_KEY = "shipment.measured_dims"
+REPLY_KEY = "seller_reply"
+FINDING_KEY = "ops.finding"
 
 #: Reply intents B2 treats as a reason to stop. A reply that tries to instruct us, or that
 #: withdraws the dispute, is a decision for a person either way.
@@ -157,6 +159,32 @@ def decide(
             skipped=tuple(skipped),
         )
     no("B4")
+
+    # B4a - above B5 on purpose (ADR 0054). The seller answered our evidence request with the
+    # evidence asked for, as the reply reader read it, and the hub's size is still the one in
+    # dispute: the next step is the hub's, so ask it to measure again. Only a reading of
+    # `provides_requested_evidence` with every requested item provided and no manipulation
+    # flag acts; anything less falls through to B5 and a person. No money moves here: a
+    # seller's figures are never used, and a credit still needs the hub's new measurement
+    # and code's proof (I9).
+    supplied = _evidence_supplied(items)
+    oversize_now = _oversize_beyond_tolerance(items, tolerance_pct)
+    if (
+        supplied
+        and not errors
+        and oversize_now is True
+        and not briefing.contact.remeasurement_outstanding
+        and _found(items, FINDING_KEY) is None
+        and ProposalAction.REQUEST_REMEASUREMENT in briefing.allowed_actions
+    ):
+        return BaselineDecision(
+            "B4a",
+            ProposalAction.REQUEST_REMEASUREMENT,
+            "the seller supplied the evidence asked for and the hub's size is in dispute",
+            evidence_refs=_refs(items, (REPLY_KEY, DECLARED_KEY, MEASURED_KEY)),
+            skipped=tuple(skipped),
+        )
+    no("B4a")
 
     # B5 - the line the baseline does not cross.
     judgement = _needs_judgement(briefing, items)
@@ -311,6 +339,33 @@ def _tampering(briefing: CaseBriefing, items: Sequence[EvidenceItem]) -> str:
     # it, which looked harmless and was not: until Phase 4 there is no interpreter, so every
     # reply would have been reported as tampering and B5 would never have fired at all.
     return ""
+
+
+def _evidence_supplied(items: Sequence[EvidenceItem]) -> bool:
+    """B4a: a reply in this round, read as supplying every item we asked for, cleanly.
+
+    Read from the reply reader's structured output only, never from the reply's words. A
+    reply nobody could read (FAILED), a partial answer, a question, a withdrawal or any
+    manipulation flag is not a supply of evidence, and leaves the case to B5 and a person.
+    """
+    replies = [i for i in items if i.result.requirement_key == REPLY_KEY]
+    if not replies:
+        return False
+    for item in replies:
+        if item.result.status is not EvidenceStatus.FOUND:
+            return False
+        value = item.result.value or {}
+        if value.get("intent") != "provides_requested_evidence":
+            return False
+        if value.get("manipulation_flags"):
+            return False
+        statuses = value.get("requested_items_status") or []
+        if not isinstance(statuses, list | tuple):
+            return False
+        for entry in statuses:
+            if not isinstance(entry, dict) or entry.get("status") != "provided":
+                return False
+    return True
 
 
 def _needs_judgement(briefing: CaseBriefing, items: Sequence[EvidenceItem]) -> str:

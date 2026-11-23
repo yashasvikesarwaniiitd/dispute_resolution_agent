@@ -18,6 +18,8 @@ from dispute_agent.kernel.domain.enums import CaseState, InternalEventType, Revi
 from dispute_agent.kernel.policy.credit import credit_amount
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
+from dispute_agent.ui.came_back import CameBack, came_back
+from dispute_agent.ui.labels import when
 from dispute_agent.ui.theme import escape, recorded
 
 if TYPE_CHECKING:
@@ -59,6 +61,9 @@ class Sheet:
     no_verdict: str = ""
     #: The reason the person's last decision was refused, if it still stands.
     refused: str = ""
+    #: The hub's answers and the seller's replies on this case, oldest first: a person
+    #: deciding after one came back must see what it said.
+    came_back: tuple[CameBack, ...] = ()
 
 
 # -- the task, by why the case is with a person ---------------------------------------------
@@ -336,6 +341,7 @@ def build(work: Any, case: Case) -> Sheet:  # Any: a unit of work (reader)
         verdicts=offered,
         no_verdict=none,
         refused=last_refusal(list(work.events.list_for_case(case.id))),
+        came_back=came_back(work, case),
     )
 
 
@@ -356,6 +362,26 @@ def task_html(sheet: Sheet) -> str:
     )
 
 
+def came_back_html(sheet: Sheet) -> str:
+    """What came back from the hub and the seller, newest first; empty when nothing did."""
+    if not sheet.came_back:
+        return ""
+    parts = [
+        '<h3>What came back</h3><p class="muted">Their words are shown exactly as '
+        "recorded. They are evidence for you to weigh; code never reads a figure from "
+        "them.</p>"
+    ]
+    for answer in reversed(sheet.came_back):
+        parts.append(
+            f"<p><b>{escape(answer.who)}</b> "
+            f'<span class="muted">· {escape(when(answer.at))}</span></p>'
+            f"<p>{escape(answer.summary)}</p>"
+        )
+        for words in answer.words:
+            parts.append(recorded(f"{answer.who}'s words, exactly as recorded:", words))
+    return "".join(parts)
+
+
 def facts_html(sheet: Sheet) -> str:
     def pairs(rows: tuple[tuple[str, str], ...]) -> str:
         return "".join(f"<dt>{escape(k)}</dt><dd>{escape(v)}</dd>" for k, v in rows)
@@ -374,6 +400,7 @@ __all__ = [
     "Sheet",
     "Verdict",
     "build",
+    "came_back_html",
     "facts_html",
     "last_refusal",
     "task_for",

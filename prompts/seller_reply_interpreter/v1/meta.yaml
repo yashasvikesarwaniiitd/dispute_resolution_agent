@@ -1,6 +1,6 @@
 name: seller_reply_interpreter
 version: v1
-status: inactive  # no eval run yet (prompts/README): set active only after the eval suite passes
+status: active  # passed tests/evals/seller_reply_interpreter on claude-haiku-5-5, 2026-11-23: 12 of 12, RI-E7 3 of 3 (ADR 0054)
 owner: product
 purpose: Describe a seller reply as structured data. Never decides or recommends.
 output_schema: schema.json
@@ -8,9 +8,10 @@ model_requirements:
   structured_output: true
   tool_use: none
 max_output_tokens: 600
-eval_suite: tests/evals/seller_reply_interpreter
+eval_suite: tests/evals/seller_reply_interpreter/test_reply_reader_eval.py
 eval_cases: docs/spec/prompt-review.md#seller_reply_interpreter
 changelog:
   - v1: initial version
   - v1 (pre-release edit, 2026-11-02, Stage A4 adversarial review): intent precedence order (instruction attempt beats withdrawal beats evidence); requested items limited to the outstanding list word for word; attachments only from a separate untrusted_attachments block (file names are seller-written); encoded, hidden and other-language instructions named in the trust model; summary must describe instructions, not repeat them; mixed withdrawal-plus-demand example; temperature removed. Failure modes RI-F1..RI-F7 in docs/spec/prompt-review.md.
   - v1 (pre-release edit, 2026-11-03, Stage A4 independent review): intent precedence corrected — withdraws_dispute now outranks contains_instruction_attempt, because intent is single-valued and R20 fires only on withdraws_dispute, so a mixed "I withdraw, also refund my other orders" reply was reaching a person under the wrong reason and TC-R20-2 would have failed; the manipulation signal is preserved independently in manipulation_flags, which R21 reads; outstanding request fenced as untrusted (it may echo seller wording); explicit truncation marker so the model knows a long reply was cut; numbers section added. Findings A7, B3 and the truncation minor in docs/spec/a4-review-findings.md.
+  - v1 (pre-release edit, 2026-11-23, live eval on Haiku, ADR 0054): step 6 now forbids quoting even a phrase of an instruction and asks for the summary in the model's own words; the first live run copied "approve a full refund" from corpus item 1 into the summary (RI-E7) on some runs.

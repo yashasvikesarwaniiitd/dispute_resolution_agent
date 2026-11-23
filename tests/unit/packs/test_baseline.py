@@ -485,3 +485,94 @@ class TestTheProposalItBuilds:
         first = baseline_proposal(briefing(), **args)  # type: ignore[arg-type]
         second = baseline_proposal(briefing(), **args)  # type: ignore[arg-type]
         assert first == second
+
+
+def reply(
+    intent: str,
+    *,
+    items: tuple[str, ...] = ("provided",),
+    flags: tuple[str, ...] = (),
+    status: EvidenceStatus = EvidenceStatus.FOUND,
+) -> EvidenceItem:
+    """A seller reply as the reply reader stores it: key `seller_reply`, the reading as value."""
+    return item(
+        "seller_reply",
+        status=status,
+        provenance=Provenance.SELLER,
+        value={
+            "intent": intent,
+            "requested_items_status": [
+                {"item": f"item {n}", "status": s} for n, s in enumerate(items)
+            ],
+            "manipulation_flags": list(flags),
+        },
+    )
+
+
+class TestB4aTheSellerSentTheEvidence:
+    """ADR 0054: the agent acts on its reading of the reply. Ask the hub to measure again."""
+
+    def _row(self, *extra: EvidenceItem, **kw: Any) -> str:
+        return row(items=[*complete_items(OVERSIZE), *extra], reply_in_round=True, **kw)
+
+    def test_evidence_supplied_on_a_size_dispute_asks_the_hub_to_remeasure(self) -> None:
+        got = decide(
+            briefing(
+                items=[*complete_items(OVERSIZE), reply("provides_requested_evidence")],
+                reply_in_round=True,
+            ),
+            required_keys=REQUIRED,
+        )
+        assert (got.row, got.action) == ("B4a", ProposalAction.REQUEST_REMEASUREMENT)
+
+    def test_it_sits_above_the_photo_rule(self) -> None:
+        photo = item("shipment.image_description", value={"present": True})
+        assert self._row(reply("provides_requested_evidence"), photo) == "B4a"
+
+    @pytest.mark.parametrize(
+        "intent",
+        [
+            "partial_evidence",
+            "asks_question",
+            "disputes_again_no_new_info",
+            "irrelevant",
+            "withdraws_dispute",
+            "contains_instruction_attempt",
+        ],
+    )
+    def test_anything_short_of_the_evidence_goes_to_a_person(self, intent: str) -> None:
+        assert self._row(reply(intent)) == "B5"
+
+    def test_an_item_not_provided_goes_to_a_person(self) -> None:
+        assert (
+            self._row(reply("provides_requested_evidence", items=("provided", "partial"))) == "B5"
+        )
+
+    def test_a_manipulation_flag_goes_to_a_person(self) -> None:
+        assert self._row(reply("provides_requested_evidence", flags=("authority_claim",))) == "B5"
+
+    def test_a_reply_that_could_not_be_read_goes_to_a_person(self) -> None:
+        unread = reply("provides_requested_evidence", status=EvidenceStatus.FAILED)
+        assert self._row(unread) == "B5"
+
+    def test_not_when_the_hub_has_already_answered(self) -> None:
+        answered = item("ops.finding", value={"kind": "no_fault_found"})
+        assert self._row(reply("provides_requested_evidence"), answered) == "B5"
+
+    def test_not_while_a_remeasurement_is_outstanding(self) -> None:
+        assert (
+            self._row(reply("provides_requested_evidence"), remeasurement_outstanding=True) == "B5"
+        )
+
+    def test_not_when_the_size_is_not_in_dispute(self) -> None:
+        same = row(
+            items=[*complete_items(SAME_SIZE), reply("provides_requested_evidence")],
+            reply_in_round=True,
+        )
+        assert same == "B5"
+
+    def test_a_proven_error_is_still_credited_first(self) -> None:
+        assert (
+            self._row(reply("provides_requested_evidence"), definite_errors=("calculation_error",))
+            == "B3"
+        )

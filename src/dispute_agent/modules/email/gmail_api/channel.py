@@ -42,7 +42,13 @@ from dispute_agent.kernel.domain.errors import (
     PermanentPortError,
     TransientPortError,
 )
-from dispute_agent.kernel.domain.external import InboundMessage, MessageSnapshot, SendReceipt
+from dispute_agent.kernel.domain.external import (
+    AttachmentRef,
+    InboundMessage,
+    MessageSnapshot,
+    SendReceipt,
+)
+from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import IdempotencyKey
 from dispute_agent.kernel.domain.values import UntrustedText
 
@@ -178,6 +184,11 @@ class GmailChannel:
             received = _internal_date(raw)
             if received is None or received < since:
                 continue
+            if _ours(raw):
+                # The agent's own email. With the test seller a +alias of this mailbox, every
+                # message the agent sends the seller also lands in this inbox; read as a
+                # reply it would answer itself (ADR 0053).
+                continue
             found.append(self._inbound(raw, received))
         return tuple(sorted(found, key=lambda m: m.received_at))
 
@@ -202,6 +213,7 @@ class GmailChannel:
             subject=UntrustedText.create(headers.get("subject", ""), "seller_email", message_id),
             body=UntrustedText.create(body, "seller_email", message_id),
             received_at=received,
+            attachments=_attachments(raw.get("payload") or {}),
             is_delivery_failure=bounce,
             failed_message_id=failed,
         )
@@ -264,6 +276,40 @@ def _headers(raw: dict[str, Any]) -> dict[str, str]:
         for h in payload.get("headers") or []
         if isinstance(h, dict)
     }
+
+
+def _attachments(part: dict[str, Any]) -> tuple[AttachmentRef, ...]:
+    """The files on a message, by name and type, read from its parts (ADR 0054).
+
+    Nothing is downloaded: the reply reader needs to know that a photo came with the reply,
+    not what is in it. The name is seller-written, so it stays untrusted downstream. The hash
+    is of Gmail's own attachment id and size, which is what identifies the file here.
+    """
+    found: list[AttachmentRef] = []
+    name = str(part.get("filename") or "")
+    body = part.get("body") or {}
+    if name:
+        size = int(body.get("size") or 0)
+        found.append(
+            AttachmentRef(
+                name=name[:255],
+                content_type=str(part.get("mimeType") or "application/octet-stream")[:128],
+                size_bytes=size,
+                content_hash=payload_hash(
+                    {"gmail_attachment": str(body.get("attachmentId") or name), "size": size}
+                ),
+            )
+        )
+    for child in part.get("parts") or []:
+        if isinstance(child, dict):
+            found.extend(_attachments(child))
+    return tuple(found)
+
+
+def _ours(raw: dict[str, Any]) -> bool:
+    """A message this system sent: it carries our key header or our own Message-ID. A reply
+    to it carries neither (it has its own Message-ID; ours is only in In-Reply-To)."""
+    return _key_of(raw) is not None
 
 
 def _key_of(raw: dict[str, Any]) -> IdempotencyKey | None:

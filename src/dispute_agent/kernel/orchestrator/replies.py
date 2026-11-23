@@ -39,7 +39,12 @@ from dispute_agent.kernel.domain.evidence import EvidenceItem, EvidenceResult
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import EvidenceItemId
 from dispute_agent.kernel.domain.inbound import SellerReplyReceived, parse_inbound
-from dispute_agent.kernel.domain.reasoning import ContactStatus, ReplyContext, ReplyReading
+from dispute_agent.kernel.domain.reasoning import (
+    ContactStatus,
+    ReplyAttachment,
+    ReplyContext,
+    ReplyReading,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -153,6 +158,13 @@ class ReplyReader:
                         requested_items=requested_items(self.proposals.for_case(case.id)),
                         facts=case.facts,
                         reply_truncated=reply.body.truncated,
+                        # The files that came with the reply, by name only (ADR 0054). Without
+                        # them "photo attached" could never be told from a photo that was not.
+                        # Names are seller-written: the prompt renders them as untrusted.
+                        attachments=tuple(
+                            ReplyAttachment(name=name[:255], content_type="unknown")
+                            for name in reply.attachments
+                        ),
                     )
                 ),
                 None,
