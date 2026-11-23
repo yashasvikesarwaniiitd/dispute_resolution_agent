@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
@@ -36,7 +36,8 @@ from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
 from dispute_agent.ui import case_sheet, data, photo_check
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import DONE, NOT_DONE, CaseDesk, can_confirm_withdrawal
-from dispute_agent.ui.labels import money, when
+from dispute_agent.ui.labels import handed_over, money, when
+from dispute_agent.ui.labels import reason as reason_words
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.review import (
     Card,
@@ -322,20 +323,69 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
     key = ticket.case_id
     with st.container(key=f"card-person-{key}"):
         _header("Shipment", ticket, f"since {when(ticket.updated_at)}", key)
-        st.markdown('<hr class="rule">', unsafe_allow_html=True)
-        left, right = st.columns(2, gap="large")
-        if review is not None:
-            left.markdown(view.person_reason(review.code, review.detail), unsafe_allow_html=True)
-        answers = case_sheet.came_back_html(sheet)
-        if answers:  # what the hub or the seller said, before the task it bears on
-            left.markdown(answers, unsafe_allow_html=True)
-        left.markdown(case_sheet.task_html(sheet), unsafe_allow_html=True)
-        _photo(left, ticket)
+        # 1. At a glance: why it is here, the money, the latest word from outside, and what
+        #    the agent proposed. Everything below is the detail behind one of these.
+        st.markdown(_glance(review, sheet, rec), unsafe_allow_html=True)
+        # 2. Decide (left) beside the evidence it rests on (right).
+        left, right = st.columns([5, 4], gap="large")
+        with left, st.container(key=f"decide-person-{key}"):
+            st.markdown(
+                '<p class="col-head">Decide</p>' + _section(case_sheet.task_html(sheet)),
+                unsafe_allow_html=True,
+            )
+            answers = case_sheet.came_back_html(sheet)
+            if answers:  # what the hub or the seller said: the newest evidence for the task
+                st.markdown(_section(answers), unsafe_allow_html=True)
+            if review is not None:
+                st.markdown(
+                    _section(view.person_reason(review.code, review.detail)),
+                    unsafe_allow_html=True,
+                )
         with right, st.container(key=f"panel-person-{key}"):
-            st.markdown(case_sheet.facts_html(sheet), unsafe_allow_html=True)
-            st.markdown(view.last_proposal(rec), unsafe_allow_html=True)
+            st.markdown(
+                '<p class="col-head">Evidence</p>' + _section(case_sheet.facts_html(sheet)),
+                unsafe_allow_html=True,
+            )
+            _photo(st.container(key=f"photo-person-{key}"), ticket)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
+        # 3. The decision, last: by now the reviewer has read what it rests on.
         _decision_form(ticket, reviewer, case, sheet, paid=paid, unknown=unknown)
+
+
+def _section(html: str) -> str:
+    """One block of the card, with the same space around it as every other."""
+    return f'<section class="card-section">{html}</section>'
+
+
+def _glance(review: Any, sheet: case_sheet.Sheet, rec: Any) -> str:
+    """The At-a-glance strip, from what the card already read (ADR 0046's card, condensed)."""
+    if review is not None:
+        why = reason_words(review.code)
+        plain = handed_over(review.code, review.detail)[0].partition(": ")[2]
+        why_detail = f"{plain[0].upper()}{plain[1:]}" if plain else ""
+    else:
+        why, why_detail = "With a person", ""
+    figures = dict(sheet.figures)
+    shown = [
+        ("Charged", figures.get("Charged", "-")),
+        ("Correct, by code", figures.get("Correct charge, by code", "-")),
+        ("Proven error", figures.get("Errors code proved", "none")),
+    ]
+    if sheet.came_back:
+        newest = sheet.came_back[-1]
+        latest, latest_detail = f"{newest.who} · {when(newest.at)}", newest.summary
+    else:
+        latest, latest_detail = "Nothing yet", "No reply from the seller or the hub on this case."
+    proposed, by = (rec.action, f"by {rec.by}") if rec is not None else ("Nothing recorded", "")
+    return view.at_a_glance(
+        why=why,
+        why_detail=why_detail,
+        money=shown,
+        latest=latest,
+        latest_detail=latest_detail,
+        proposed=proposed,
+        proposed_by=by,
+    )
 
 
 #: The desk's own choices, after the verdicts code's menu allows (ADR 0046).

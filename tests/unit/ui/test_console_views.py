@@ -395,6 +395,18 @@ class TestTheDesignHandoff:
                 "B5",
             ),
             (
+                "proposal_escalated",
+                "B5: the round contains a seller reply, which needs judgement",
+                "Proposal escalated: the seller replied, and a reply needs a person",
+                "B5",
+            ),
+            (
+                "proposal_escalated",
+                "B5: the round contains shipment history, which needs judgement",
+                "Proposal escalated: earlier shipments of this item disagree",
+                "B5",
+            ),
+            (
                 "manipulation_suspected",
                 "R21: manipulation_suspected: flagged by a screen (instruction_like)",
                 "The input screen flagged it: the seller's text read like instructions",

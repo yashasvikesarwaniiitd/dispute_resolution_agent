@@ -178,15 +178,60 @@ def if_approve_email(item: PendingItem) -> str:
 
 
 def person_reason(code: ReviewCode, detail: str) -> str:
-    """Why a case is with a person: the reason in words, a plain sentence, the recorded detail."""
+    """Why a case is with a person: the reason in words, a plain sentence, the recorded detail.
+
+    Folded: the At-a-glance strip already says why in one line, so this is the detail behind
+    it, opened on demand rather than repeated at full height.
+    """
     sentence, _rule = handed_over(code, detail)
     plain = sentence.partition(": ")[2]
     plain = f"{plain[0].upper()}{plain[1:]}" if plain else ""
     return (
-        "<h3>Why it is with a person</h3>"
-        f'<p class="reason">{escape(reason(code))}</p>'
+        '<details class="more why-fold"><summary>Why it is with a person: '
+        f"{escape(reason(code))}</summary>"
         + (f"<p>{escape(plain)}</p>" if plain else "")
         + (recorded("The detail, exactly as recorded:", detail) if detail else "")
+        + "</details>"
+    )
+
+
+def at_a_glance(
+    *,
+    why: str,
+    why_detail: str,
+    money: Sequence[tuple[str, str]],
+    latest: str,
+    latest_detail: str,
+    proposed: str,
+    proposed_by: str,
+) -> str:
+    """The four things a reviewer needs before anything else, side by side.
+
+    Why the case is here, what the money looks like in code's figures, the latest word from
+    outside (the hub or the seller), and what the agent last proposed. Everything below it
+    on the card is the detail behind one of these.
+    """
+
+    def tile(label: str, main: str, sub: str) -> str:
+        return (
+            f'<div class="glance-tile"><p class="glance-label">{escape(label)}</p>'
+            f'<p class="glance-main">{escape(main)}</p>'
+            + (f'<p class="glance-sub">{escape(sub)}</p>' if sub else "")
+            + "</div>"
+        )
+
+    figures = "".join(
+        f'<div class="glance-fig"><span>{escape(k)}</span><b>{escape(v)}</b></div>'
+        for k, v in money
+    )
+    return (
+        '<section class="glance" aria-label="At a glance">'
+        + tile("Why it is here", why, why_detail)
+        + '<div class="glance-tile"><p class="glance-label">The money, worked out by code</p>'
+        + f'<div class="glance-figs">{figures}</div></div>'
+        + tile("Latest from outside", latest, latest_detail)
+        + tile("The agent proposed", proposed, proposed_by)
+        + "</section>"
     )
 
 
@@ -203,6 +248,7 @@ def last_proposal(rec: Recommendation | None) -> str:
 __all__ = [
     "TEST_ADDRESS",
     "approve_label",
+    "at_a_glance",
     "finding_words",
     "if_approve_credit",
     "if_approve_email",

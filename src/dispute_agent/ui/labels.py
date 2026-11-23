@@ -95,6 +95,8 @@ RULE: dict[str, str] = {
     "not followed.",
     "B3": "Code proved one definite error, so the credit amount is code's own figure.",
     "B4": "Code proved more than one error, so there is no single amount to credit.",
+    "B4a": "The seller sent the evidence asked for, so the agent asked the hub to measure "
+    "the parcel again.",
     "B5": "The hub flagged the parcel photo, and photos need a person's judgement.",
     "B6": "A re-measure the agent asked for is still outstanding.",
     "B7": "The hub's measured size is more than 5% larger than declared, so the seller is "
@@ -153,7 +155,7 @@ def handed_over(code: ReviewCode, detail: str) -> tuple[str, str]:
     """
     head = reason(code)
     rule = detail.partition(":")[0].strip()
-    meaning = RULE.get(rule) or RULE_DETAIL.get(rule)
+    meaning = _b5(detail) if rule == "B5" else (RULE.get(rule) or RULE_DETAIL.get(rule))
     if rule == "B2":  # the screen flagged it: say so in the screen's own terms
         head, meaning = REASON[ReviewCode.MANIPULATION_SUSPECTED], RULE_DETAIL["R21"]
     if meaning:
@@ -174,9 +176,26 @@ def rule_words(rationale: str) -> tuple[str, str]:
     the plain sentence for the row; anything else is returned as recorded, with no code."""
     code, _, rest = rationale.partition(":")
     code = code.strip()
+    if code == "B5" and rest:
+        return _b5(rationale), code
     if code in RULE and rest:
         return RULE[code], code
     return rationale, ""
+
+
+#: B5 fires for three different things; one sentence for all three told a reviewer the photo
+#: was the reason when the seller had replied (found on the Review card, ADR 0054).
+_B5_BY_CAUSE = (
+    ("seller reply", "The seller replied, and a reply needs a person to read it."),
+    ("image", "The hub flagged the parcel photo, and photos need a person's judgement."),
+    ("history", "Earlier shipments of this item disagree, and that needs a person's judgement."),
+)
+
+
+def _b5(detail: str) -> str:
+    """B5's sentence for the cause its recorded detail names."""
+    lowered = detail.lower()
+    return next((said for cause, said in _B5_BY_CAUSE if cause in lowered), RULE["B5"])
 
 
 def money(amount: Decimal) -> str:
