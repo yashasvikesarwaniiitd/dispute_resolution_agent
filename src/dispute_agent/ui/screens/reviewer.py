@@ -153,7 +153,7 @@ def _shipments(tab: str, shown: list[Ticket], aside: dict[str, str]) -> tuple[st
     selected = st.session_state.get(key)
     if selected not in ids:
         selected = ids[0]
-    side, main = st.columns([1, 3], gap="large")
+    side, main = st.columns([1, 4], gap="large")
     with side:
         st.markdown(
             f'<h2 class="side-head">Shipments <span class="muted">({len(ids)})</span></h2>',

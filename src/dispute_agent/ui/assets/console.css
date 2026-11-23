@@ -263,10 +263,11 @@ blockquote.recorded, figure.recorded blockquote { margin: 0; padding: 12px 14px;
   white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Definition pairs and data tables drawn as HTML. */
-.pairs { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: var(--space-sm) 0; font-size: var(--text-sm); }
+/* A label wraps within half the row, so a figure beside it is never squeezed to one character a line. */
+.pairs { display: grid; grid-template-columns: fit-content(50%) minmax(0, 1fr); gap: 6px 16px; margin: var(--space-sm) 0; font-size: var(--text-sm); }
 .pairs dt { color: var(--color-muted); }
 .pairs dd { margin: 0; color: var(--color-ink); }
-.pairs dd.num { font-family: var(--font-figure); font-variant-numeric: tabular-nums; text-align: right; }
+.pairs dd.num { font-family: var(--font-figure); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .figure-lg { font-family: var(--font-figure); font-variant-numeric: tabular-nums; font-size: var(--text-2xl); font-weight: 600; margin: 2px 0 var(--space-sm); }
 .checks { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .checks li { display: flex; gap: 8px; margin: 0; }
@@ -428,3 +429,14 @@ button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color
 .stApp [class*="st-key-card-ask"] [data-testid="stChatInput"]:focus-within { outline: 2px solid var(--color-focus); outline-offset: 1px; }
 .stApp [class*="st-key-card-ask"] { margin-bottom: var(--space-md); }
 .stApp [class*="st-key-card-ask"] [data-testid="stChatInput"] textarea:focus-visible { outline: none; }
+/* A card too narrow for side-by-side columns stacks them, whatever the window: beside the
+   Review screen's shipment list a card is narrower than the window suggests. */
+[class*="st-key-card"] { container-type: inline-size; }
+@container (max-width: 720px) {
+  [class*="st-key-card"] [data-testid="stHorizontalBlock"] { flex-direction: column; gap: var(--space-md); }
+  [class*="st-key-card"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] { width: 100% !important; flex: 1 1 auto !important; min-width: 0; }
+  [class*="st-key-card"] [data-testid="stImage"], [class*="st-key-card"] [data-testid="stImage"] img { max-width: 420px; }
+}
+/* A card's onward link wraps inside its column rather than running past the card's edge. */
+[class*="st-key-card"] [data-testid="stPageLink"] a, [class*="st-key-card"] [data-testid="stPageLink"] p {
+  white-space: normal; overflow: visible; min-width: 0; }
