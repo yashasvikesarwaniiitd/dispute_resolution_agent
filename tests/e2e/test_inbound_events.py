@@ -201,6 +201,31 @@ class TestReopeningAfterClosing:
         finally:
             w.close()
 
+    def test_a_reply_after_two_reopens_goes_to_a_person_even_inside_the_window(self) -> None:
+        """The cap (cases.max_agent_reopens: 2): a case the agent has already reopened twice
+        is not reopened a third time by a reply; a person sees it (T43/T44, guard
+        reopen_cap_ok). Found missing while checking a reply after an upheld email."""
+        from sqlalchemy import text
+
+        w = awaiting_seller()
+        try:
+            w.clock.advance(49 * HOURS)
+            w.tick()
+            w.drive()
+            w.clock.advance(24 * HOURS)
+            w.tick()
+            assert w.report().case.state is S.CLOSED_NO_RESPONSE
+            with w.engine.begin() as db:  # as if this case had reopened twice already
+                db.execute(text("UPDATE cases SET reopen_count = 2, version = version + 1"))
+            w.clock.advance(24 * HOURS)  # inside the 7-day window
+            w.reply("one more photo")
+            case = w.report().case
+            assert case.state is S.NEEDS_HUMAN_REVIEW
+            assert case.review_reason.code is ReviewCode.LATE_INBOUND
+            assert case.reopen_count == 3
+        finally:
+            w.close()
+
     def test_a_late_reply_outside_the_window_goes_to_a_person(self) -> None:
         w = awaiting_seller()
         try:
