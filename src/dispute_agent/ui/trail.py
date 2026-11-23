@@ -29,7 +29,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.ui import came_back, photo_check
 from dispute_agent.ui import trail_words as said
-from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, words
+from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, when, words
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -219,27 +219,26 @@ def build(
     # Inbound events dispatch set aside, by the input event's id, with the reason. A reply
     # set aside is not a reply to this case, so it must not read as one (ADR 0054, P5).
     set_aside = {
-        str(e.causation_id): str(getattr(e.payload, "reaction", ""))
+        str(e.causation_id): (str(getattr(e.payload, "reaction", "")), e.occurred_at)
         for e in history
         if e.type == InternalEventType.EVENT_IGNORED and e.causation_id is not None
     }
+    # One step per reason, however many emails it covers. After a restart the mailbox is read
+    # two days back, and every old test email about the shipment was set aside on its own
+    # line: five identical lines read as a loop (owner, 2026-11-23).
+    aside: dict[bool, tuple[int, list[datetime]]] = {}
     for event in history:
         at, kind, cause, payload = event.occurred_at, event.type, event.cause, event.payload
         if kind == InboundEventType.SELLER_REPLY_RECEIVED and str(event.id) in set_aside:
-            why = (
-                "it was written before this case was opened"
-                if "reply_predates_case" in set_aside[str(event.id)]
-                else "it does not answer this case now"
-            )
-            add(
-                Step(
-                    at,
-                    Actor.SYSTEM,
-                    f"An email was set aside: {why}",
-                    minor=True,
-                    mark=Mark.MINOR,
-                )
-            )
+            reaction, ignored_at = set_aside[str(event.id)]
+            early = "reply_predates_case" in reaction
+            if early not in aside:
+                # Stamped when it was set aside: the email's own time is before the case.
+                aside[early] = (len(trail.steps), [])
+                add(Step(ignored_at, Actor.SYSTEM, "", minor=True, mark=Mark.MINOR))
+            index, sent = aside[early]
+            sent.append(at)
+            trail.steps[index] = _set_aside(trail.steps[index], sent, early=early)
             continue
         if kind == InboundEventType.DISPUTE_RAISED:
             add(Step(at, Actor.SELLER, f"Dispute raised on {case.facts.shipment_ref}"))
@@ -409,6 +408,19 @@ def _seller_said(
     except Exception:  # not read yet: say nothing rather than guess
         return "", ()
     return came_back.seller_reply(item)
+
+
+def _set_aside(step: Step, sent: list[datetime], *, early: bool) -> Step:
+    """The one step for every email set aside for one reason, each email's time in Details."""
+    one = len(sent) == 1
+    why = (
+        ("it was written" if one else "they were written") + " before this case was opened"
+        if early
+        else ("it does not" if one else "they do not") + " answer this case now"
+    )
+    title = f"An email was set aside: {why}" if one else f"{len(sent)} emails were set aside: {why}"
+    lines = tuple(f"Email from {when(at)}" for at in sent)
+    return replace(step, title=title, lines=lines)
 
 
 def _photo_checked(at: datetime, checked: photo_check.PhotoCheck) -> Step:

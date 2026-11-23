@@ -163,6 +163,30 @@ def test_yesterday_s_reply_about_the_same_shipment_is_not_an_answer_to_today_s_c
     assert "An email was set aside: it was written before this case was opened" in titles
 
 
+def test_old_emails_set_aside_are_one_step_not_one_each(app: Any) -> None:
+    """Live: after a restart five old test emails about the shipment were each set aside on
+    their own identical line, which read as a loop. They are one step, each email in Details."""
+    from datetime import timedelta
+
+    case_id = _waiting_on_the_seller(app)
+    for n in range(3):
+        old = _message(f"old-{n}", SELLER_CONTACT, "Re: SHP-000001", "Photo of the box.")
+        app.state.application.adapters.email.deliver(
+            old.model_copy(update={"received_at": datetime.now(UTC) - timedelta(hours=n + 1)})
+        )
+    job = _job(app)
+    job._last_run, job._since = None, None
+    app.state.application.runtime.runner.tick()
+    with _work(app) as work:
+        steps = build(work, work.cases.get(CaseId(case_id))).steps
+    aside = [s for s in steps if "set aside" in s.title]
+    assert [s.title for s in aside] == [
+        "3 emails were set aside: they were written before this case was opened"
+    ]
+    assert len(aside[0].lines) == 3
+    assert all(line.startswith("Email from ") for line in aside[0].lines)
+
+
 def test_reading_the_mailbox_twice_delivers_a_reply_once(app: Any) -> None:
     case_id = _waiting_on_the_seller(app)
     app.state.application.adapters.email.deliver(

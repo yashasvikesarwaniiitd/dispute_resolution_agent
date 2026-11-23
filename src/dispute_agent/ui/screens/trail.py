@@ -56,19 +56,20 @@ ACTOR = {
 #: one per row as "pill - what it does". Labels match `ACTOR` exactly, so the key and the
 #: timeline say the same words.
 KEY = (
-    ("Seller", "raised the dispute, or replied to the agent"),
+    ("Seller", "raised the dispute or replied"),
     ("Code", "fixed checks and calculations; no AI"),
-    ("AI", "proposes the next step when the AI is on"),
-    ("Rules engine", "proposes the next step when the AI is off"),
+    ("AI", "proposes the next step when AI is on"),
+    ("Rules engine", "proposes the next step when AI is off"),
     ("Reviewer", "a person who approves or decides"),
-    ("Hub", "the hub team, answering a remeasurement"),
+    ("Hub", "the hub team, re-measuring a parcel"),
     ("System", "the service's own bookkeeping"),
 )
 LEGEND = (
-    '<p class="legend-head">Who did each step</p>'
+    '<div class="legend-box"><div class="legend-top"><p class="legend-head">Who did each step</p>'
+    '<p class="legend-note">All times are India Standard Time (IST).</p></div>'
     '<ul class="legend" aria-label="Who did each step">'
     + "".join(f"<li>{actor(name)}<span>{escape(what)}</span></li>" for name, what in KEY)
-    + '</ul><p class="legend-note">All times are India Standard Time (IST).</p>'
+    + "</ul></div>"
 )
 ONWARD = {
     CaseState.AWAITING_APPROVAL: ("review", "Decide on the Review screen →"),
@@ -180,15 +181,17 @@ def _identity(case: Case, trail: Trail) -> str:
         f"closed {when(case.closed_at)}" if case.closed_at else "open",
         calls,
     ]
+    # Beside the status, not at the end of the facts line, where it wrapped onto a line of its
+    # own on a laptop screen.
     live = (
-        f' · <span class="live" role="status" aria-live="polite">refreshes every {REFRESH_S} s</span>'
+        f'<span class="live" role="status" aria-live="polite">refreshes every {REFRESH_S} s</span>'
         if trail.is_open
         else ""
     )
     return (
         f'<div class="case-head"><h2 class="case-ref">{escape(trail.shipment_ref)}</h2>'
-        f"{chip(trail.label, trail.tone)}</div>"
-        f'<p class="case-facts">{escape(" · ".join(facts))}{live}</p>'
+        f"{chip(trail.label, trail.tone)}{live}</div>"
+        f'<p class="case-facts">{escape(" · ".join(facts))}</p>'
     )
 
 
@@ -282,9 +285,15 @@ def _item(step: Step, number: int, opened: datetime) -> str:
         pending = step.mark.value == "pending"
         side = "" if pending else f"<span>{escape(who)} · {escape(stamp)}</span>"
         css = "step-minor step-minor--pending" if pending else "step-minor"
+        listed = "".join(f"<li>{escape(line)}</li>" for line in step.lines)
+        fold = (
+            f'<details class="more"><summary>Details</summary><ul>{listed}</ul></details>'
+            if listed
+            else ""
+        )
         return (
             f'<li>{rail}<div class="step-body step-body--minor"><p class="{css}">'
-            f"<span>{escape(step.title)}</span>{side}</p></div></li>"
+            f"<span>{escape(step.title)}</span>{side}</p>{fold}</div></li>"
         )
     tag = f" {chip(step.tag, step.tone)}" if step.tag else ""
     parts = [

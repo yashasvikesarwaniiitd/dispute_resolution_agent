@@ -10,8 +10,11 @@
   --color-cotton: #fdfbf8; --color-board: #1f1917; --color-board-type: #f6f3ef;
   --color-paid: __PAID__; --color-paid-halo: rgb(186 74 52 / .18);
   --color-focus: #bd3a2b; --color-error: #8a2416;
-  --font-body: "General Sans", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-figure: "Geist Mono", ui-monospace, monospace;
+  /* Inter for text and figures; figures use its tabular digits, so amounts line up without
+     a code font (a monospace ₹152.00 read as code, not money). Mono is kept for recorded text. */
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-figure: var(--font-body);
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --text-sm: .875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem;
   --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px;
   --radius-card: 8px; --radius-control: 6px; --radius-pill: 999px; --control-h: 40px;
@@ -34,7 +37,17 @@ button, input, textarea, select { font-family: inherit; }
 .stApp [data-testid="stCaptionContainer"], .stApp [data-testid="stCaptionContainer"] p {
   font-size: var(--text-sm); color: var(--color-muted); opacity: 1; }
 .block-container { max-width: var(--container); padding: calc(var(--space-xl) + 56px) var(--space-lg) 64px; }
-code, pre { font-family: var(--font-figure); }
+/* One rhythm between blocks. Streamlit pulls every Markdown block 16px up into the next one,
+   to cancel the 16px under a default paragraph. The console's own blocks end in a heading, a
+   list or a paragraph with no margin, so each one sat on top of the next: a heading on its
+   first line, the Next line on its button, "All entries" below its own filter. With both
+   margins at zero, every block is followed by the same element gap. */
+.stApp [data-testid="stMarkdownContainer"] { margin-bottom: 0 !important; }
+.stApp [data-testid="stMarkdownContainer"] > :last-child { margin-bottom: 0; }
+code, pre { font-family: var(--font-mono); }
+/* Every digit on every screen is tabular, so columns of amounts and times line up. */
+html, body, .stApp { font-feature-settings: "tnum" 1; font-variant-numeric: tabular-nums; }
+.stApp h1, .stApp h2 { letter-spacing: -.02em; }
 a { color: var(--color-ink); text-underline-offset: 3px; text-decoration-color: var(--color-rule-2); }
 a:hover { color: var(--color-ink-2); text-decoration-color: var(--color-ink-2); }
 :focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible, [role="tab"]:focus-visible,
@@ -74,6 +87,21 @@ button[data-testid^="stBaseButton"]:disabled { opacity: .55; cursor: not-allowed
 [data-baseweb="input"]:focus-within, [data-baseweb="textarea"]:focus-within, [data-baseweb="select"] > div:focus-within {
   outline: 2px solid var(--color-focus); outline-offset: 1px; }
 .stApp [data-testid="stWidgetLabel"] p { font-size: var(--text-sm); font-weight: 500; color: var(--color-ink-2); }
+/* Radio choices with a line under each: room between them, so each choice reads as one. */
+.stApp [data-testid="stRadio"] [role="radiogroup"] { gap: var(--space-sm); }
+/* A reviewer's decision: each choice a tile, two to a row, the chosen one outlined in ink. A
+   list of five choices with a sentence under each read as one block of grey text. */
+.stApp [class*="st-key-choice-"] [role="radiogroup"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm); }
+.stApp [class*="st-key-choice-"] [role="radiogroup"] > div { border: 1px solid var(--color-rule); border-radius: var(--radius-control);
+  background: var(--color-cotton); padding: var(--space-sm) var(--space-md); transition: border-color var(--dur) ease; }
+.stApp [class*="st-key-choice-"] [role="radiogroup"] > div:hover { border-color: var(--color-rule-2); }
+.stApp [class*="st-key-choice-"] [role="radiogroup"] > div:has(input:checked) { border: 1.5px solid var(--color-ink); background: var(--color-paper); }
+.stApp [class*="st-key-choice-"] label[data-testid="stRadioOption"] p { font-weight: 600; color: var(--color-ink); }
+@media (max-width: 640px) { .stApp [class*="st-key-choice-"] [role="radiogroup"] { grid-template-columns: 1fr; } }
+/* A filter beside a card's heading sits at the card's right edge, not mid-card. */
+.stApp [class*="st-key-card"] [data-testid="stColumn"]:last-child
+  [data-testid="stElementContainer"]:has(> [data-testid="stButtonGroup"]) { margin-left: auto; }
 /* Tabs: real buttons, 44px, a 2px ink underline on the selected one. */
 .stApp [data-baseweb="tab"] { min-height: 44px; font-size: var(--text-md); font-weight: 500; color: var(--color-muted); }
 .stApp [data-baseweb="tab"][aria-selected="true"] { color: var(--color-ink); font-weight: 600; }
@@ -131,13 +159,18 @@ button[data-testid^="stBaseButton"]:disabled { opacity: .55; cursor: not-allowed
 .actor--hub::before { border: 1.5px solid var(--color-ink-2); }
 .actor--system { color: var(--color-muted); }
 .actor--system::before { display: none; }
-/* The key: one actor per row, pills in one column and what each does in the next. */
-.legend { list-style: none; display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px;
-  align-items: center; padding: 0; margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
-.legend li { display: contents; }
+/* The key: a quiet panel, actors in two columns read top to bottom (four, then three), each
+   pill in a fixed slot so the descriptions line up. One column on a phone. */
+.legend-box { background: var(--color-paper-2); border-radius: var(--radius-card); padding: var(--space-md) 20px; }
+.legend-top { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 16px; flex-wrap: wrap;
+  margin: 0 0 var(--space-sm); }
+.legend { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, auto);
+  grid-auto-flow: column; gap: 8px 24px; padding: 0; margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
+.legend li { display: grid; grid-template-columns: 116px minmax(0, 1fr); align-items: center; gap: 8px; margin: 0; }
 .legend li > .actor { justify-self: start; }
-.legend-head { font-size: var(--text-sm); font-weight: 600; margin: 0 0 8px; }
-.legend-note { font-size: var(--text-sm); color: var(--color-muted); margin: 8px 0 0; }
+.legend-head { font-size: var(--text-sm); font-weight: 600; margin: 0; }
+.legend-note { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
+@media (max-width: 640px) { .legend { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; } }
 
 /* Case card: name line, facts, headline, Why / Next, onward link. */
 .case-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0; }
@@ -219,7 +252,7 @@ details.more li { overflow-wrap: anywhere; margin: 0; }
 figure.recorded { margin: 10px 0 0; max-width: var(--measure); display: flex; flex-direction: column; gap: 6px; }
 figure.recorded figcaption, .caption { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
 blockquote.recorded, figure.recorded blockquote { margin: 0; padding: 12px 14px; background: var(--color-paper-2); border: 0;
-  border-radius: var(--radius-control); font-family: var(--font-figure); font-size: var(--text-sm); color: var(--color-ink);
+  border-radius: var(--radius-control); font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-ink);
   white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Definition pairs and data tables drawn as HTML. */
@@ -314,8 +347,8 @@ button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color
 .stApp .count { font-size: var(--text-lg); font-weight: 600; }
 .stApp figure.recorded blockquote, .stApp blockquote.recorded { font-size: var(--text-sm); }
 .stApp .legend { margin: 0; }
-.stApp .legend-head { margin: 0 0 8px; padding: 0; }
-.stApp .legend-note { margin: 8px 0 var(--space-lg); padding: 0; }
+.stApp .legend-head, .stApp .legend-note { margin: 0; padding: 0; }
+.stApp .case-head .live { font-size: var(--text-sm); color: var(--color-muted); }
 
 /* Review: the two halves of a decision card; the email exactly as stored. */
 .stApp .card-kind { font-size: var(--text-lg); font-weight: 700; margin: 0; padding: 0; }
