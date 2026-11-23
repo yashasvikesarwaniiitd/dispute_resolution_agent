@@ -28,6 +28,8 @@ DATA = Path("data")
 CASES = DATA / "cases.sqlite3"
 LEDGER = DATA / "ledger.sqlite3"
 MODEL_CALLS = DATA / "model_calls.sqlite3"
+#: Shipments added on the console (ADR 0056); the same file the running app's evidence reads.
+SHIPMENTS = DATA / "shipments.sqlite3"
 
 #: What a screen says when there is no case store yet: the empty state's one action.
 NO_STORE = (
@@ -113,6 +115,7 @@ __all__ = [
     "LEDGER",
     "MODEL_CALLS",
     "NO_STORE",
+    "SHIPMENTS",
     "ai_usage",
     "has_store",
     "ledger_entries",

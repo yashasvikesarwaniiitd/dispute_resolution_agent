@@ -13,13 +13,23 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import streamlit as st
 
 from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.enums import CaseState
+from dispute_agent.modules.evidence.synthetic_shipments.added import (
+    AddedShipments,
+    NewShipment,
+    ShipmentRejectedError,
+    check,
+    dimensions,
+)
+from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD
 from dispute_agent.ui import data, picker
+from dispute_agent.ui.add_shipment import STATUS_CHOICES, preview, save
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
 from dispute_agent.ui.photos import photo_for
@@ -42,7 +52,7 @@ FILTERS = ("Open", "Closed", "All")
 
 def page() -> None:
     settings = Settings()
-    shipments = catalogue()
+    shipments = catalogue(data.SHIPMENTS)
     seller_ref = sellers(shipments)[0]
     contact = (settings.test_seller_email or "").split(",")[0].strip() or None
 
@@ -72,9 +82,16 @@ def page() -> None:
 
 
 def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -> None:
-    head, hint = st.columns([1, 1], vertical_alignment="bottom")
+    head, add = st.columns([2, 1], vertical_alignment="center")
     head.header("Your shipments")
-    hint.markdown('<p class="muted right">Click a row to see its bill.</p>', unsafe_allow_html=True)
+    if add.button("Add a shipment", icon=":material/add:", key="open-add", width="stretch"):
+        _add_dialog()
+    added = st.session_state.pop("added", None)
+    if added:
+        st.markdown(
+            line(f"Added {added}. It is chosen on the right: raise a dispute on it when ready."),
+            unsafe_allow_html=True,
+        )
     clicked = picker.show(
         {
             "label": "Your shipments",
@@ -108,13 +125,139 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
         key="shipments",
     )
     st.markdown(
-        '<p class="muted">Expected: what the rate card gives for the size and weight you '
-        "declared. Charged: what you were billed after the hub weighed the parcel.</p>",
+        '<p class="muted">Click a row to see its bill. Expected: what the rate card gives for '
+        "the size and weight you declared. Charged: what you were billed after the hub weighed "
+        "the parcel.</p>",
         unsafe_allow_html=True,
     )
     if clicked["pick"] in refs and clicked["pick"] != st.session_state.get(SHIP):
         st.session_state[SHIP] = clicked["pick"]
         st.rerun()
+
+
+#: The form's widget keys, cleared after a save so the next form starts fresh.
+ADD = "add-"
+
+
+@st.dialog("Add a shipment", width="large")
+def _add_dialog() -> None:
+    """A synthetic shipment: sizes, weights and a zone; code works out the charge (ADR 0056)."""
+    store = AddedShipments(data.SHIPMENTS)
+    st.markdown(
+        '<p class="muted">Synthetic data only. The rate card works out the charge from the '
+        "hub's measurement; tick a billing mistake below to try one. The photo is optional.</p>",
+        unsafe_allow_html=True,
+    )
+    top = st.columns(3)
+    ref = top[0].text_input("Shipment ID", value=store.next_ref(), key=f"{ADD}ref").strip()
+    zones = list(CARD.zone_names())
+    zone = top[1].selectbox("Delivery zone", zones, index=min(1, len(zones) - 1), key=f"{ADD}zone")
+    status = top[2].selectbox("Status", list(STATUS_CHOICES), key=f"{ADD}status")
+    declared = _size_inputs("Seller declared", "declared", (20.0, 15.0, 10.0), 480)
+    measured = _size_inputs("Hub measured", "measured", (30.0, 22.0, 15.0), 1100)
+    with st.expander("Billing mistakes to try (optional)"):
+        other = st.checkbox("Charge a different amount", key=f"{ADD}override")
+        amount = st.number_input(
+            "Amount charged (₹)",
+            min_value=1.0,
+            max_value=100000.0,
+            value=200.0,
+            step=1.0,
+            disabled=not other,
+            key=f"{ADD}amount",
+        )
+        twice = st.checkbox("Charged twice (the same charge debited again)", key=f"{ADD}twice")
+    note = st.text_input(
+        "Hub's photo note (optional)",
+        max_chars=300,
+        placeholder="For example: possibly two parcels strapped together",
+        key=f"{ADD}note",
+    ).strip()
+    photo = st.file_uploader(
+        "Parcel photo (optional, JPG or PNG, up to 5 MB)",
+        type=["jpg", "jpeg", "png"],
+        key=f"{ADD}photo",
+    )
+
+    new: NewShipment | None = None
+    try:
+        new = NewShipment(
+            ref=ref,
+            zone=str(zone),
+            status=STATUS_CHOICES[str(status)],
+            declared=dimensions(*declared[0]),
+            declared_grams=declared[1],
+            measured=dimensions(*measured[0]),
+            measured_grams=measured[1],
+            charged_paise=int((Decimal(str(amount)) * 100).quantize(Decimal(1))) if other else None,
+            charged_twice=twice,
+            photo_note=note or None,
+        )
+        check(new)
+    except ShipmentRejectedError as bad:
+        new = None
+        st.markdown(line(str(bad), error=True), unsafe_allow_html=True)
+    if new is not None:
+        seen = preview(new)
+        st.markdown(
+            '<hr class="rule"><p class="muted">What code works out, before anything is saved</p>'
+            + pairs(
+                [
+                    ("Seller expects (declared size)", seen.expected),
+                    ("Correct charge (hub's measurement)", seen.correct),
+                    ("Will be charged", seen.charged),
+                ]
+            )
+            + line(seen.finding, error=seen.error),
+            unsafe_allow_html=True,
+        )
+    if st.button("Add shipment", type="primary", disabled=new is None, key=f"{ADD}save"):
+        assert new is not None
+        try:
+            saved = save(
+                store,
+                data.LEDGER,
+                new,
+                photo.getvalue() if photo is not None else None,
+                datetime.now(UTC),
+            )
+        except ShipmentRejectedError as bad:
+            st.markdown(line(str(bad), error=True), unsafe_allow_html=True)
+            return
+        for key in [k for k in st.session_state if str(k).startswith(ADD)]:
+            del st.session_state[key]
+        st.session_state[SHIP] = saved
+        st.session_state["added"] = saved
+        st.rerun()
+
+
+def _size_inputs(
+    title: str, key: str, sides: tuple[float, float, float], grams: int
+) -> tuple[tuple[float, float, float], int]:
+    """Length, width and height in cm and a weight in grams, on one row."""
+    st.markdown(f'<p class="caption">{escape(title)}</p>', unsafe_allow_html=True)
+    cols = st.columns(4)
+    values = [
+        cols[i].number_input(
+            f"{name} (cm)",
+            min_value=0.1,
+            max_value=300.0,
+            value=default,
+            step=0.5,
+            format="%.1f",
+            key=f"{ADD}{key}-{name.lower()}",
+        )
+        for i, (name, default) in enumerate(zip(("Length", "Width", "Height"), sides, strict=True))
+    ]
+    weight = cols[3].number_input(
+        "Weight (g)",
+        min_value=1,
+        max_value=100_000,
+        value=grams,
+        step=10,
+        key=f"{ADD}{key}-grams",
+    )
+    return (values[0], values[1], values[2]), int(weight)
 
 
 def _ticket_cell(ticket: Ticket | None) -> object:

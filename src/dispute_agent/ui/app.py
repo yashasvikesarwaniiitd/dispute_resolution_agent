@@ -100,7 +100,7 @@ def _through_the_gate() -> bool:
                         st.session_state["gate_passed"] = True
                         st.rerun()
                     st.error("That password is not correct.")
-        st.caption("Synthetic data only: 14 made-up shipments and one test seller.")
+        st.caption("Synthetic data only: made-up shipments and one test seller.")
     return False
 
 

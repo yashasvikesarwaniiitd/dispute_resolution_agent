@@ -26,6 +26,7 @@ from dispute_agent.ui.labels import Tone, state
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from datetime import datetime
+    from pathlib import Path
 
     from dispute_agent.kernel.domain.models import Case
 
@@ -110,12 +111,21 @@ def _card_line(charge: Any) -> str:
     return f"{render_fact(charge.amount)} for {kg:.2f} kg"
 
 
-def catalogue() -> list[Shipment]:
-    """Every synthetic shipment once, served as the running app serves it: first fixture wins."""
+def catalogue(added: Path | None = None) -> list[Shipment]:
+    """Every synthetic shipment once, served as the running app serves it: first fixture wins.
+
+    `added` is the store of shipments added on the console (ADR 0056); they follow the
+    fixtures, and a fixture keeps its reference.
+    """
+    from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
+
     pack = WeightDisputePack()  # the card the running app uses (app.py builds the same)
     seen: dict[str, Shipment] = {}
-    for name in FIXTURES:
-        s = fixture(name).shipment
+    built = [fixture(name) for name in FIXTURES]
+    if added is not None:
+        built += AddedShipments(added).all()
+    for one in built:
+        s = one.shipment
         if s.ref in seen:
             continue
         seen[s.ref] = Shipment(

@@ -146,16 +146,25 @@ def load_modules_file(config_dir: Path, name: str | None = None) -> ModulesFile:
     return ModulesFile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
 
 
-def _seed_charges(ledger: Any) -> None:
+#: Where shipments added on the console are kept, beside the case database (ADR 0056).
+ADDED_SHIPMENTS = "shipments.sqlite3"
+
+
+def _seed_charges(ledger: Any, added: Path | None = None) -> None:
     """The synthetic world's charges, so the simulated ledger has what was billed (R16).
 
-    Idempotent (INSERT OR IGNORE on the transaction id): a restart seeds nothing twice.
+    Idempotent (INSERT OR IGNORE on the transaction id): a restart seeds nothing twice. Added
+    shipments are seeded too, so a ledger rebuilt from empty still has their charges.
     """
     from dispute_agent.kernel.domain.values import Money
+    from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
     from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES, fixture
 
-    for name in FIXTURES:
-        for entry in fixture(name).shipment.ledger:
+    built = [fixture(name) for name in FIXTURES]
+    if added is not None:
+        built += AddedShipments(added).all()
+    for one in built:
+        for entry in one.shipment.ledger:
             if entry.kind == "DEBIT":
                 ledger.seed_debit(
                     entry.shipment_ref,
@@ -409,11 +418,14 @@ def build_adapters(
     if evidence_adapter == "disabled":
         evidence: EvidenceSource = DisabledEvidenceSource()
     elif evidence_adapter == "synthetic_shipments":
+        from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
         from dispute_agent.modules.evidence.synthetic_shipments.library import (
             SyntheticLibrarySource,
         )
 
-        evidence = SyntheticLibrarySource(clock=clock)
+        # Shipments a person added on the console (ADR 0056), beside the case database.
+        added = AddedShipments(data / ADDED_SHIPMENTS)
+        evidence = SyntheticLibrarySource(clock=clock, added=added)
     else:
         raise _not_built("evidence", evidence_adapter)
 
@@ -484,7 +496,7 @@ def build_adapters(
 
         ledger = SimulatedLedger(data / "ledger.sqlite3", clock=clock.now)
         if evidence_adapter == "synthetic_shipments":
-            _seed_charges(ledger)
+            _seed_charges(ledger, data / ADDED_SHIPMENTS)
     else:
         raise _not_built("ledger", ledger_adapter)
 
@@ -748,7 +760,7 @@ def _build_runtime(
         # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
         patterns=adapters.patterns if cross_case_on else None,
         interpreter=build_reply_reader(settings, policy, clock, ids),
-        **build_image_check(registry, settings, policy, clock, ids),
+        **build_image_check(registry, settings, policy, clock, ids, database.parent / "photos"),
     )
     jobs: list[Any] = []
     if cross_case_on:
@@ -804,24 +816,32 @@ def _build_runtime(
 
 
 def build_image_check(
-    registry: Registry, settings: Settings, policy: PolicyConfig, clock: Clock, ids: IdGenerator
+    registry: Registry,
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    added_photos: Path | None = None,
 ) -> dict[str, Any]:
     """The image check and the photos it reads (ADR 0049), or nothing when it is off.
 
     `foundry_vision` builds its own guarded `foundry_openai` gateway, so every photo it reads
     is logged and counted against the same spending caps as every other model call (I14).
+    `added_photos` holds the photos uploaded with shipments added on the console (ADR 0056).
     """
     adapter = registry.adapter_name("image_check")
     if adapter == "disabled":
         return {}
     from dispute_agent.modules.evidence.synthetic_shipments.photos import PhotoFolder
 
+    photos = PhotoFolder(added=added_photos)
+
     if adapter == "recorded":
         from dispute_agent.modules.image_check.recorded import RecordedImageChecker
 
         answers = RECORDED_IMAGE_ANSWERS
         loaded = json.loads(answers.read_text(encoding="utf-8")) if answers.is_file() else {}
-        return {"image_checker": RecordedImageChecker(loaded), "photos": PhotoFolder()}
+        return {"image_checker": RecordedImageChecker(loaded), "photos": photos}
     if adapter == "foundry_vision":
         from dispute_agent.modules.image_check.vision import VisionImageChecker
         from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
@@ -830,7 +850,7 @@ def build_image_check(
             "foundry_openai", settings=settings, policy=policy, clock=clock, ids=ids
         )
         prompts = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
-        return {"image_checker": VisionImageChecker(gateway, prompts), "photos": PhotoFolder()}
+        return {"image_checker": VisionImageChecker(gateway, prompts), "photos": photos}
     raise _not_built("image_check", adapter)
 
 

@@ -27,6 +27,9 @@ toolbarMode = "minimal"
 
 [server]
 headless = true
+# The only upload is a parcel photo on Add a shipment (ADR 0056), which accepts 5 MB; the
+# uploader states this limit, so it must match the one the store enforces.
+maxUploadSize = 5
 # No address here: the hosted console must listen where its host says. `make run-console`
 # passes --server.address 127.0.0.1 so the local one stays on loopback (threat T09).
 

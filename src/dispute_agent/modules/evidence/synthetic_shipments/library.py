@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.external import OpsFinding
     from dispute_agent.kernel.domain.ids import CaseId
     from dispute_agent.kernel.ports import Clock
+    from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
 
 #: The evidence key the hub's answer fills (the pack's `FINDING`).
 FINDING_KEY = "ops.finding"
@@ -49,6 +50,9 @@ class SyntheticLibrarySource:
     #: The hub's real answer for a case, when one has come in from the ticketing system
     #: (card P3-07). Set by the composition root; None answers from the fixtures alone.
     received: Callable[[CaseId], OpsFinding | None] | None = None
+    #: Shipments a person added on the console (ADR 0056), read on every lookup so one added
+    #: while the service runs is served at once. The fixtures win on a shared reference.
+    added: AddedShipments | None = None
     _by_shipment: dict[str, SyntheticShipmentSource] = field(default_factory=dict)
     _unknown: SyntheticShipmentSource | None = None
 
@@ -76,9 +80,21 @@ class SyntheticLibrarySource:
             answered = self.received(case_id)
             if answered is not None:
                 return self._from_hub(answered)
-        source = self._by_shipment.get(facts.shipment_ref, self._unknown)
+        source = self._source(facts.shipment_ref) or self._unknown
         assert source is not None
         return source.fetch(case_id, facts, requirement)
+
+    def _source(self, shipment_ref: str) -> SyntheticShipmentSource | None:
+        """The fixture's source, else an added shipment's (kept once found: they never change)."""
+        known = self._by_shipment.get(shipment_ref)
+        if known is not None or self.added is None:
+            return known
+        built = self.added.get(shipment_ref)
+        if built is None:
+            return None
+        source = SyntheticShipmentSource(fixture=built, clock=self.clock)
+        self._by_shipment[shipment_ref] = source
+        return source
 
     def _from_hub(self, finding: OpsFinding) -> EvidenceResult:
         """The hub's answer as the `ops.finding` item, in the fixture's own shape.
@@ -103,7 +119,8 @@ class SyntheticLibrarySource:
         )
 
     def shipments(self) -> tuple[str, ...]:
-        return tuple(sorted(self._by_shipment))
+        added = {f.shipment.ref for f in self.added.all()} if self.added is not None else set()
+        return tuple(sorted(set(self._by_shipment) | added))
 
     def keys_for(self, shipment_ref: str) -> dict[str, str]:
         """A shipment's cluster keys for cross-case matching (P7-02, wired in app.py).
@@ -111,7 +128,7 @@ class SyntheticLibrarySource:
         Raises LookupError for a shipment no fixture describes: unknown is not "no keys", and
         the pattern provider turns it into caution rather than a silent miss.
         """
-        source = self._by_shipment.get(shipment_ref)
+        source = self._source(shipment_ref)
         if source is None or source.fixture is None:
             raise LookupError(f"no synthetic shipment {shipment_ref!r}")
         shipment = source.fixture.shipment
