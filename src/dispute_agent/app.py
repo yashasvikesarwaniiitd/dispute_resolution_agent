@@ -1209,7 +1209,37 @@ def build_pattern_analyst(
 
 #: Lifetime spend cap for the case explainer (ADR 0039), inside the owner's USD 0.50 approval.
 EXPLAINER_CAP_USD = "0.25"
+EXPLAINER_PROMPT = "v2"  # brief and structured for the Review chat (ADR 0058); v1 kept for replay
 EXPLAINER_USAGE_LOG = PROJECT_ROOT / "data" / "explainer_usage.jsonl"
+
+
+def private_nltk_data() -> None:
+    """Give LlamaIndex's NLTK word lists a folder only this process's user can write.
+
+    NLTK (3.10+) refuses to read data from a folder another account can write to. On
+    Streamlit Cloud the copy bundled inside site-packages is group-writable, so building
+    the index failed and the Review screen's assistant could never answer (ADR 0058).
+    The bundled lists are copied, once per process, into a fresh `mkdtemp` folder (mode
+    0700): no download, and NLTK's safety check stays on.
+    """
+    import importlib.util
+    import os
+    import shutil
+    import tempfile
+
+    spec = importlib.util.find_spec("llama_index.core")
+    if os.environ.get("NLTK_DATA") or spec is None or not spec.submodule_search_locations:
+        return
+    bundled = Path(next(iter(spec.submodule_search_locations))) / "_static" / "nltk_cache"
+    if not bundled.is_dir():
+        return
+    target = Path(tempfile.mkdtemp(prefix="nltk-")) / "data"
+    shutil.copytree(bundled, target, ignore=shutil.ignore_patterns("*.zip"))
+    for folder, _dirs, files in os.walk(target):
+        os.chmod(folder, 0o700)
+        for name in files:
+            os.chmod(os.path.join(folder, name), 0o600)
+    os.environ["NLTK_DATA"] = str(target)
 
 
 def build_case_explainer(
@@ -1238,16 +1268,19 @@ def build_case_explainer(
     if key is None:
         raise ConfigError("ANTHROPIC_API_KEY is not set; the case explainer cannot start")
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
-    status = str(registry.meta("case_explainer", "v1").get("status", "inactive")).split()[0]
+    status = str(
+        registry.meta("case_explainer", EXPLAINER_PROMPT).get("status", "inactive")
+    ).split()[0]
     if status != "active" and not settings.prompts_allow_inactive:
         raise ConfigError(
-            "prompt case_explainer/v1 is inactive; set PROMPTS_ALLOW_INACTIVE=true only for its check"
+            f"prompt case_explainer/{EXPLAINER_PROMPT} is inactive; set PROMPTS_ALLOW_INACTIVE=true only for its check"
         )
+    private_nltk_data()
     return CaseExplainer(
         tools=ExplainerTools(
             reader=CaseReader(database), policies=default_index(), only_case=only_case
         ),
-        system_prompt=registry.system_text("case_explainer", "v1"),
+        system_prompt=registry.system_text("case_explainer", EXPLAINER_PROMPT),
         model=model,
         api_key=key.get_secret_value(),
         usage=UsageLog(EXPLAINER_USAGE_LOG),

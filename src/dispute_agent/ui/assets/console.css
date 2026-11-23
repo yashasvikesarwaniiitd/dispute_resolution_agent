@@ -418,6 +418,8 @@ button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color
 .ask-a { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 92%;
   margin: 0 0 var(--space-sm); padding: 12px 14px; background: var(--color-paper-2); border-radius: 14px 14px 14px 4px; }
 .ask-a p { margin: 0; }
+.ask-a ul { margin: 0; padding-left: 18px; }
+.ask-a li { margin: 4px 0 0; }
 .stApp .ask-read { font-size: var(--text-sm); color: var(--color-muted); margin: 2px 0 0; }
 .stApp [class*="st-key-ask-log-"] { max-height: 420px; overflow-y: auto; padding-right: 4px; }
 .stApp [class*="st-key-ask-chips-"] { flex-wrap: wrap; }

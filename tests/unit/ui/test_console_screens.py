@@ -433,6 +433,24 @@ class TestAskAboutThisShipment:
         assert "Reviewer: Why does this need my approval?" in prompts[1]
         assert prompts[1].endswith("Question: and who set that rule?")
 
+    def test_a_failed_answer_names_its_cause_and_keeps_the_page(
+        self, desk: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from dispute_agent.ui import ask
+
+        def broken(_case_id: str, _question: str) -> Any:
+            raise OSError("helper did not start\nsecond line not shown")
+
+        monkeypatch.setattr(ask, "unavailable", lambda: None)
+        monkeypatch.setattr(ask, "_ask", broken)
+        at = self._signed_in(desk)
+        next(b for b in at.button if b.label == "Why does this need my approval?").click().run()
+        assert not at.exception
+        text = _text(at)
+        assert "could not answer just now (OSError: helper did not start)" in text
+        assert "second line" not in text
+        assert f"{ask.ASK_LIMIT} of {ask.ASK_LIMIT} questions left" in text  # not counted
+
     def test_the_assistant_is_off_without_a_key_and_after_the_session_limit(
         self, desk: dict[str, Any], monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -460,3 +478,17 @@ def test_the_assistant_prompt_and_sources() -> None:
     assert ask.sources(
         ["mcp__case__case_timeline", "mcp__case__case_overview", "mcp__case__case_timeline", "Bash"]
     ) == ["Timeline", "Case overview"]
+
+
+def test_an_answer_renders_its_list_and_bold_but_nothing_else() -> None:
+    from dispute_agent.ui import ask
+
+    html = ask.answer_html(
+        "It waits for you <script>x</script>.\n- **Amount:** 182000 paise. [case_overview]\n"
+        "- **Rule:** R13 <b>bold</b>.\n\nThe end."
+    )
+    assert html == (
+        "<p>It waits for you &lt;script&gt;x&lt;/script&gt;.</p>"
+        "<ul><li><strong>Amount:</strong> 182000 paise. [case_overview]</li>"
+        "<li><strong>Rule:</strong> R13 &lt;b&gt;bold&lt;/b&gt;.</li></ul><p>The end.</p>"
+    )

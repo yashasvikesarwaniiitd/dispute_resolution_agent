@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import re
 from typing import TYPE_CHECKING, Any, Literal
 
 import streamlit as st
@@ -90,12 +91,28 @@ def _ask(case_id: str, question: str) -> Any:
     return st.session_state[EXPLAIN](case_id, question)
 
 
+def answer_html(answer: str) -> str:
+    """The answer, escaped first (I5); then only `- ` lines become a list and `**x**` bold."""
+    parts: list[str] = []
+    for raw in escape(answer).splitlines():
+        line = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", raw.strip())
+        if line.startswith("- "):
+            item = f"<li>{line[2:]}</li>"
+            if parts and parts[-1].startswith("<ul>"):
+                parts[-1] = parts[-1].removesuffix("</ul>") + item + "</ul>"
+            else:
+                parts.append(f"<ul>{item}</ul>")
+        elif line:
+            parts.append(f"<p>{line}</p>")
+    return "".join(parts)
+
+
 def _turn_html(turn: dict[str, Any]) -> str:
     read = turn.get("read") or []
     seen = f'<p class="ask-read">Read: {escape(" · ".join(read))}</p>' if read else ""
     return (
         f'<div class="ask-q"><p>{text(turn["q"])}</p></div>'
-        f'<div class="ask-a">{actor("AI")}<p>{text(turn["a"])}</p>{seen}</div>'
+        f'<div class="ask-a">{actor("AI")}{answer_html(turn["a"])}{seen}</div>'
     )
 
 
@@ -181,8 +198,11 @@ def _answer(case_id: str, ref: str, turns: list[dict[str, Any]], question: str) 
     except ConfigError as refused:
         return f"The assistant cannot start: {refused}"
     except Exception as failed:  # a network or SDK failure must not take the Review screen down
-        log.warning("explainer_failed", extra={"error": type(failed).__name__})
-        return "The assistant could not answer just now. Try again in a moment."
+        # Named, so a hosted failure can be diagnosed from the screen; one line, cut short.
+        first = (str(failed).strip().splitlines() or [""])[0][:160]
+        why = f"{type(failed).__name__}: {first}" if first else type(failed).__name__
+        log.warning("explainer_failed: %s", why)
+        return f"The assistant could not answer just now ({why}). Try again in a moment."
     if not answer.text:
         return "The assistant returned no answer. Try asking another way."
     turns.append({"q": question.strip(), "a": answer.text, "read": sources(answer.tools_used)})
@@ -190,4 +210,4 @@ def _answer(case_id: str, ref: str, turns: list[dict[str, Any]], question: str) 
     return None
 
 
-__all__ = ["ASK_LIMIT", "STARTERS", "panel", "prompt", "sources", "unavailable"]
+__all__ = ["ASK_LIMIT", "STARTERS", "answer_html", "panel", "prompt", "sources", "unavailable"]

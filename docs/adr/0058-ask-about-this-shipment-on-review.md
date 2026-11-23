@@ -38,6 +38,14 @@ A console started any other way shows the assistant as off.
 
 `requirements.txt` lists the explainer's libraries (`claude-agent-sdk`, `llama-index-core`, `llama-index-retrievers-bm25`). pip does not install the `agents` dependency group from `pyproject.toml`. LangGraph is not added: nothing hosted uses it.
 
+Found on the first hosted questions:
+- NLTK refuses to read data from a folder another account can write to, and Streamlit Cloud's site-packages is group-writable. So the policy index could not be built there, and every question failed. `app.private_nltk_data` copies LlamaIndex's bundled word lists into a fresh owner-only temp folder (`NLTK_DATA`), once per process: no download, and NLTK's check stays on.
+- When the assistant fails, the card names the error type and its first line, so a hosted failure can be read off the screen.
+
+## Answers
+
+Prompt `case_explainer/v2` (v1 kept for replay): one sentence that answers the question, then two to four lines, each starting with a bold label and ending with its source, under 80 words. The card escapes the answer first (I5). Then it turns only `- ` lines into a list and `**label**` into bold.
+
 ## Consequences
 
 - The Explainer is now part of the product, not only `make explain`. Its answers are still a convenience, not a record, and nothing it says is acted on.

@@ -181,6 +181,33 @@ class TestThePolicyLookup:
         index = PolicyIndex()
         assert index.search("credit requires approval")
 
+    def test_its_word_lists_come_from_a_folder_only_this_user_can_write(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # NLTK refuses a group-writable data folder; Streamlit Cloud's site-packages is one,
+        # so the hosted assistant could never answer (ADR 0058).
+        import os
+        import stat
+
+        from llama_index.core.utils import GlobalsHelper
+
+        from dispute_agent.app import private_nltk_data
+
+        monkeypatch.setenv("NLTK_DATA", "")  # empty, as an empty .env line gives: still ours
+        private_nltk_data()
+        data = Path(os.environ["NLTK_DATA"])
+        assert (data / "corpora" / "stopwords").is_dir()
+        assert (data / "tokenizers" / "punkt_tab").is_dir()
+        if os.name == "posix":
+            for folder, _dirs, files in os.walk(data):
+                assert not os.stat(folder).st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+                for name in files:
+                    mode = os.stat(os.path.join(folder, name)).st_mode
+                    assert not mode & (stat.S_IWGRP | stat.S_IWOTH)
+        helper = GlobalsHelper()
+        assert "the" in helper.stopwords
+        assert helper._nltk_data_dir == str(data)
+
     def test_it_indexes_project_documents_only(self, policies: PolicyIndex) -> None:
         sources = {
             h.source for q in ("approval", "pattern", "credit") for h in policies.search(q, 5)
