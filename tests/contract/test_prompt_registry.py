@@ -93,6 +93,18 @@ class TestLoading:
         assert rendered.output_schema["title"] == "Proposal"
         assert (rendered.name, rendered.version) == (NAME, VERSION)
 
+    @pytest.mark.parametrize(
+        "folder",
+        sorted(p.parent for p in PROMPTS.glob("*/*/meta.yaml")),
+        ids=lambda f: f"{f.parent.name}/{f.name}",
+    )
+    def test_every_committed_prompt_header_parses(self, folder: Path) -> None:
+        # A changelog line starting with a backtick once broke case_explainer's header, and
+        # with it the Review screen's assistant, while every other test passed (ADR 0058).
+        meta = FilePromptRegistry(PROMPTS).meta(folder.parent.name, folder.name)
+        assert meta["name"] == folder.parent.name
+        assert str(meta["status"]).split()[0] in {"active", "inactive"}
+
     def test_an_unknown_name_or_version_raises_not_found(self, registry: PromptRegistry) -> None:
         with pytest.raises(NotFound):
             registry.load("no_such_prompt", VERSION, {}, {})

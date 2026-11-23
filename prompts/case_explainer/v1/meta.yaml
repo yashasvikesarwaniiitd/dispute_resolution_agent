@@ -12,4 +12,4 @@ runtime: claude_agent_sdk  # ADR 0039; Haiku only (I14 exception, read-only)
 eval_suite: tests/unit/modules/reasoning/test_case_explainer.py (offline) and scripts/explain.py --check (live)
 changelog:
   - v1: initial version (ADR 0039)
-  - v1 activated 2026-11-05: `make explain ARGS=--check` passed 3 of 3 on Haiku (named the real state or reason, cited a source, recommended no decision), USD 0.003.
+  - "v1 activated 2026-11-05: `make explain ARGS=--check` passed 3 of 3 on Haiku (named the real state or reason, cited a source, recommended no decision), USD 0.003."
