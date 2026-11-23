@@ -58,7 +58,7 @@ modules:
 | `model_gateway` | `fake`, `anthropic_direct`, `foundry_agent_service`, `foundry_openai` | — | `adapter` is the primary route, `secondary_adapter` the failover route (`anthropic_direct` or null). Both are wrapped by `BudgetedModelGateway` (ADR 0017). `secondary_adapter` must differ from `adapter` |
 | `reasoning` | `rules_only`, `llm` | `model_gateway` when `llm` | |
 | `input_screen` | `rules_based`, `foundry_guardrails` | `model_gateway` with a Foundry primary when `foundry_guardrails` | |
-| `tracing` | `noop`, `otel_foundry` | — | `otel_foundry` is `preview: true` (never required by `make verify`) |
+| `tracing` | `noop`, `otel_foundry`, `langfuse` | — | `otel_foundry` is `preview: true` (never required by `make verify`); `langfuse` (ADR 0057) wires the no-op tracer when its keys are missing |
 | `email` | `fake`, `outlook_graph`, `gmail_api` | — | settings in `integrations.md` section 1; `gmail_api` added by ADR 0038 (owner-approved spec change) |
 | `ticketing` | `fake`, `jira_cloud` | — | settings in `integrations.md` section 2 |
 | `ledger` | `simulated` | `approvals` | |
@@ -198,6 +198,8 @@ gates:
 | `FOUNDRY_PROJECT_ENDPOINT` | no | a Foundry adapter is on | Foundry adapters |
 | `FOUNDRY_MODEL_DEPLOYMENT` | no | a Foundry adapter is on | Foundry adapters |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | yes | `tracing: otel_foundry` | tracing adapter |
+| `LANGFUSE_SECRET_KEY` | yes | `tracing: langfuse` | AI-call spans to Langfuse (ADR 0057) |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_HOST` | no | `tracing: langfuse` | the project's public key; host defaults to Langfuse Cloud EU |
 | `ANTHROPIC_API_KEY` | yes | `anthropic_direct` is a route | that adapter's settings loader only (I14) |
 | `ANTHROPIC_MODEL_HAIKU` | no | as above | must match `llm_secondary.allowed_models` |
 | `LLM_SECONDARY_SPEND_CAP_USD` | no | optional | policy |

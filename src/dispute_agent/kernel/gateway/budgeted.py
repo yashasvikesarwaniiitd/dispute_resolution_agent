@@ -186,6 +186,8 @@ class BudgetedModelGateway:
                 latency_ms=str(usage.latency_ms),
                 outcome=status,
                 failover_from=failover_from or "",
+                case_id=str(req.case_id or ""),
+                cost_usd=str(usage.cost_usd),
             ):
                 pass
         self.ledger.record(

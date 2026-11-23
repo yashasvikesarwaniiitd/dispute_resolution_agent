@@ -39,7 +39,7 @@ Never logged, at any level: message subjects and bodies, reply text, AI prompts 
 
 Tests TC-SEC-01 and TC-SEC-02 (`test-charter.md`) run the scenario suite with sentinel secrets and content, then scan logs, spans, the database and fixtures for them.
 
-## 3. Traces (`Tracer` port; `otel_foundry` adapter from Phase 4b, preview)
+## 3. Traces (`Tracer` port; `otel_foundry` adapter from Phase 4b, preview; `langfuse` adapter, ADR 0057)
 
 Span names and the only attributes allowed (an allow-list; anything else is dropped by the adapter):
 
@@ -50,9 +50,11 @@ Span names and the only attributes allowed (an allow-list; anything else is drop
 | `policy.evaluate` | `stage`, `intent_type`, `verdict`, `rule_ids_fired` (comma list) |
 | `executor.execute` / `executor.verify` | `action_type`, `action_id`, `outcome`, `attempts`, `found_by_lookup` |
 | `http.<system>.<operation>` | `http.status_code`, `retry_after_s`, `attempt`, `server.address` |
-| `model.call` | `purpose`, `route`, `deployment`, `model_id`, `prompt_name`, `prompt_version`, `prompt_hash`, `input_tokens`, `output_tokens`, `latency_ms`, `outcome` (`ok`, `invalid_output`, `blocked`, `budget`, `error`), `failover_from` |
+| `model.call` | `purpose`, `route`, `deployment`, `model_id`, `prompt_name`, `prompt_version`, `prompt_hash`, `input_tokens`, `output_tokens`, `latency_ms`, `outcome` (`ok`, `invalid_output`, `blocked`, `budget`, `error`), `failover_from`, `case_id`, `cost_usd` (ADR 0057) |
 
 Content (prompt and response text) is never a span attribute or event unless `telemetry.capture_content` is true, which is allowed only with `APP_ENV=test` (I14). The Foundry SDK's own content recording is switched off explicitly by the adapter, and automatic instrumentation is disabled (`foundry.md` section 9).
+
+**Langfuse (ADR 0057).** The `langfuse` adapter exports `model.call` spans only, over OTLP/HTTP. Its Langfuse fields (`langfuse.observation.type = generation`, model name, `usage_details`, `cost_details`, `langfuse.session.id` = the case id) are derived from the allow-listed attributes above, so they add no content. Setup: create a Langfuse Cloud project, put `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (and `LANGFUSE_HOST` for the US region) in `.env`, then `make hosted-secrets`, paste into Streamlit Secrets and Reboot. Without the keys the adapter is the no-op tracer.
 
 ## 4. Metrics and KPIs
 

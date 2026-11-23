@@ -91,3 +91,21 @@ def test_the_foundry_route_refuses_to_start_without_a_credit_date(tmp_path: Path
             ids=UlidIdGenerator(),
             log_path=tmp_path / "calls.sqlite3",
         )
+
+
+def test_the_builder_hands_the_tracer_to_the_guard(tmp_path: Path) -> None:
+    """ADR 0057: the guard is what opens the `model.call` span, so it must hold the tracer."""
+    from dispute_agent.modules.tracing.noop import NoopTracer
+
+    tracer = NoopTracer()
+    gateway = build_model_gateway(
+        "fake",
+        settings=Settings(_env_file=None),
+        policy=PolicyConfig(),
+        clock=SystemClock(),
+        ids=UlidIdGenerator(),
+        log_path=tmp_path / "calls.sqlite3",
+        tracer=tracer,
+    )
+    assert isinstance(gateway, BudgetedModelGateway)
+    assert gateway.tracer is tracer

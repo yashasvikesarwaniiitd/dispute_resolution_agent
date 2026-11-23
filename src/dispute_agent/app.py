@@ -194,6 +194,25 @@ def _not_built(module: str, adapter: str) -> ConfigError:
     )
 
 
+def _build_langfuse(settings: Settings | None) -> Tracer:
+    """AI-call spans to Langfuse (ADR 0057), or the no-op tracer without its keys.
+
+    Unlike email or Jira, a missing tracer must not stop the app: observability is the one
+    module whose absence changes nothing the system decides (modules/tracing/noop).
+    """
+    secret = None if settings is None else settings.langfuse_secret_key
+    if settings is None or not (settings.langfuse_public_key and secret):
+        import structlog
+
+        structlog.get_logger(__name__).warning("langfuse_keys_missing", adapter="noop")
+        return NoopTracer()
+    from dispute_agent.modules.tracing.otel import OtelTracer
+
+    return OtelTracer.to_langfuse(
+        settings.langfuse_host, settings.langfuse_public_key, secret.get_secret_value()
+    )
+
+
 def _build_gmail(settings: Settings | None) -> MessageChannel:
     """The owner's pilot Gmail (ADR 0038). Refuses without every setting and a sign-in (I11)."""
     from dispute_agent.modules.email.gmail_api.auth import GmailAuth, SecretRefreshStore
@@ -318,6 +337,7 @@ def _pattern_analyst(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
+    tracer: Tracer | None = None,
 ) -> Any:
     """The analyst when the model route is on (D57); None otherwise - patterns then keep
     their code-written summary, and nothing else changes."""
@@ -326,7 +346,7 @@ def _pattern_analyst(
     route = registry.adapter_name("model_gateway")
     if route == "foundry_agent_service":
         route = "foundry_openai"  # the analyst calls the deployment; it has no Foundry agent
-    return build_pattern_analyst(settings, policy, clock, ids, route=route)
+    return build_pattern_analyst(settings, policy, clock, ids, route=route, tracer=tracer)
 
 
 def build_cross_case_job(
@@ -461,6 +481,8 @@ def build_adapters(
     tracing_adapter = registry.adapter_name("tracing")
     if tracing_adapter == "noop":
         tracer: Tracer = NoopTracer()
+    elif tracing_adapter == "langfuse":
+        tracer = _build_langfuse(settings)
     else:
         raise _not_built("tracing", tracing_adapter)
 
@@ -759,8 +781,10 @@ def _build_runtime(
         kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
         # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
         patterns=adapters.patterns if cross_case_on else None,
-        interpreter=build_reply_reader(settings, policy, clock, ids),
-        **build_image_check(registry, settings, policy, clock, ids, database.parent / "photos"),
+        interpreter=build_reply_reader(settings, policy, clock, ids, tracer=adapters.tracer),
+        **build_image_check(
+            registry, settings, policy, clock, ids, database.parent / "photos", adapters.tracer
+        ),
     )
     jobs: list[Any] = []
     if cross_case_on:
@@ -776,7 +800,9 @@ def _build_runtime(
                 ids=ids,
                 modules=modules,
                 kill_switch=line.kill_switch,
-                analyst=_pattern_analyst(registry, modules, settings, policy, clock, ids),
+                analyst=_pattern_analyst(
+                    registry, modules, settings, policy, clock, ids, adapters.tracer
+                ),
             )
         )
     runner = Runner(engine, line, observer=adapters.outcomes, jobs=jobs)
@@ -822,6 +848,7 @@ def build_image_check(
     clock: Clock,
     ids: IdGenerator,
     added_photos: Path | None = None,
+    tracer: Tracer | None = None,
 ) -> dict[str, Any]:
     """The image check and the photos it reads (ADR 0049), or nothing when it is off.
 
@@ -847,7 +874,7 @@ def build_image_check(
         from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
         gateway = build_model_gateway(
-            "foundry_openai", settings=settings, policy=policy, clock=clock, ids=ids
+            "foundry_openai", settings=settings, policy=policy, clock=clock, ids=ids, tracer=tracer
         )
         prompts = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
         return {"image_checker": VisionImageChecker(gateway, prompts), "photos": photos}
@@ -889,6 +916,7 @@ def build_model_gateway(
     fake_answer: Callable[[ModelRequest], str | dict[str, object]] | None = None,
     log_path: Path = MODEL_CALL_LOG,
     secondary: str | None = None,
+    tracer: Tracer | None = None,
 ) -> ModelGateway:
     """The one guarded path to a model (I14, ADR 0017): the chosen route, inside the guard.
 
@@ -928,6 +956,7 @@ def build_model_gateway(
         ids=ids,
         secondary=second,
         secondary_cap_usd=policy.llm_secondary.spend_cap_usd,
+        tracer=tracer,
     )
 
 
@@ -938,6 +967,7 @@ def build_reply_reader(
     ids: IdGenerator,
     *,
     log_path: Path = MODEL_CALL_LOG,
+    tracer: Tracer | None = None,
 ) -> ReplyInterpreter | None:
     """The model that reads a seller's emailed reply on the running app (ADR 0054), or None.
 
@@ -966,6 +996,7 @@ def build_reply_reader(
         ),
         clock=clock,
         ids=ids,
+        tracer=tracer,
     )
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
     return LlmReplyInterpreter(prompts=registry, gateway=gateway)
@@ -1152,6 +1183,7 @@ def build_pattern_analyst(
     ids: IdGenerator,
     *,
     route: str = "foundry_openai",
+    tracer: Tracer | None = None,
 ) -> Any:
     """The pattern analyst behind the spending guard (P7-04, I14).
 
@@ -1162,7 +1194,9 @@ def build_pattern_analyst(
     from dispute_agent.modules.cross_case.analyzer.hypotheses import PatternAnalyst
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
-    gateway = build_model_gateway(route, settings=settings, policy=policy, clock=clock, ids=ids)
+    gateway = build_model_gateway(
+        route, settings=settings, policy=policy, clock=clock, ids=ids, tracer=tracer
+    )
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
     # The policy's output budget, not the prompt's 1,200: a reasoning model spends most of
     # the budget thinking, and 1,200 cut every answer off mid-JSON (first live run, 0 of 6).

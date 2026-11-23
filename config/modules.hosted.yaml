@@ -37,7 +37,7 @@ modules:
 
   tracing:
     enabled: true
-    adapter: noop                                 # otel_foundry is preview; never required by make verify
+    adapter: langfuse                             # ADR 0057: AI-call spans to Langfuse; no-op without LANGFUSE_* keys
 
   email:
     enabled: true                                 # HOSTED: the owner's Gmail (ADR 0038)

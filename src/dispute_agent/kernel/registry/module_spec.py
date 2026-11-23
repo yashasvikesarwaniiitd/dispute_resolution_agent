@@ -108,6 +108,8 @@ MODULE_SPECS: dict[str, ModuleSpec] = {
         adapters=_adapters(
             AdapterSpec("noop"),
             AdapterSpec("otel_foundry", preview=True),
+            # ADR 0057: AI-call spans to Langfuse. Without its keys it wires the no-op tracer.
+            AdapterSpec("langfuse", needs_env=("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")),
         ),
         off_adapter="noop",
     ),

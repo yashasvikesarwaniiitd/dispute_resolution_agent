@@ -81,6 +81,108 @@ class TestSpansCarryNoContent:
         assert ran
 
 
+def langfuse() -> tuple[OtelTracer, InMemorySpanExporter]:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return OtelTracer(provider.get_tracer("test"), langfuse=True), exporter
+
+
+class TestLangfuse:
+    """ADR 0057: an AI call reaches Langfuse as a generation, and still carries no content."""
+
+    CALL = {  # noqa: RUF012 - read only
+        "purpose": "seller_reply_interpreter",
+        "route": "anthropic_direct",
+        "model_id": "claude-haiku-5-5",
+        "input_tokens": "1349",
+        "output_tokens": "120",
+        "latency_ms": "2500",
+        "cost_usd": "0.0021",
+        "outcome": "ok",
+        "case_id": "case_1",
+    }
+
+    def test_a_model_call_is_a_generation_with_tokens_cost_and_session(self) -> None:
+        tracer, exporter = langfuse()
+        with tracer.span("model.call", **self.CALL):
+            pass
+        [span] = exporter.get_finished_spans()
+        attributes = dict(span.attributes or {})
+        assert attributes["langfuse.observation.type"] == "generation"
+        assert attributes["langfuse.observation.model.name"] == "claude-haiku-5-5"
+        assert json.loads(str(attributes["langfuse.observation.usage_details"])) == {
+            "input": 1349,
+            "output": 120,
+        }
+        assert json.loads(str(attributes["langfuse.observation.cost_details"])) == {"total": 0.0021}
+        assert attributes["langfuse.session.id"] == "case_1"
+
+    def test_the_span_lasts_as_long_as_the_call(self) -> None:
+        """The span opens after the call returns; without a back-dated start, latency is 0."""
+        tracer, exporter = langfuse()
+        with tracer.span("model.call", **self.CALL):
+            pass
+        [span] = exporter.get_finished_spans()
+        assert span.start_time is not None and span.end_time is not None
+        assert abs((span.end_time - span.start_time) / 1e6 - 2500) < 200
+
+    def test_a_failed_call_names_no_model_and_still_carries_no_content(self) -> None:
+        tracer, exporter = langfuse()
+        with tracer.span(
+            "model.call",
+            model_id="unknown",
+            outcome="error",
+            body=SECRET_MARKER,
+            token=SENTINEL_SECRET,
+        ):
+            pass
+        attributes = dict(exporter.get_finished_spans()[0].attributes or {})
+        assert "langfuse.observation.model.name" not in attributes
+        assert SECRET_MARKER not in json.dumps(attributes)
+        assert SENTINEL_SECRET not in json.dumps(attributes)
+
+    def test_the_plain_tracer_adds_no_langfuse_names(self) -> None:
+        tracer, exporter = otel()
+        with tracer.span("model.call", **self.CALL):
+            pass
+        attributes = dict(exporter.get_finished_spans()[0].attributes or {})
+        assert not [k for k in attributes if k.startswith("langfuse.")]
+
+    def test_the_endpoint_and_basic_auth(self) -> None:
+        import base64
+
+        from dispute_agent.modules.tracing.otel import langfuse_endpoint
+
+        url, headers = langfuse_endpoint("https://cloud.langfuse.com/", "pk-lf-1", "sk-lf-2")
+        assert url == "https://cloud.langfuse.com/api/public/otel/v1/traces"
+        scheme, token = headers["Authorization"].split(" ")
+        assert scheme == "Basic"
+        assert base64.b64decode(token).decode() == "pk-lf-1:sk-lf-2"
+        assert headers["x-langfuse-ingestion-version"] == "4"
+
+    def test_without_keys_the_app_wires_the_noop_tracer(self) -> None:
+        from dispute_agent.app import _build_langfuse
+        from dispute_agent.infra.settings import Settings
+        from dispute_agent.modules.tracing.noop import NoopTracer
+
+        assert isinstance(_build_langfuse(Settings(_env_file=None)), NoopTracer)
+        assert isinstance(_build_langfuse(None), NoopTracer)
+
+    def test_with_keys_the_app_wires_langfuse(self) -> None:
+        from pydantic import SecretStr
+
+        from dispute_agent.app import _build_langfuse
+        from dispute_agent.infra.settings import Settings
+
+        settings = Settings(
+            _env_file=None, langfuse_public_key="pk-lf-1", langfuse_secret_key=SecretStr("sk-lf-2")
+        )
+        tracer = _build_langfuse(settings)
+        assert isinstance(tracer, OtelTracer)
+        assert tracer._langfuse
+
+
 class TestPromptShields:
     def test_detections_become_annotations(self) -> None:
         response = SimpleNamespace(

@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[3]
 HOSTED = "modules.hosted.yaml"
+LANGFUSE_EU = "https://cloud.langfuse.com"
 
 
 @pytest.fixture
@@ -208,6 +209,27 @@ class TestTheSecretsBlock:
         values, _ = hs.collect(Settings(_env_file=None), None, "pw")  # type: ignore[attr-defined]
         assert "REPLY_READER" not in tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
 
+    def test_langfuse_keys_travel_whole_or_are_named_missing(self) -> None:
+        """ADR 0057: with only one Langfuse key in .env, the other is named, not left out."""
+        from pydantic import SecretStr
+
+        hs: object = self._module()
+        settings = Settings(_env_file=None, langfuse_secret_key=SecretStr("sk-lf-test"))
+        values, missing = hs.collect(settings, None, "pw")  # type: ignore[attr-defined]
+        names = tomllib.loads(hs.toml_block(values))  # type: ignore[attr-defined]
+        assert names["LANGFUSE_HOST"] == "https://cloud.langfuse.com"
+        assert "LANGFUSE_PUBLIC_KEY" in missing
+        none, _ = hs.collect(Settings(_env_file=None), None, "pw")  # type: ignore[attr-defined]
+        assert "LANGFUSE_SECRET_KEY" not in none
+        assert Settings(_env_file=None, langfuse_host=" ").langfuse_host == LANGFUSE_EU
+
+    def test_a_blank_langfuse_host_in_the_env_file_is_the_default_region(
+        self, tmp_path: Path
+    ) -> None:
+        env = tmp_path / ".env"
+        env.write_text("LANGFUSE_HOST=\n", encoding="utf-8")
+        assert Settings(_env_file=env).langfuse_host == LANGFUSE_EU
+
 
 class TestTheServiceAcrossReloads:
     """Streamlit unloads every watched module when a file changes - a push to GitHub does
@@ -243,3 +265,11 @@ class TestTheServiceAcrossReloads:
         assert services.get(before, Client) is first and len(started) == 1  # kept
         second = services.get(after, Client)  # the code was reloaded
         assert second is not first and first.stopped and not second.stopped
+
+
+class TestLangfuseRegion:
+    def test_langfuse_base_url_as_the_dashboard_names_it_is_read(self, tmp_path: Path) -> None:
+        """ADR 0057: a US-region project failed with 401 when only LANGFUSE_HOST was read."""
+        env = tmp_path / ".env"
+        env.write_text('LANGFUSE_BASE_URL="https://us.cloud.langfuse.com"\n', encoding="utf-8")
+        assert Settings(_env_file=env).langfuse_host == "https://us.cloud.langfuse.com"

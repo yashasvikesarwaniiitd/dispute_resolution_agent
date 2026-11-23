@@ -54,12 +54,18 @@ REPLY_READER = (
 )
 
 
+#: AI-call spans to Langfuse (ADR 0057), added only when `.env` holds the Langfuse keys; without
+#: them the live site wires the no-op tracer.
+LANGFUSE = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST")
+
+
 def toml_block(values: dict[str, str]) -> str:
     """`NAME = "value"` lines. JSON string escaping is valid TOML basic-string escaping."""
     names = [
         *NEEDED,
         *(name for name in PHOTO_CHECK if name in values),
         *(name for name in REPLY_READER if name in values),
+        *(name for name in LANGFUSE if name in values),
     ]
     return "\n".join(f"{name} = {json.dumps(values[name])}" for name in names) + "\n"
 
@@ -106,6 +112,13 @@ def collect(
             "LLM_SECONDARY_SPEND_CAP_USD": plain(settings.llm_secondary_spend_cap_usd) or "10",
         }
         wanted += REPLY_READER
+    if settings.langfuse_public_key or settings.langfuse_secret_key:
+        values |= {
+            "LANGFUSE_PUBLIC_KEY": plain(settings.langfuse_public_key),
+            "LANGFUSE_SECRET_KEY": plain(settings.langfuse_secret_key),
+            "LANGFUSE_HOST": plain(settings.langfuse_host),
+        }
+        wanted += LANGFUSE
     return values, [name for name in wanted if not values[name].strip()]
 
 

@@ -16,7 +16,7 @@ from datetime import date  # noqa: TC003 - pydantic-settings resolves it at runt
 from decimal import Decimal  # noqa: TC003 - as above
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AppEnv = Literal["local", "test", "ci"]
@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     #: anyway, so it is redacted from logs like every other credential (ADR 0038).
     gmail_client_secret: SecretStr | None = None
     applicationinsights_connection_string: SecretStr | None = None
+    #: ADR 0057: Langfuse receives the AI-call spans. The public key is not a secret.
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_public_key: str | None = None
+    #: Langfuse's own dashboard calls it LANGFUSE_BASE_URL; either name works.
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("langfuse_host", "langfuse_base_url"),
+    )
     #: ADR 0049: the live site's Foundry sign-in - a Microsoft Entra app registration (still
     #: Entra ID, I14). Set only in the host's secret store. Unset: the interactive sign-in.
     foundry_client_secret: SecretStr | None = None
@@ -121,6 +129,14 @@ class Settings(BaseSettings):
     def _blank_is_unset(cls, value: object) -> object:
         """`.env.example` lists names with empty values; an empty value means not set."""
         return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("langfuse_host", mode="before")
+    @classmethod
+    def _blank_host_is_eu(cls, value: object) -> object:
+        """`LANGFUSE_HOST=` as listed in `.env.example` means the default region, not ""."""
+        return (
+            "https://cloud.langfuse.com" if isinstance(value, str) and not value.strip() else value
+        )
 
     telemetry_capture_content: bool = Field(
         default=False,
