@@ -89,16 +89,23 @@ button[data-testid^="stBaseButton"]:disabled { opacity: .55; cursor: not-allowed
 .stApp [data-testid="stWidgetLabel"] p { font-size: var(--text-sm); font-weight: 500; color: var(--color-ink-2); }
 /* Radio choices with a line under each: room between them, so each choice reads as one. */
 .stApp [data-testid="stRadio"] [role="radiogroup"] { gap: var(--space-sm); }
-/* A reviewer's decision: each choice a tile, two to a row, the chosen one outlined in ink. A
-   list of five choices with a sentence under each read as one block of grey text. */
-.stApp [class*="st-key-choice-"] [role="radiogroup"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm); }
-.stApp [class*="st-key-choice-"] [role="radiogroup"] > div { border: 1px solid var(--color-rule); border-radius: var(--radius-control);
-  background: var(--color-cotton); padding: var(--space-sm) var(--space-md); transition: border-color var(--dur) ease; }
-.stApp [class*="st-key-choice-"] [role="radiogroup"] > div:hover { border-color: var(--color-rule-2); }
-.stApp [class*="st-key-choice-"] [role="radiogroup"] > div:has(input:checked) { border: 1.5px solid var(--color-ink); background: var(--color-paper); }
-.stApp [class*="st-key-choice-"] label[data-testid="stRadioOption"] p { font-weight: 600; color: var(--color-ink); }
-@media (max-width: 640px) { .stApp [class*="st-key-choice-"] [role="radiogroup"] { grid-template-columns: 1fr; } }
+/* A reviewer's decision: one tile per choice, two to a row, every row as tall as the tallest
+   so the tiles are one size. The chosen tile is outlined in ink. Each tile holds its own
+   extra (what to ask for, tell the seller), disabled until that tile is chosen. */
+.stApp [class*="st-key-tiles-"] { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr; gap: var(--space-sm) !important; align-items: stretch !important; }
+/* Streamlit wraps each tile in a layout wrapper sized to its content: stretch it to the row,
+   and the tile to the wrapper, or the tiles keep their own heights inside equal rows. */
+.stApp [class*="st-key-tiles-"] > [data-testid="stLayoutWrapper"] { min-width: 0; height: auto !important;
+  align-self: stretch !important; display: flex; }
+.stApp [class*="st-key-tile-"] { flex: 1 1 auto; height: auto !important; box-sizing: border-box; border: 1px solid var(--color-rule);
+  border-radius: var(--radius-control); background: var(--color-cotton); padding: var(--space-sm) var(--space-md) !important;
+  gap: var(--space-xs) !important; transition: border-color var(--dur) ease; }
+.stApp [class*="st-key-tile-"]:hover { border-color: var(--color-rule-2); }
+.stApp [class*="st-key-tile-"]:has([class*="st-key-pick-"] input:checked) { border: 1.5px solid var(--color-ink); background: var(--color-paper); }
+.stApp [class*="st-key-pick-"] label p { font-weight: 600; color: var(--color-ink); }
+.stApp .tile-effect { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
+@media (max-width: 640px) { .stApp [class*="st-key-tiles-"] { grid-template-columns: 1fr; grid-auto-rows: auto; } }
 /* A filter beside a card's heading sits at the card's right edge, not mid-card. */
 .stApp [class*="st-key-card"] [data-testid="stColumn"]:last-child
   [data-testid="stElementContainer"]:has(> [data-testid="stButtonGroup"]) { margin-left: auto; }

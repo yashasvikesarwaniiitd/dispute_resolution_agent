@@ -393,8 +393,8 @@ TAKE_OVER = "Take it over"
 RETURN = "Return it to the agent"
 WITHDRAW = "Confirm the seller's withdrawal"
 _DESK_EFFECT = {
-    TAKE_OVER: "You handle it outside the agent from here; the agent stops. Tick the box below "
-    "to tell the seller (that email goes through review first).",
+    TAKE_OVER: "You handle it outside the agent from here; the agent stops. Tick the box to "
+    "tell the seller (that email goes through review first).",
     RETURN: "The agent starts a new round from fresh evidence. On a photo case a vision model "
     "also checks the photo, and the case comes back here with its verdict.",
     WITHDRAW: "The case closes as withdrawn, as the seller asked.",
@@ -403,6 +403,23 @@ _DESK_EFFECT = {
 
 #: A person's answer to "did it happen?", as the reviewer reads it.
 HAPPENED = {"Yes, it happened": DONE, "No, it did not happen": NOT_DONE}
+
+
+def _slug(option: str) -> str:
+    return "".join(c if c.isalnum() else "-" for c in option.lower()).strip("-")
+
+
+def _pick_key(key: str, option: str) -> str:
+    return f"pick-{key}-{_slug(option)}"
+
+
+def _choose(key: str, option: str, options: tuple[str, ...]) -> None:
+    """A tile's box was ticked or cleared: one choice at a time, like a radio group."""
+    on = bool(st.session_state.get(_pick_key(key, option)))
+    st.session_state[f"choice-{key}"] = option if on else None
+    for other in options:
+        if other != option:
+            st.session_state[_pick_key(key, other)] = False
 
 
 def _decision_form(
@@ -421,48 +438,65 @@ def _decision_form(
     if can_confirm_withdrawal(case):
         options.append(WITHDRAW)
     effects = {v.label: v.effect for v in sheet.verdicts} | _DESK_EFFECT
+    asks = {v.label for v in sheet.verdicts if v.action == "request_seller_evidence"}
     st.markdown("<h3>Your decision</h3>", unsafe_allow_html=True)
     if sheet.no_verdict:
         st.caption(sheet.no_verdict)
-    with st.form(f"desk-{key}", border=False):
-        choice = st.radio(
-            "Your decision",
-            options,
-            index=None,
-            captions=[effects[o] for o in options],
-            key=f"choice-{key}",
-            label_visibility="collapsed",
-        )
-        items = st.multiselect(
-            "Only for Ask the seller for evidence: what to ask for",
-            list(EVIDENCE_ITEMS),
-            key=f"items-{key}",
-        )
-        notify = st.checkbox(
-            "Only for Take it over: tell the seller a person is handling it",
-            key=f"notify-{key}",
-        )
-        answers: dict[str, str] = {}
-        for u in unknown:
-            # T37: a case goes back to the agent only once a person says what happened.
-            said = st.radio(
-                f"Only for Return it to the agent: did {u.what} actually happen? "
-                f"Check {u.where}. The agent could not confirm it, so it will not try again.",
-                list(HAPPENED),
-                index=None,
-                horizontal=True,
-                key=f"happened-{key}-{u.action_id}",
-            )
-            if said is not None:
-                answers[str(u.action_id)] = HAPPENED[said]
-        note = st.text_area(
-            "Why you decided this (kept on the case's record)", key=f"person-note-{key}", height=68
-        )
-        sent = st.form_submit_button("Record my decision", type="primary")
-        if paid:
-            st.caption(
-                "A credit on this case is already verified, so it cannot go back to the agent."
-            )
+    # One tile per choice, chosen one at a time, each with its own extra inside it: what to
+    # ask the seller for, whether to tell the seller, what happened to an unconfirmed action.
+    # An extra stays disabled until its tile is chosen. Not an st.form: inside a form nothing
+    # can react to a choice before the decision is submitted.
+    choice = st.session_state.get(f"choice-{key}")
+    if choice not in options:
+        choice = None
+    items: list[str] = []
+    notify = False
+    answers: dict[str, str] = {}
+    with st.container(key=f"tiles-{key}"):
+        for option in options:
+            mine = choice == option
+            pick = _pick_key(key, option)
+            st.session_state.setdefault(pick, False)
+            with st.container(key=f"tile-{key}-{_slug(option)}"):
+                st.checkbox(option, key=pick, on_change=_choose, args=(key, option, tuple(options)))
+                st.markdown(
+                    f'<p class="tile-effect">{escape(effects[option])}</p>', unsafe_allow_html=True
+                )
+                if option in asks:
+                    items = st.multiselect(
+                        "What to ask for",
+                        list(EVIDENCE_ITEMS),
+                        key=f"items-{key}",
+                        disabled=not mine,
+                        placeholder="Choose the items",
+                    )
+                elif option == TAKE_OVER:
+                    notify = st.checkbox(
+                        "Tell the seller a person is handling it",
+                        key=f"notify-{key}",
+                        disabled=not mine,
+                    )
+                elif option == RETURN:
+                    for u in unknown:
+                        # T37: a case goes back to the agent only once a person says what
+                        # happened.
+                        said = st.radio(
+                            f"Did {u.what} actually happen? Check {u.where}. The agent could "
+                            "not confirm it, so it will not try again.",
+                            list(HAPPENED),
+                            index=None,
+                            horizontal=True,
+                            key=f"happened-{key}-{u.action_id}",
+                            disabled=not mine,
+                        )
+                        if said is not None:
+                            answers[str(u.action_id)] = HAPPENED[said]
+    note = st.text_area(
+        "Why you decided this (kept on the case's record)", key=f"person-note-{key}", height=68
+    )
+    sent = st.button("Record my decision", type="primary", key=f"record-{key}")
+    if paid:
+        st.caption("A credit on this case is already verified, so it cannot go back to the agent.")
     if sent:
         _record(
             ticket,

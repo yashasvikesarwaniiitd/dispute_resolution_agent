@@ -221,13 +221,24 @@ def test_a_reviewer_takes_over_a_case_with_a_person(desk_case: dict[str, Any]) -
     x = chr(0xD7)  # the multiplication sign the card writes sizes with
     assert f"20 {x} 15 {x} 10 cm · 480 g" in text and f"30 {x} 22 {x} 15 cm · 1,100 g" in text
 
-    choice = at.radio[0]
-    assert choice.options[:3] == [
+    tiles = [c.label for c in at.checkbox if (c.key or "").startswith("pick-")]
+    assert tiles[:3] == [
         "Uphold the charge",
         "Ask the hub to remeasure",
         "Ask the seller for evidence",
     ]
-    choice.set_value("Take it over")
+    # Each tile's extra stays disabled until its tile is chosen.
+    notify = next(c for c in at.checkbox if (c.key or "").startswith("notify-"))
+    items = next(m for m in at.multiselect if (m.key or "").startswith("items-"))
+    assert notify.disabled and items.disabled
+    next(c for c in at.checkbox if c.label == "Take it over").check().run()
+    notify = next(c for c in at.checkbox if (c.key or "").startswith("notify-"))
+    assert not notify.disabled
+    assert next(m for m in at.multiselect if (m.key or "").startswith("items-")).disabled
+    # One choice at a time: choosing another tile clears the first.
+    next(c for c in at.checkbox if c.label == "Uphold the charge").check().run()
+    assert not next(c for c in at.checkbox if c.label == "Take it over").value
+    next(c for c in at.checkbox if c.label == "Take it over").check().run()
     next(b for b in at.button if b.label == "Record my decision").click().run()
     assert not at.exception
     with sqlite3.connect(desk_case["cases"]) as conn:
@@ -242,7 +253,7 @@ def test_a_reviewer_decides_a_case_and_the_choice_is_recorded(desk_case: dict[st
     at = AppTest.from_function(_review, default_timeout=60).run()
     at.text_input[0].input(desk_case["token"])
     at.button[0].click().run()
-    at.radio[0].set_value("Uphold the charge")
+    next(c for c in at.checkbox if c.label == "Uphold the charge").check().run()
     record = next(b for b in at.button if b.label == "Record my decision")
     record.click().run()
     assert at.error and "Write why" in at.error[0].value  # a note is needed
