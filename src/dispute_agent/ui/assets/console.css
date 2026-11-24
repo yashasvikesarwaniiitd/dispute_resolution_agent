@@ -460,3 +460,16 @@ button.pick-row[aria-pressed="true"] .pick-radio { border: 4px solid var(--color
 /* A rule between "As you declared" and "As the hub measured", so the two never read as one. */
 .stApp table.calc td, .stApp table.calc thead th:not(:first-child) { padding-left: 10px; padding-right: 10px; }
 .stApp table.calc td:last-child, .stApp table.calc thead th:last-child { border-left: 1px solid var(--color-rule); }
+
+/* Compared with past shipments (ADR 0060): the calculation table's look, two columns. */
+.stApp .hist-panel { margin-top: var(--space-md); }
+.stApp table.calc.hist td { text-align: right; border-left: 0; }
+.stApp table.calc.hist tbody tr:last-child { border-top: 0; }
+.stApp table.calc.hist tbody tr:last-child th, .stApp table.calc.hist tbody tr:last-child td { font-weight: 400; color: var(--color-ink-2); }
+.stApp .hist-note { margin: var(--space-xs) 0 0; }
+
+/* What people outside the system wrote (ADR 0061): quoted as written, source above, flag below. */
+.stApp .outside-note { margin: var(--space-sm) 0; }
+.stApp .outside-note blockquote { margin: 4px 0; padding: 8px 12px; background: var(--color-paper-2);
+  border-left: 3px solid var(--color-rule-2); font-size: var(--text-sm); white-space: pre-wrap; }
+.stApp .outside-flag { font-size: var(--text-sm); margin: 4px 0 0; }

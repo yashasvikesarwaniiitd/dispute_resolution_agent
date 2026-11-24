@@ -1,0 +1,682 @@
+# Synthetic demo seller (ADR 0060). Every name, contact and shipment here is invented.
+# Rows are the source of truth for the seller catalogue; charges follow the rate card except
+# where a dispute deliberately carries a billing error. Generated once with seed 20261124.
+seller:
+  seller_id: SELL-0101
+  business: NorthCart Essentials
+  owner: Aarav Mehta
+  category: 'General store: home, kitchen, small electronics'
+  contact_tag: northcart
+  synthetic: true
+packaging:
+- packaging_id: PKG-NC-BOX-LAMP
+  kind: lamp box
+  length_cm: 40
+  width_cm: 15
+  height_cm: 15
+  tare_grams: 220
+- packaging_id: PKG-NC-BOX-MUG
+  kind: mug box
+  length_cm: 22
+  width_cm: 12
+  height_cm: 12
+  tare_grams: 140
+- packaging_id: PKG-NC-BOX-M
+  kind: medium box
+  length_cm: 30
+  width_cm: 20
+  height_cm: 10
+  tare_grams: 160
+- packaging_id: PKG-NC-BOX-KETTLE
+  kind: kettle box
+  length_cm: 25
+  width_cm: 22
+  height_cm: 24
+  tare_grams: 260
+products:
+- sku_id: NC-LAMP
+  name: LED desk lamp
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  item_grams: 1200
+- sku_id: NC-MUG-2
+  name: Ceramic mugs, set of 2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  item_grams: 900
+- sku_id: NC-ORG
+  name: Kitchen drawer organiser
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  item_grams: 800
+- sku_id: NC-KETTLE
+  name: Electric kettle 1.5 L (new)
+  packaging_id: PKG-NC-BOX-KETTLE
+  quantity: 1
+  item_grams: 1100
+shipments:
+- ref: SHP-101001
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-07-24T20:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 40.0
+  - 14.9
+  - 15.0
+  measured_grams: 1423
+  billed_paise: 28000
+  measurement_status: trusted
+- ref: SHP-101002
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-08-08T13:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.8
+  - 15.0
+  - 14.9
+  measured_grams: 1431
+  billed_paise: 28000
+  measurement_status: trusted
+- ref: SHP-101003
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-08-10T20:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 40.0
+  - 14.8
+  - 14.7
+  measured_grams: 1431
+  billed_paise: 15200
+  measurement_status: trusted
+- ref: SHP-101004
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-08-11T08:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 22.3
+  - 11.8
+  - 11.7
+  measured_grams: 1034
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101005
+  role: history
+  sku_id: NC-ORG
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  measured_at: '2026-08-12T16:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 20
+  - 10
+  declared_grams: 960
+  measured_cm:
+  - 30.1
+  - 20.2
+  - 10.0
+  measured_grams: 973
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101006
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-08-23T05:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.8
+  - 14.9
+  - 15.1
+  measured_grams: 1408
+  billed_paise: 15200
+  measurement_status: trusted
+- ref: SHP-101007
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-08-29T15:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.8
+  - 15.1
+  - 15.0
+  measured_grams: 1419
+  billed_paise: 15200
+  measurement_status: trusted
+- ref: SHP-101008
+  role: history
+  sku_id: NC-KETTLE
+  packaging_id: PKG-NC-BOX-KETTLE
+  quantity: 1
+  measured_at: '2026-09-08T17:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 25
+  - 22
+  - 24
+  declared_grams: 1360
+  measured_cm:
+  - 24.9
+  - 22.0
+  - 23.9
+  measured_grams: 1360
+  billed_paise: 22800
+  measurement_status: trusted
+- ref: SHP-101009
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-09-08T21:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 40.0
+  - 15.1
+  - 14.9
+  measured_grams: 1430
+  billed_paise: 12000
+  measurement_status: trusted
+- ref: SHP-101010
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-09-10T08:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: D
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 21.9
+  - 11.8
+  - 12.2
+  measured_grams: 1046
+  billed_paise: 17400
+  measurement_status: trusted
+- ref: SHP-101011
+  role: history
+  sku_id: NC-ORG
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  measured_at: '2026-09-20T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 20
+  - 10
+  declared_grams: 960
+  measured_cm:
+  - 30.2
+  - 20.3
+  - 10.1
+  measured_grams: 947
+  billed_paise: 13500
+  measurement_status: trusted
+- ref: SHP-101012
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-09-20T12:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.8
+  - 14.9
+  - 14.9
+  measured_grams: 1427
+  billed_paise: 18000
+  measurement_status: trusted
+- ref: SHP-101013
+  role: history
+  sku_id: NC-KETTLE
+  packaging_id: PKG-NC-BOX-KETTLE
+  quantity: 1
+  measured_at: '2026-09-22T07:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: D
+  status: DELIVERED
+  declared_cm:
+  - 25
+  - 22
+  - 24
+  declared_grams: 1360
+  measured_cm:
+  - 24.9
+  - 21.9
+  - 24.2
+  measured_grams: 1375
+  billed_paise: 34800
+  measurement_status: trusted
+- ref: SHP-101014
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-09-26T21:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 40.3
+  - 15.2
+  - 14.7
+  measured_grams: 1434
+  billed_paise: 28000
+  measurement_status: trusted
+- ref: SHP-101015
+  role: history
+  sku_id: NC-ORG
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  measured_at: '2026-10-22T04:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 20
+  - 10
+  declared_grams: 960
+  measured_cm:
+  - 30.2
+  - 19.8
+  - 10.1
+  measured_grams: 957
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101016
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-10-22T11:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.7
+  - 14.9
+  - 15.0
+  measured_grams: 1425
+  billed_paise: 12000
+  measurement_status: trusted
+- ref: SHP-101017
+  role: history
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-10-25T16:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 40.2
+  - 14.8
+  - 15.3
+  measured_grams: 1405
+  billed_paise: 12000
+  measurement_status: trusted
+- ref: SHP-101018
+  role: history
+  sku_id: NC-ORG
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  measured_at: '2026-10-26T04:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 20
+  - 10
+  declared_grams: 960
+  measured_cm:
+  - 29.9
+  - 20.0
+  - 9.7
+  measured_grams: 961
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101019
+  role: history
+  sku_id: NC-ORG
+  packaging_id: PKG-NC-BOX-M
+  quantity: 1
+  measured_at: '2026-10-29T14:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 20
+  - 10
+  declared_grams: 960
+  measured_cm:
+  - 30.2
+  - 20.2
+  - 10.0
+  measured_grams: 964
+  billed_paise: 21000
+  measurement_status: trusted
+- ref: SHP-101020
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-10-31T03:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 21.7
+  - 12.0
+  - 11.8
+  measured_grams: 1040
+  billed_paise: 13500
+  measurement_status: trusted
+- ref: SHP-101021
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-10-31T14:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 21.8
+  - 11.7
+  - 11.9
+  measured_grams: 1047
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101022
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-11-09T02:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 22.0
+  - 12.3
+  - 12.3
+  measured_grams: 1046
+  billed_paise: 11400
+  measurement_status: trusted
+- ref: SHP-101023
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-11-15T01:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 22.2
+  - 12.2
+  - 12.1
+  measured_grams: 1055
+  billed_paise: 21000
+  measurement_status: trusted
+- ref: SHP-101024
+  role: history
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-11-15T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-2
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 22.0
+  - 11.8
+  - 12.0
+  measured_grams: 1051
+  billed_paise: 13500
+  measurement_status: trusted
+- ref: SHP-101025
+  role: dispute
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 40
+  - 15
+  - 15
+  declared_grams: 1420
+  measured_cm:
+  - 39.9
+  - 15.0
+  - 15.0
+  measured_grams: 1425
+  billed_paise: 15200
+  measurement_status: disputed
+  fixture: nc_lamp_duplicate
+  demo_label: Billing error
+  duplicate_debit: true
+- ref: SHP-101026
+  role: dispute
+  sku_id: NC-LAMP
+  packaging_id: PKG-NC-BOX-LAMP
+  quantity: 1
+  measured_at: '2026-11-21T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 30
+  - 12
+  - 12
+  declared_grams: 900
+  measured_cm:
+  - 40.2
+  - 15.1
+  - 15.0
+  measured_grams: 1418
+  billed_paise: 15200
+  measurement_status: disputed
+  fixture: nc_lamp_underdeclared
+  demo_label: Measured larger than declared
+- ref: SHP-101027
+  role: dispute
+  sku_id: NC-KETTLE
+  packaging_id: PKG-NC-BOX-KETTLE
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 25
+  - 22
+  - 24
+  declared_grams: 1360
+  measured_cm:
+  - 24.8
+  - 22.1
+  - 24.0
+  measured_grams: 1373
+  billed_paise: 22800
+  measurement_status: disputed
+  fixture: nc_kettle_new
+  demo_label: Little history
+- ref: SHP-101028
+  role: dispute
+  sku_id: NC-MUG-2
+  packaging_id: PKG-NC-BOX-MUG
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-DEL-01
+  scanner_id: SCN-DEL-01-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 22
+  - 12
+  - 12
+  declared_grams: 1040
+  measured_cm:
+  - 22.3
+  - 12.3
+  - 11.7
+  measured_grams: 1052
+  billed_paise: 11400
+  measurement_status: disputed
+  fixture: nc_mugs_normal
+  demo_label: Normal bill

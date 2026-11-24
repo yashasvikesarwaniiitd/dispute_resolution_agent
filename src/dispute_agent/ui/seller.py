@@ -43,15 +43,6 @@ CLOSED = frozenset(
 )
 
 
-#: The seller page's examples: one for each way a dispute can go (the rest stay for tests).
-EXAMPLES = (
-    "kurta_box_larger",  # SHP-000001: the bill is right on the hub's measurement
-    "calc_error_high_value",  # SHP-000002: billing error, credit for a reviewer to approve
-    "ambiguous_image",  # SHP-000003: evidence is unclear, a person decides
-    "scanner_fault",  # SHP-000005: the agent asks the hub (Jira) to re-measure
-    "not_delivered",  # SHP-000007: returned to origin, not eligible
-)
-
 #: Shipment statuses as a seller reads them; RTO is the courier term for "returned".
 STATUS = {
     "DELIVERED": "Delivered",
@@ -86,6 +77,13 @@ class Shipment:
     breakdown: tuple[tuple[str, str, str], ...] = ()
     #: One plain sentence: does the bill match the hub's measurement, and what to dispute.
     verdict: str = ""
+    #: Seller-catalogue shipments (ADR 0060): how it was packed, whether it is one of the
+    #: seller's disputes, a filter label for people, and the comparison code computed.
+    quantity: int = 1
+    packing: str = ""
+    disputed: bool = False
+    demo_label: str = ""
+    comparison: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -139,21 +137,84 @@ def catalogue(added: Path | None = None, examples: Iterable[str] = FIXTURES) -> 
     if added is not None:
         built += AddedShipments(added).all()
     for one in built:
-        s = one.shipment
-        if s.ref in seen:
-            continue
-        seen[s.ref] = Shipment(
-            ref=s.ref,
-            claim_ref=s.claim_ref,
-            seller_ref=s.seller_id,
-            status=STATUS.get(s.status, s.status.replace("_", " ").capitalize()),
-            zone=s.zone,
-            declared=_size(s.declared, s.declared_dead_grams),
-            measured=_size(s.measured, s.measured_dead_grams),
-            charged=render_fact(Money.from_paise(s.billed_paise)),
-            **_cards(pack, s),
-        )
+        if one.shipment.ref not in seen:
+            seen[one.shipment.ref] = _ui_shipment(pack, one)
     return sorted(seen.values(), key=lambda s: s.ref)
+
+
+def _ui_shipment(pack: WeightDisputePack, one: Any, row: Any = None) -> Shipment:
+    s = one.shipment
+    return Shipment(
+        ref=s.ref,
+        claim_ref=s.claim_ref,
+        seller_ref=s.seller_id,
+        status=STATUS.get(s.status, s.status.replace("_", " ").capitalize()),
+        zone=s.zone,
+        declared=_size(s.declared, s.declared_dead_grams),
+        measured=_size(s.measured, s.measured_dead_grams),
+        charged=render_fact(Money.from_paise(s.billed_paise)),
+        quantity=one.quantity,
+        packing=s.packaging,
+        disputed=bool(row is not None and row.role == "dispute"),
+        demo_label=(row.demo_label or "") if row is not None else "",
+        comparison=one.comparable_history,
+        **_cards(pack, s),
+    )
+
+
+def personas() -> list[dict[str, Any]]:
+    """The demo sellers (ADR 0060), as the seller screen's selector shows them."""
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue as sellers_
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import describe
+
+    return [describe(f) for f in sellers_().sellers]
+
+
+def seller_shipments(seller_id: str) -> list[Shipment]:
+    """One seller's shipments, newest first. Never another seller's (ADR 0060)."""
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue as sellers_
+
+    found = sellers_().seller(seller_id)
+    if found is None:
+        return []
+    pack = WeightDisputePack()
+    rows = sorted(found.shipments, key=lambda r: r.measured_at, reverse=True)
+    return [_ui_shipment(pack, sellers_().by_ref[r.ref], r) for r in rows]
+
+
+def packing_kind(shipment: Shipment) -> str:
+    """The packing a seller recognises: poly-mailer, mailer or envelope, or box or carton."""
+    kind = shipment.packing.lower()
+    if "poly" in kind:
+        return "Poly-mailer"
+    if "mailer" in kind or "envelope" in kind:
+        return "Mailer or envelope"
+    return "Box or carton"
+
+
+def filter_options(shipments: list[Shipment]) -> dict[str, list[Shipment]]:
+    """The seller screen's one filter: label -> shipments, built from the data. Empty ones are
+    left out, so the screen never offers a choice that shows nothing."""
+    groups: dict[str, list[Shipment]] = {
+        "All shipments": shipments,
+        "Disputed shipments": [s for s in shipments if s.disputed],
+        "Single item": [s for s in shipments if s.quantity == 1],
+        "Bundle (2 or more)": [s for s in shipments if s.quantity > 1],
+    }
+    for kind in ("Poly-mailer", "Mailer or envelope", "Box or carton"):
+        groups[kind] = [s for s in shipments if packing_kind(s) == kind]
+    for label in sorted({s.demo_label for s in shipments if s.demo_label}):
+        groups[f"Scenario: {label}"] = [s for s in shipments if s.demo_label == label]
+    return {f"{k} ({len(v)})": v for k, v in groups.items() if v}
+
+
+def contact_for(tag: str, allowlist: str | None) -> str | None:
+    """The seller's own test address: the TEST_SELLER_EMAIL entry carrying `+<tag>@`. None
+    rather than another seller's address, so identities never mix (ADR 0060)."""
+    for address in (allowlist or "").split(","):
+        if f"+{tag}@" in address.strip().lower():
+            return address.strip()
+    return None
 
 
 def _kg(grams: int) -> str:

@@ -132,8 +132,42 @@ def build_view(briefing: CaseBriefing) -> BriefingView:
     return BriefingView(b=b, untrusted=untrusted, citable_ids=frozenset(citable))
 
 
+#: The historical comparison (ADR 0060). Computed in code from the seller's own trusted past
+#: shipments, so it is trusted; too long for the generic limit, so it gets a compact view.
+COMPARABLE_KEY = "shipment.comparable_history"
+COMPARISON_FIELDS = (
+    "verdict",
+    "references",
+    "current",
+    "typical",
+    "range",
+    "flags",
+    "excluded",
+    "differs_by",
+)
+
+
+def _comparison_view(value: dict[str, Any]) -> dict[str, Any]:
+    """What the model needs to read the comparison, within MAX_TRUSTED_VALUE_CHARS.
+
+    Every figure is kept; only the list of reference ids is shortened, from the end, if the
+    view would not fit ("+N more" says how many were left out). Nothing else from the stored
+    value is added: no outcome, no other seller, no hub finding - the value never holds them.
+    """
+    view = {k: value[k] for k in COMPARISON_FIELDS if value.get(k) not in (None, {}, [])}
+    refs = [str(r) for r in value.get("reference_refs") or []]
+    for keep in range(len(refs), -1, -1):
+        shown = refs[:keep] + ([f"+{len(refs) - keep} more"] if keep < len(refs) else [])
+        candidate = {**view, "reference_refs": shown} if refs else view
+        if len(json.dumps(candidate, sort_keys=True)) <= MAX_TRUSTED_VALUE_CHARS:
+            return candidate
+    return view
+
+
 def _trusted_item(item: EvidenceItem) -> dict[str, Any]:
     value: Any = item.result.value
+    if item.result.requirement_key == COMPARABLE_KEY and isinstance(value, dict):
+        value = _comparison_view(value)
     if value is not None:
         rendered = json.dumps(value, sort_keys=True, default=str)
         if len(rendered) > MAX_TRUSTED_VALUE_CHARS:

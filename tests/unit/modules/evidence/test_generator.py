@@ -135,7 +135,14 @@ class TestFixturesExist:
             for scenario in SCENARIOS["scenarios"]
             if isinstance(scenario.get("fixture"), str)
         }
-        missing = referenced - set(FIXTURES)
+        # Every referenced fixture must build: a named code fixture, or a seller-catalogue
+        # dispute resolved from YAML through the same `fixture(name)` (ADR 0060).
+        missing = set()
+        for name in referenced:
+            try:
+                fixture(name)
+            except DomainValidationError:
+                missing.add(name)
         assert not missing, f"scenarios reference unbuilt fixtures: {sorted(missing)}"
 
     def test_an_unknown_fixture_raises_rather_than_inventing_one(self) -> None:

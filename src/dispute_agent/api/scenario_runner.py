@@ -79,6 +79,7 @@ FINDING_KIND = {
     "no_fault_found": "no_fault_found",
     "inconclusive_still_checking": "inspected",
     "with_injected_note": "no_fault_found",
+    "tray_mode_corrected": "remeasured",  # ADR 0060, scenario F
 }
 
 

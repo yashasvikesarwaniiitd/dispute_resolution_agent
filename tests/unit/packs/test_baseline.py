@@ -379,6 +379,98 @@ class TestB6aTheHubConfirmed:
         assert row(items=self._hub("inspected"), remeasurement_outstanding=True) == "B6"
 
 
+def compared(
+    verdict: str,
+    *,
+    references: int = 10,
+    declared_below: bool = False,
+    packaging_ok: bool | None = True,
+) -> EvidenceItem:
+    """The historical comparison as the evidence source serves it (ADR 0060)."""
+    return item(
+        "shipment.comparable_history",
+        value={
+            "verdict": verdict,
+            "references": references,
+            "flags": {
+                "declared_below_history": declared_below,
+                "packaging_consistent": packaging_ok,
+            },
+        },
+    )
+
+
+class TestB4bAnAnomalyAsksTheHubToAudit:
+    def test_an_anomaly_requests_a_scanner_audit_with_a_figure_free_question(self) -> None:
+        items = [*complete_items(measured=OVERSIZE), compared("anomalous")]
+        decision = decide(briefing(items=items), required_keys=REQUIRED)
+        assert (decision.row, decision.action) == ("B4b", ProposalAction.REQUEST_REMEASUREMENT)
+        assert decision.question and not any(ch.isdigit() for ch in decision.question)
+
+    def test_not_once_the_hub_has_answered(self) -> None:
+        items = [
+            *complete_items(measured=OVERSIZE),
+            compared("anomalous"),
+            item("ops.finding", value={"kind": "no_fault_found"}),
+        ]
+        assert row(items=items, gather_round=2) == "B6a"
+
+    def test_not_while_the_hub_is_still_measuring(self) -> None:
+        items = [*complete_items(measured=OVERSIZE), compared("anomalous")]
+        assert row(items=items, remeasurement_outstanding=True) == "B6"
+
+    def test_a_seller_reply_still_reaches_a_person_first(self) -> None:
+        items = [*complete_items(measured=OVERSIZE), compared("anomalous")]
+        assert row(items=items, reply_in_round=True) == "B5"
+
+    def test_a_proven_error_is_credited_whatever_history_says(self) -> None:
+        items = [*complete_items(measured=OVERSIZE), compared("anomalous")]
+        assert row(items=items, definite_errors=("remeasurement_lower",)) == "B3"
+
+
+class TestB4cHistorySupportsTheHubsMeasurement:
+    def _items(self, **kw: Any) -> list[EvidenceItem]:
+        return [*complete_items(measured=OVERSIZE), compared("normal", declared_below=True, **kw)]
+
+    def test_consistent_history_and_an_under_declaration_uphold(self) -> None:
+        decision = decide(briefing(items=self._items()), required_keys=REQUIRED)
+        assert (decision.row, decision.action) == ("B4c", ProposalAction.UPHOLD_CHARGE)
+        assert "consistent with 10 trusted past shipments" in decision.because
+
+    def test_not_with_fewer_than_five_references(self) -> None:
+        assert row(items=self._items(references=4)) == "B7"
+
+    def test_not_when_the_recorded_packaging_does_not_fit_the_measurement(self) -> None:
+        assert row(items=self._items(packaging_ok=False)) == "B7"
+
+    def test_not_without_an_under_declaration(self) -> None:
+        items = [*complete_items(measured=OVERSIZE), compared("normal", declared_below=False)]
+        assert row(items=items) == "B7"
+
+
+class TestHistoryNeverCreditsAndB5IsUnchanged:
+    @pytest.mark.parametrize(
+        "verdict",
+        ["anomalous", "normal", "not_comparable", "insufficient_history", "missing_evidence"],
+    )
+    def test_no_verdict_ever_proposes_a_credit(self, verdict: str) -> None:
+        for measured in (SAME_SIZE, OVERSIZE):
+            items = [*complete_items(measured=measured), compared(verdict, declared_below=True)]
+            assert action(items=items) is not ProposalAction.PROPOSE_CREDIT
+
+    def test_structured_history_alone_does_not_send_a_case_to_a_person(self) -> None:
+        assert row(items=[*complete_items(), compared("normal")]) == "B8"
+
+    def test_the_old_free_text_history_still_does(self) -> None:
+        old = item(HISTORY_KEY, value={"entries": ["SHP-900001 measured within 3% of declared"]})
+        assert row(items=[*complete_items(), old]) == "B5"
+
+    def test_not_comparable_falls_to_the_existing_rows(self) -> None:
+        # Scenario B: a carton of three is not compared with single mailers; B8 decides on the
+        # hub's measurement against the declaration, the comparison favours neither side.
+        assert row(items=[*complete_items(), compared("not_comparable", references=0)]) == "B8"
+
+
 class TestB7AskTheSeller:
     def test_an_oversize_box_in_the_first_round_asks_for_evidence(self) -> None:
         oversize = complete_items(measured=OVERSIZE)

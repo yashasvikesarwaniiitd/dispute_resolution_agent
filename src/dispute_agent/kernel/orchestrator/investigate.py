@@ -764,14 +764,24 @@ class InvestigateStep:
         """orchestrator.md 3.6, the rows this step can carry today."""
         action = proposal.action
         if action is ProposalAction.REQUEST_REMEASUREMENT:
+            # An approved question from the pack (ADR 0060: B4b's scanner audit), never the
+            # proposal's text as written: the pack passes only exact approved wording.
+            brief = getattr(self.pack, "remeasurement_brief", None)
+            asked = proposal.action_parameters.remeasurement_question
+            approved = brief(asked) if callable(brief) else None
+            opening = (
+                f"Please check shipment {case.facts.shipment_ref} "
+                f"(claim {case.facts.claim_ref}).\n\n{approved}\n\n"
+                if approved
+                else f"Please remeasure shipment {case.facts.shipment_ref} "
+                f"(claim {case.facts.claim_ref}).\n\n"
+            )
             return IssuePayload(
                 summary=f"Remeasure {case.facts.shipment_ref}",
                 # How to answer, in the forms code reads (ADR 0052). The old text pointed at
                 # "the finding fields", which no Jira project has.
                 description=(
-                    f"Please remeasure shipment {case.facts.shipment_ref} "
-                    f"(claim {case.facts.claim_ref}).\n\n"
-                    "Reply with a comment whose first line is one of:\n"
+                    opening + "Reply with a comment whose first line is one of:\n"
                     "Remeasured: <length> x <width> x <height> cm, <weight> kg "
                     "(for example: Remeasured: 30 x 22 x 15 cm, 1.10 kg)\n"
                     "Measurement confirmed (if the original measurement stands)\n\n"

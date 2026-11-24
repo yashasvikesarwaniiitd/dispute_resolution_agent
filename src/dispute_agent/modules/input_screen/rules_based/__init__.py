@@ -39,12 +39,39 @@ SHAPES: dict[str, tuple[re.Pattern[str], ...]] = {
         re.compile(r"(^|\n)\s*(system|assistant|developer|admin)\s*:", _I),
         re.compile(r"\b(policy|rules?)\b.{0,30}\b(updated|changed|no longer)\b", _I),
         re.compile(
-            r"\b(approve|authori[sz]e|mark)\b.{0,40}\b(credit|refund|resolved|closed)\b", _I
+            r"\b(approv(e|ed)|authori[sz]e|mark)\b.{0,40}\b(credit|refund|resolved|closed)\b", _I
         ),
         re.compile(r"\b(i|we)\s+(authori[sz]e|instruct|order)\s+you\b", _I),
         re.compile(r"\bmaintenance mode\b|\bdeveloper mode\b|\bjailbreak\b", _I),
         re.compile(r"\brefund\b.{0,40}\b(all|every|last \d+|\d+ shipments)\b", _I),
         re.compile(r"\b(credit|refund)\b.{0,40}\b(immediately|without review|right now)\b", _I),
+    ),
+    # An instruction to get round the review a person gives every credit (ADR 0061). A claim
+    # that someone is owed money is NOT one of these: it is a claim, shown to the reviewer and
+    # never an input to the amount, which code derives (I9). Only bypassing a control counts.
+    "approval_bypass": (
+        re.compile(
+            r"\b(skip|bypass|waive|avoid|override)\b.{0,25}"
+            r"\b(review|reviewer|approval|approver|sign[- ]?off)\b",
+            _I,
+        ),
+        re.compile(r"\b(no|without)\s+(further\s+)?(review|approval|sign[- ]?off)\b", _I),
+        re.compile(
+            r"\b(review|approval|sign[- ]?off)\b.{0,15}"
+            r"\b(not\s+(needed|required|necessary)|unnecessary|waived)\b",
+            _I,
+        ),
+        re.compile(
+            r"\b(already|pre-?)\s*(approved|authori[sz]ed|agreed|cleared|signed[- ]?off)\b.{0,40}"
+            r"\b(finance|manager|management|admin|supervisor|accounts|head office)\b",
+            _I,
+        ),
+        re.compile(
+            r"\b(finance|manager|management|admin|supervisor|accounts)\b.{0,30}"
+            r"\balready\s+(approved|authori[sz]ed|agreed|cleared|signed[- ]?off)\b",
+            _I,
+        ),
+        re.compile(r"\b(do\s+not|don'?t|never)\b.{0,15}\b(mention|record|log|report)\b", _I),
     ),
     "markup_like": (re.compile(r"</?\s*[A-Za-z_][A-Za-z0-9_-]*\s*[^<>]*>"),),
     "hidden_text": (
@@ -104,13 +131,15 @@ class RulesBasedInputScreen:
         ):
             found.discard("encoded_payload")
         if found & {
+            "approval_bypass",
             "encoded_payload",
             "hidden_text",
             "markup_like",
             "number_injection",
             "recipient_change",
         }:
-            # Hiding or encoding text aimed at the system is itself an instruction attempt.
+            # Hiding or encoding text aimed at the system, or telling it to skip a person's
+            # review, is itself an instruction attempt (R21 reads `instruction_like`).
             found.add("instruction_like")
         return found
 

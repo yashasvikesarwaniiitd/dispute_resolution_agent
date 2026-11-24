@@ -1069,6 +1069,104 @@ scenarios:
       notes: the hub's own second look settles it; the seller is told why, with the calculation
     invariants: [I3, I9]
 
+  # --- Historical shipment comparison (ADR 0060): the seller catalogue in config/sellers ---
+  # Fixtures name catalogue disputes; their comparison is computed in code from the seller's
+  # trusted past shipments. The expected outcomes below are the only place they are written.
+
+  - id: S62
+    title: History says the measurement is anomalous - the hub audits, nothing is credited (A)
+    phase: 5
+    fixture: ck_tray_anomaly
+    script: [dispute_raised@0h]
+    expect:
+      actions: [request_remeasurement]
+      baseline: same   # B4b: anomalous against 12 trusted CaseKraft phone-case shipments
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING, AWAITING_OPS]
+      final: AWAITING_OPS
+      counts: {jira_issues: 1, ledger_credits: 0, emails_sent: 0}
+      notes: an anomaly is a reason to investigate, never proof; no credit before the hub answers
+    invariants: [I3, I9]
+
+  - id: S63
+    title: The hub's audit confirms the scanner error, code proves it, a person approves (F)
+    phase: 5
+    fixture: ck_tray_confirmed
+    script: [dispute_raised@0h, ops_finding(tray_mode_corrected)@30h, approve(credit)@31h,
+             approve(credit_confirmation)@32h]
+    expect:
+      actions: [request_remeasurement, propose_credit]
+      baseline: same   # B4b in round 1; B3 (remeasurement_lower) once the hub has answered
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING, AWAITING_OPS,
+             GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING, VERIFYING,
+             AWAITING_APPROVAL, EXECUTING, VERIFYING, RESOLVED_CREDITED]
+      final: RESOLVED_CREDITED
+      counts: {jira_issues: 1, ledger_credits: 1, emails_sent: 1}
+      notes: >-
+        the corrected measurement and the tray-mode note reach the agent only with the hub's
+        answer (findings bank, ops_finding step), never at intake; the credit is INR 152.00
+    invariants: [I3, I5, I9]
+
+  - id: S64
+    title: Three T-shirts in a carton are not compared with single mailers - upheld (B)
+    phase: 5
+    fixture: tl_tee_carton
+    script: [dispute_raised@0h, approve(upheld_explanation)@1h]
+    expect:
+      actions: [uphold_charge]
+      baseline: same   # B8: the hub's measurement matches the declared carton; not_comparable favours no side
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
+             VERIFYING, RESOLVED_UPHELD]
+      final: RESOLVED_UPHELD
+      counts: {jira_issues: 0, ledger_credits: 0, emails_sent: 1}
+      notes: declared, measured and billed agree on 6 slabs (INR 228.00); history says not comparable
+    invariants: [I9]
+
+  - id: S65
+    title: A duplicate charge is proven by code whatever history says (C)
+    phase: 5
+    fixture: nc_lamp_duplicate
+    script: [dispute_raised@0h, approve(credit)@1h, approve(credit_confirmation)@2h]
+    expect:
+      actions: [propose_credit]
+      baseline: same   # B3: duplicate_charge
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
+             VERIFYING, AWAITING_APPROVAL, EXECUTING, VERIFYING, RESOLVED_CREDITED]
+      final: RESOLVED_CREDITED
+      counts: {ledger_credits: 1, emails_sent: 1, jira_issues: 0}
+    invariants: [I3, I9]
+
+  - id: S66
+    title: Too little history to compare - the existing rules decide (D)
+    phase: 5
+    fixture: nc_kettle_new
+    script: [dispute_raised@0h, approve(upheld_explanation)@1h]
+    expect:
+      actions: [uphold_charge]
+      baseline: same   # B8: insufficient_history adds nothing; the measurement matches the declaration
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
+             VERIFYING, RESOLVED_UPHELD]
+      final: RESOLVED_UPHELD
+      counts: {jira_issues: 0, ledger_credits: 0, emails_sent: 1}
+      notes: two past kettles are not enough; nothing is inferred from them
+    invariants: [I9]
+
+  - id: S67
+    title: The hub's measurement matches the seller's own history; the declaration was smaller (E)
+    phase: 5
+    fixture: nc_lamp_underdeclared
+    script: [dispute_raised@0h, approve(upheld_explanation)@1h]
+    expect:
+      actions: [uphold_charge]
+      baseline: same   # B4c: consistent with 10 trusted lamps, declared below them, packaging fits
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
+             VERIFYING, RESOLVED_UPHELD]
+      final: RESOLVED_UPHELD
+      counts: {jira_issues: 0, ledger_credits: 0, emails_sent: 1}
+      notes: >-
+        history supports the hub's figure; it does not prove the seller wrong. The explanation
+        is approved by a reviewer, and the seller can reply with evidence within 7 days.
+    invariants: [I9, I13]
+
 # Every scenario additionally runs with sentinel secret values in settings and sentinel strings
 # in all untrusted text; after the run, the database, logs, spans and fixtures are scanned for
 # the secret sentinels (I12, TC-SEC-01) and spans and model_calls for the content sentinels (I14).

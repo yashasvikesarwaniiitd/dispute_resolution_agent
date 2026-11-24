@@ -26,7 +26,7 @@ AWAITING_OWNER: dict[str, str] = {}
 
 
 def test_the_suite_covers_every_scenario_but_phase_7() -> None:
-    assert len(RUNNABLE) == 59
+    assert len(RUNNABLE) == 65
     assert {s.id for s in ALL} - {s.id for s in RUNNABLE} == {"S15", "S16"}
 
 

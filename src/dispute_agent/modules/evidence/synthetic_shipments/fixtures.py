@@ -13,7 +13,7 @@ string the test charter names (I11, synthetic-data.md section 1).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dispute_agent.modules.evidence.synthetic_shipments.generator import (
     TEST_DOMAIN,
@@ -24,6 +24,8 @@ from dispute_agent.packs.weight_dispute.calculator import Dimensions, calculate
 from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from dispute_agent.packs.weight_dispute.rate_card import RateCard
 
 CARD = DEFAULT_RATE_CARD
@@ -55,6 +57,13 @@ class Fixture:
     notes: tuple[str, ...] = field(default_factory=tuple)
     #: Phase 7 fixtures describe a cluster rather than one parcel.
     cluster_of: int = 0
+    #: Seller-catalogue shipments (ADR 0060): what was booked, when it was measured, and how
+    #: the measurement compares with the seller's trusted past shipments. None for the named
+    #: fixtures above, whose evidence is unchanged.
+    quantity: int = 1
+    packaging_id: str | None = None
+    measured_at: datetime | None = None
+    comparable_history: dict[str, Any] | None = None
 
 
 # --- the free-text banks -------------------------------------------------------------------
@@ -100,6 +109,18 @@ FINDINGS: dict[str, OpsFindingFixture] = {
     #: makes a `wait` proposal reachable at all (S31).
     "inconclusive_still_checking": OpsFindingFixture(kind="inspected"),
     "with_injected_note": OpsFindingFixture(kind="no_fault_found", note=INJECTION_CORPUS[1]),
+    #: CaseKraft's scanner audit (ADR 0060, scenario F): SCN-BLR-03-2 recorded the size of the
+    #: transfer tray small parcels ride in after maintenance on 18 Nov; the scale tared the tray,
+    #: so the weight was right. Only the structured figures can prove a credit; the note is the
+    #: hub's words and travels as untrusted text (I5). Given to the agent only when the hub's
+    #: answer arrives (the scenario's `ops_finding` step), never at intake.
+    "tray_mode_corrected": OpsFindingFixture(
+        kind="remeasured",
+        measured=Dimensions.of("19", "11", "2"),
+        measured_dead_grams=72,
+        note="SCN-BLR-03-2 recorded transfer-tray dimensions since maintenance on 18 Nov; "
+        "parcel re-measured by hand.",
+    ),
 }
 
 
@@ -446,6 +467,11 @@ def fixture(name: str) -> Fixture:
 
     builder = FIXTURES.get(name)
     if builder is None:
+        from dispute_agent.modules.evidence.synthetic_shipments.catalogue import dispute_fixture
+
+        named = dispute_fixture(name)  # a seller-catalogue dispute (ADR 0060)
+        if named is not None:
+            return named
         raise DomainValidationError(
             f"no fixture {name!r}; synthetic-data.md section 4 names {sorted(FIXTURES)}"
         )

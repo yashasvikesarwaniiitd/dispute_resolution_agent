@@ -1,0 +1,675 @@
+# Synthetic demo seller (ADR 0060). Every name, contact and shipment here is invented.
+# Rows are the source of truth for the seller catalogue; charges follow the rate card except
+# where a dispute deliberately carries a billing error. Generated once with seed 20261124.
+seller:
+  seller_id: SELL-0102
+  business: CaseKraft Accessories
+  owner: Sana Iyer
+  category: 'Mobile accessories: cases, screen protectors, cables'
+  contact_tag: casekraft
+  synthetic: true
+packaging:
+- packaging_id: PKG-CK-MAILER-S
+  kind: bubble mailer
+  length_cm: 19
+  width_cm: 11
+  height_cm: 2
+  tare_grams: 12
+- packaging_id: PKG-CK-RIGID-ENV
+  kind: rigid envelope
+  length_cm: 21
+  width_cm: 13
+  height_cm: 1
+  tare_grams: 15
+- packaging_id: PKG-CK-BOX-S
+  kind: small box
+  length_cm: 20
+  width_cm: 15
+  height_cm: 5
+  tare_grams: 60
+products:
+- sku_id: CK-CASE-IP15
+  name: Silicone case, iPhone 15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  item_grams: 60
+- sku_id: CK-SP-2PK
+  name: Tempered glass protector, 2-pack
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  item_grams: 50
+- sku_id: CK-COMBO
+  name: Case + USB-C cable combo
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  item_grams: 250
+- sku_id: CK-MAGSAFE
+  name: MagSafe wallet (new)
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  item_grams: 180
+shipments:
+- ref: SHP-102001
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-07-27T09:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 20.7
+  - 13.0
+  - 1.1
+  measured_grams: 62
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102002
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-08-04T05:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.1
+  - 10.7
+  - 2.1
+  measured_grams: 79
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102003
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-08-14T06:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.1
+  - 13.1
+  - 0.8
+  measured_grams: 67
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102004
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-08-14T20:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.2
+  - 10.9
+  - 1.9
+  measured_grams: 69
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102005
+  role: history
+  sku_id: CK-MAGSAFE
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-08-15T00:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: D
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 240
+  measured_cm:
+  - 19.9
+  - 15.0
+  - 5.2
+  measured_grams: 253
+  billed_paise: 5800
+  measurement_status: trusted
+- ref: SHP-102006
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-03T02:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 18.7
+  - 11.0
+  - 2.2
+  measured_grams: 62
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102007
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-03T17:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.2
+  - 11.3
+  - 2.1
+  measured_grams: 66
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102008
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-05T07:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 18.7
+  - 11.0
+  - 2.0
+  measured_grams: 72
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102009
+  role: history
+  sku_id: CK-COMBO
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-09-10T16:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 310
+  measured_cm:
+  - 19.9
+  - 15.1
+  - 5.1
+  measured_grams: 299
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102010
+  role: history
+  sku_id: CK-MAGSAFE
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-09-11T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: E
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 240
+  measured_cm:
+  - 20.2
+  - 15.3
+  - 4.8
+  measured_grams: 239
+  billed_paise: 7000
+  measurement_status: trusted
+- ref: SHP-102011
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-13T14:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: D
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 18.9
+  - 10.8
+  - 1.8
+  measured_grams: 83
+  billed_paise: 5800
+  measurement_status: trusted
+- ref: SHP-102012
+  role: history
+  sku_id: CK-COMBO
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-09-13T16:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 310
+  measured_cm:
+  - 19.9
+  - 15.3
+  - 5.2
+  measured_grams: 311
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102013
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-16T05:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.2
+  - 11.0
+  - 2.2
+  measured_grams: 64
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102014
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-09-16T22:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.1
+  - 11.0
+  - 2.0
+  measured_grams: 67
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102015
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-09-16T23:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.1
+  - 13.3
+  - 0.8
+  measured_grams: 78
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102016
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-10-13T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 20.9
+  - 12.7
+  - 1.0
+  measured_grams: 68
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102017
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-10-17T13:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.2
+  - 13.0
+  - 1.3
+  measured_grams: 56
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102018
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-10-19T02:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.1
+  - 10.9
+  - 1.9
+  measured_grams: 75
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102019
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-10-19T11:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.3
+  - 13.0
+  - 1.3
+  measured_grams: 56
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102020
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-10-26T15:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.3
+  - 10.9
+  - 1.8
+  measured_grams: 58
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102021
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-11-02T04:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 19.2
+  - 11.0
+  - 1.9
+  measured_grams: 80
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102022
+  role: history
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-11-09T14:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: A
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.3
+  - 12.8
+  - 0.7
+  measured_grams: 61
+  billed_paise: 3000
+  measurement_status: trusted
+- ref: SHP-102023
+  role: history
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-11-14T01:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: C
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 18.7
+  - 11.3
+  - 2.3
+  measured_grams: 73
+  billed_paise: 4500
+  measurement_status: trusted
+- ref: SHP-102024
+  role: history
+  sku_id: CK-COMBO
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-11-14T22:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 310
+  measured_cm:
+  - 20.1
+  - 15.0
+  - 5.0
+  measured_grams: 316
+  billed_paise: 3800
+  measurement_status: trusted
+- ref: SHP-102025
+  role: dispute
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 34
+  - 22
+  - 15
+  measured_grams: 72
+  billed_paise: 19000
+  measurement_status: disputed
+  fixture: ck_tray_anomaly
+  demo_label: Measurement anomaly
+- ref: SHP-102026
+  role: dispute
+  sku_id: CK-CASE-IP15
+  packaging_id: PKG-CK-MAILER-S
+  quantity: 1
+  measured_at: '2026-11-21T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-2
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 19
+  - 11
+  - 2
+  declared_grams: 72
+  measured_cm:
+  - 34
+  - 22
+  - 15
+  measured_grams: 70
+  billed_paise: 19000
+  measurement_status: disputed
+  fixture: ck_tray_confirmed
+  demo_label: Measurement anomaly
+- ref: SHP-102027
+  role: dispute
+  sku_id: CK-MAGSAFE
+  packaging_id: PKG-CK-BOX-S
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 20
+  - 15
+  - 5
+  declared_grams: 240
+  measured_cm:
+  - 20.0
+  - 15.1
+  - 5.3
+  measured_grams: 228
+  billed_paise: 3800
+  measurement_status: disputed
+  fixture: ck_magsafe_new
+  demo_label: Little history
+- ref: SHP-102028
+  role: dispute
+  sku_id: CK-SP-2PK
+  packaging_id: PKG-CK-RIGID-ENV
+  quantity: 1
+  measured_at: '2026-11-20T10:00:00Z'
+  hub_id: HUB-BLR-03
+  scanner_id: SCN-BLR-03-1
+  zone: B
+  status: DELIVERED
+  declared_cm:
+  - 21
+  - 13
+  - 1
+  declared_grams: 65
+  measured_cm:
+  - 21.3
+  - 13.2
+  - 0.8
+  measured_grams: 67
+  billed_paise: 3800
+  measurement_status: disputed
+  fixture: ck_protector_normal
+  demo_label: Normal bill

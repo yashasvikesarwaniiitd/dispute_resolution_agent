@@ -409,7 +409,7 @@ class TestTheDesignHandoff:
             (
                 "manipulation_suspected",
                 "R21: manipulation_suspected: flagged by a screen (instruction_like)",
-                "The input screen flagged it: the seller's text read like instructions",
+                "The input screen flagged it: text from outside the system (a seller, a hub note",  # ADR 0061
                 "R21",
             ),
             ("ops_timeout", "", "The hub did not answer in time.", ""),

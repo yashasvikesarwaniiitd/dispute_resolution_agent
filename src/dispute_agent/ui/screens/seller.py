@@ -30,15 +30,17 @@ from dispute_agent.modules.evidence.synthetic_shipments.added import (
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.add_shipment import STATUS_CHOICES, preview, save
+from dispute_agent.ui.history_panel import panel_html
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
 from dispute_agent.ui.seller import (
-    EXAMPLES,
-    catalogue,
+    contact_for,
+    filter_options,
     latest_ticket_for,
     open_ticket_for,
+    personas,
     raise_ticket,
-    sellers,
+    seller_shipments,
     tickets,
 )
 from dispute_agent.ui.theme import chip, escape, line, pairs
@@ -46,20 +48,29 @@ from dispute_agent.ui.theme import chip, escape, line, pairs
 if TYPE_CHECKING:
     from dispute_agent.ui.seller import Raised, Shipment, Ticket
 
-SHIP = "ship"  # the one selection the table and the bill share
+SHIP = "ship"
+PERSONA = "persona"  # the demo seller being viewed (ADR 0060): a selector, not a login  # the one selection the table and the bill share
 FILTERS = ("Open", "Closed", "All")
 
 
 def page() -> None:
     settings = Settings()
-    shipments = catalogue(data.SHIPMENTS, EXAMPLES)
-    seller_ref = sellers(shipments)[0]
-    contact = (settings.test_seller_email or "").split(",")[0].strip() or None
-
+    people = personas()
     st.title("Raise a ticket")
+    pick, show_col = st.columns([3, 2], vertical_alignment="bottom")
+    chosen_name = pick.selectbox(
+        "Viewing as (demo seller)", [p["business"] for p in people], key=PERSONA
+    )
+    persona = next(p for p in people if p["business"] == chosen_name)
+    seller_ref = persona["seller_id"]
+    everything = seller_shipments(seller_ref)
+    options = filter_options(everything)
+    show = show_col.selectbox("Show", list(options), key=f"show-{seller_ref}")
+    shipments = options.get(show, everything)
+    contact = contact_for(persona["contact_tag"], settings.test_seller_email)
     st.caption(
-        f"Signed in as seller {seller_ref}. Every shipment here is synthetic; emails about your "
-        "tickets go to the test seller address."
+        f"{persona['owner']} · {persona['category']}. A synthetic demo seller: this selector is "
+        "not a login, and every shipment here is invented."
     )
     mine: list[Ticket] = []
     happening: dict[str, str] = {}
@@ -71,27 +82,21 @@ def page() -> None:
             happening = {str(c.id): journey(work, c).headline for c in cases if str(c.id) in ours}
 
     refs = [s.ref for s in shipments]
-    st.session_state.setdefault(SHIP, None)
+    if st.session_state.get(SHIP) not in refs:  # switching seller or filter clears the bill
+        st.session_state[SHIP] = None
     left, right = st.columns([11, 9], gap="large")  # the bill's calculation needs the room
     with left, st.container(key="card-shipments"):
         _shipments(shipments, mine, refs)
     with right, st.container(key="card-bill"):
-        _bill(shipments, mine, refs, settings, contact)
+        _bill(shipments, mine, refs, settings, contact, persona["contact_tag"])
     with st.container(key="card-tickets"):
         _tickets(mine, happening)
 
 
 def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -> None:
-    head, add = st.columns([2, 1], vertical_alignment="center")
-    head.header("Your shipments")
-    if add.button("Add a shipment", icon=":material/add:", key="open-add", width="stretch"):
-        _add_dialog()
-    added = st.session_state.pop("added", None)
-    if added:
-        st.markdown(
-            line(f"Added {added}. It is chosen on the right: raise a dispute on it when ready."),
-            unsafe_allow_html=True,
-        )
+    # "Add a shipment" (ADR 0056) adds to the old single demo seller, which this page no longer
+    # shows; it returns once added shipments can belong to a catalogue seller (ADR 0060).
+    st.header("Your shipments")
     clicked = picker.show(
         {
             "label": "Your shipments",
@@ -288,6 +293,7 @@ def _bill(
     refs: list[str],
     settings: Settings,
     contact: str | None,
+    tag: str = "",
 ) -> None:
     st.header("Dispute a charge")
     ref = st.selectbox("Shipment", refs, placeholder="Choose a shipment", key=SHIP)
@@ -303,6 +309,7 @@ def _bill(
         f'<p class="muted">You were charged, zone {escape(chosen.zone)}</p>'
         f'<p class="figure-lg">{escape(chosen.charged)}</p>'
         + _calculation(chosen)
+        + panel_html(chosen.comparison, "seller")
         + '<hr class="rule">',
         unsafe_allow_html=True,
     )
@@ -324,6 +331,13 @@ def _bill(
         _steps_link(existing.case_id, "See what the agent has done on it")
     elif not data.has_store():
         st.markdown(f'<p class="muted">{escape(data.NO_STORE)}</p>', unsafe_allow_html=True)
+    elif contact is None:
+        st.markdown(
+            '<p class="muted">This demo seller has no test address yet: add the address with '
+            f'<span class="mono">+{escape(tag)}</span> to TEST_SELLER_EMAIL to raise disputes '
+            "as them. No other seller's address is used.</p>",
+            unsafe_allow_html=True,
+        )
     elif st.button("Raise a dispute", type="primary", width="stretch"):
         with st.spinner("Sending your ticket"):
             # Hosted, the entry hands over the in-process service's route; locally it is the

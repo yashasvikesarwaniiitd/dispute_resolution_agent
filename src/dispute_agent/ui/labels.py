@@ -91,8 +91,8 @@ MESSAGE: dict[MessageKind, str] = {
 #: goes in Details; a reader should not need to know what "B5" means.
 RULE: dict[str, str] = {
     "B1": "Some evidence the agent needs was not available, so a person decides.",
-    "B2": "The seller's text read like instructions to the agent. It was treated as data, "
-    "not followed.",
+    "B2": "Text from outside the system (a seller, a hub note or a shipment note) read like "
+    "instructions to the agent. It was treated as data, not followed; see what was written below.",
     "B3": "Code proved one definite error, so the credit amount is code's own figure.",
     "B4": "Code proved more than one error, so there is no single amount to credit.",
     "B4a": "The seller sent the evidence asked for, so the agent asked the hub to measure "
@@ -141,8 +141,8 @@ REASON.update(
 
 #: What a rule code in a review detail means, when it is not one of the rules engine's rows.
 RULE_DETAIL = {
-    "R21": "the seller's text read like instructions to the agent. It was treated as data, "
-    "not followed.",
+    "R21": "text from outside the system (a seller, a hub note or a shipment note) read like "
+    "instructions to the agent. It was treated as data, not followed; see what was written below.",
 }
 
 

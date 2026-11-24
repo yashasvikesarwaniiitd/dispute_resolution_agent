@@ -70,6 +70,13 @@ class SyntheticLibrarySource:
                         fixture=replace(built, shipment=member), clock=self.clock
                     ),
                 )
+        # The seller catalogue's shipments (ADR 0060): history and disputes alike.
+        from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
+
+        for ref, built in catalogue().by_ref.items():
+            self._by_shipment.setdefault(
+                ref, SyntheticShipmentSource(fixture=built, clock=self.clock)
+            )
         # No fixture: every answer is MISSING, which is the honest answer.
         self._unknown = SyntheticShipmentSource(fixture=None, clock=self.clock)
 

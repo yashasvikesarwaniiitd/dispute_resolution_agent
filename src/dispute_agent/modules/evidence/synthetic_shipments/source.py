@@ -52,6 +52,7 @@ REQUIREMENT_KEYS = (
     "shipment.image_description",
     "shipment.history",
     "ops.finding",
+    "shipment.comparable_history",
 )
 
 
@@ -179,6 +180,10 @@ class SyntheticShipmentSource:
                 return {"present": True}
             case "shipment.history":
                 return {"entries": list(built.history)} if built.history else None
+            case "shipment.comparable_history":
+                # Computed in code from the seller's trusted past shipments (ADR 0060); None
+                # (MISSING) for the named fixtures, whose evidence is unchanged.
+                return built.comparable_history
             case "ops.finding":
                 finding = built.finding
                 if finding is None or not self.finding_available:

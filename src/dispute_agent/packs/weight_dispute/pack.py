@@ -61,6 +61,8 @@ LEDGER = "ledger.entries"
 IMAGE = "shipment.image_description"
 HISTORY = "shipment.history"
 FINDING = "ops.finding"
+#: How the parcel compares with the seller's trusted past shipments (ADR 0060). Optional.
+COMPARABLE = "shipment.comparable_history"
 
 #: What a weight dispute needs to know, and which of it the assessment cannot do without.
 #: `required` is the whole of B1: an image is nice to have, a measurement is the case.
@@ -73,6 +75,7 @@ EVIDENCE_PLAN: tuple[EvidenceRequirement, ...] = (
     EvidenceRequirement(key=IMAGE, source="evidence", required=False),
     EvidenceRequirement(key=HISTORY, source="evidence", required=False),
     EvidenceRequirement(key=FINDING, source="evidence", required=False),
+    EvidenceRequirement(key=COMPARABLE, source="evidence", required=False),
 )
 
 REQUIRED_KEYS = tuple(r.key for r in EVIDENCE_PLAN if r.required)
@@ -99,6 +102,18 @@ class WeightDisputePack:
     def __init__(self, card: RateCard | None = None, *, tolerance_pct: int = 5) -> None:
         self._card = card or DEFAULT_RATE_CARD
         self._tolerance_pct = tolerance_pct
+
+    def remeasurement_brief(self, question: str | None) -> str | None:
+        """The approved wording a hub request may carry beyond the standard one, or None.
+
+        Only an exact approved question passes (ADR 0060): B4b's scanner audit. Anything else -
+        a model's own words, untrusted text, an injected instruction - is dropped, and the hub
+        gets the standard request. Nothing a model writes reaches Jira verbatim.
+        """
+        from dispute_agent.packs.weight_dispute.baseline import APPROVED_HUB_QUESTIONS
+
+        asked = (question or "").strip()
+        return asked if asked in APPROVED_HUB_QUESTIONS else None
 
     def charge_for(
         self,

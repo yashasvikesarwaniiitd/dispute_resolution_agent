@@ -28,6 +28,8 @@ CREDIT_REASON = {
     "calc_error_wrong_slab": "calculation_error",
     "calc_error_high_value": "calculation_error",
     "duplicate_debit": "duplicate_charge",
+    "nc_lamp_duplicate": "duplicate_charge",  # seller catalogue, ADR 0060
+    "tl_dress_wrong_slab": "calculation_error",
 }
 DEFAULT_CREDIT_REASON = "remeasurement_lower"
 

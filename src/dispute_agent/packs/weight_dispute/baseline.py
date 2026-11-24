@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.enums import (
     Confidence,
@@ -47,6 +47,7 @@ from dispute_agent.kernel.domain.reasoning import (
     PatternInfluence,
     Proposal,
 )
+from dispute_agent.packs.weight_dispute.history import MIN_REFERENCES
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
@@ -63,6 +64,7 @@ DECLARED_KEY = "shipment.declared_dims"
 MEASURED_KEY = "shipment.measured_dims"
 REPLY_KEY = "seller_reply"
 FINDING_KEY = "ops.finding"
+COMPARABLE_KEY = "shipment.comparable_history"
 
 #: Reply intents B2 treats as a reason to stop. A reply that tries to instruct us, or that
 #: withdraws the dispute, is a decision for a person either way.
@@ -76,6 +78,15 @@ B7_ITEMS = (
 )
 #: Hub findings that are an answer: it measured again, or checked and found no fault.
 HUB_CONFIRMS = frozenset({"remeasured", "no_fault_found"})
+#: B4b's request to the hub. No figures: the comparison's numbers are evidence for people and
+#: the model, and a request to the hub is not the place to restate them (I9).
+B4B_QUESTION = (
+    "The measured size is far above this product's trusted shipment history in the same "
+    "packaging. Please audit the scan record and the scanner, and re-measure the parcel if it "
+    "is still at the hub."
+)
+#: Every question a hub request may carry verbatim (`WeightDisputePack.remeasurement_brief`).
+APPROVED_HUB_QUESTIONS = frozenset({B4B_QUESTION})
 
 
 @dataclass(frozen=True)
@@ -93,6 +104,8 @@ class BaselineDecision:
     evidence_refs: tuple[str, ...] = ()
     requested_items: tuple[str, ...] = ()
     reason_code: str | None = None
+    #: The question a remeasurement request puts to the hub (B4b's scanner audit).
+    question: str | None = None
     #: Every row that was tested and did not match, in order. Only for explaining a result.
     skipped: tuple[str, ...] = field(default_factory=tuple)
 
@@ -219,6 +232,58 @@ def decide(
         )
     no("B6a")
 
+    comparison = _comparison(items)
+    verdict = comparison.get("verdict")
+    flags = comparison.get("flags") or {}
+
+    # B4b - after B5 and B6a on purpose (ADR 0060): a reply, image or free-text note in the
+    # round still reaches a person first, and a hub answer settles it. The measurement is far
+    # beyond this product's trusted history, so the hub audits its scanner. Investigation
+    # only: an anomaly never proves an error, and no credit is proposed here.
+    if (
+        not errors
+        and verdict == "anomalous"
+        and hub_answer is None
+        and not briefing.contact.remeasurement_outstanding
+        and ProposalAction.REQUEST_REMEASUREMENT in briefing.allowed_actions
+    ):
+        return BaselineDecision(
+            "B4b",
+            ProposalAction.REQUEST_REMEASUREMENT,
+            "the measured size is far beyond this product's trusted shipment history in the "
+            "same packaging: the hub audits the scan",
+            evidence_refs=_refs(items, (COMPARABLE_KEY, MEASURED_KEY)),
+            question=B4B_QUESTION,
+            skipped=tuple(skipped),
+        )
+    no("B4b")
+
+    # B4c - the charge follows the hub's current measurement, and that measurement is
+    # consistent with at least MIN_REFERENCES trusted past shipments of this product in the
+    # same packaging, which also fits the packaging recorded at booking, while the declaration
+    # sits well below them. History supports the hub's figure; it never proves the seller
+    # wrong. The uphold still needs a reviewer's approval of the explanation (policy), and the
+    # seller can reply with evidence inside the reopen window.
+    if (
+        not errors
+        and verdict == "normal"
+        and int(comparison.get("references") or 0) >= MIN_REFERENCES
+        and flags.get("declared_below_history") is True
+        and flags.get("packaging_consistent") is True
+        and hub_answer is None
+        and not briefing.contact.remeasurement_outstanding
+        and ProposalAction.UPHOLD_CHARGE in briefing.allowed_actions
+    ):
+        return BaselineDecision(
+            "B4c",
+            ProposalAction.UPHOLD_CHARGE,
+            f"the hub's measurement is consistent with {comparison['references']} trusted past "
+            "shipments of this product in the same packaging; the charge follows the rate card",
+            evidence_refs=_refs(items, (COMPARABLE_KEY, MEASURED_KEY)),
+            skipped=tuple(skipped),
+        )
+    no("B4c")
+
     # B6 - above B8: do not uphold while our own hub is still measuring.
     if briefing.contact.remeasurement_outstanding:
         return BaselineDecision(
@@ -305,6 +370,7 @@ def baseline_proposal(
         action_parameters=ActionParameters(
             reason_code=decision.reason_code,
             requested_items=decision.requested_items,
+            remeasurement_question=decision.question,
         ),
         pattern_influence=PatternInfluence(considered=False, changed_recommendation=False),
         reasoner="rules_only",
@@ -389,6 +455,13 @@ def _evidence_supplied(items: Sequence[EvidenceItem]) -> bool:
             if not isinstance(entry, dict) or entry.get("status") != "provided":
                 return False
     return True
+
+
+def _comparison(items: Sequence[EvidenceItem]) -> dict[str, Any]:
+    """The historical comparison computed in code (ADR 0060), or {} when there is none."""
+    item = _found(items, COMPARABLE_KEY)
+    value = item.result.value if item is not None else None
+    return dict(value) if isinstance(value, dict) else {}
 
 
 def _hub_answer(items: Sequence[EvidenceItem]) -> str | None:

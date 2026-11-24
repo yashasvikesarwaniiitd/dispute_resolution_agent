@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 
 ADAPTER = "agent"
 PROMPT = "case_investigator_agent"
-VERSION = "v2"  # hub first (ADR 0059); v1 kept for replay
+VERSION = "v3"  # reads the historical comparison (ADR 0060); v1 and v2 kept for replay
 MAX_TURNS = 4
 MAX_RESULT_CHARS = 2500
 TOOLS = ("open_evidence", "policy_lookup", "check_draft")

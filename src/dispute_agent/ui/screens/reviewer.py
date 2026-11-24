@@ -36,8 +36,10 @@ from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
 from dispute_agent.ui import ask, case_sheet, data, photo_check, picker
 from dispute_agent.ui import review_view as view
 from dispute_agent.ui.desk import DONE, NOT_DONE, CaseDesk, can_confirm_withdrawal
+from dispute_agent.ui.history_panel import comparison_for, owner_name, panel_html
 from dispute_agent.ui.labels import clock, handed_over, money, when
 from dispute_agent.ui.labels import reason as reason_words
+from dispute_agent.ui.outside_notes import notes, notes_html
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.review import (
     Card,
@@ -299,7 +301,12 @@ def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
     left.markdown(
         f'<div class="card-headrow"><h2 class="card-kind">{escape(kind)}</h2>'
         f'<span class="mono">{escape(ticket.shipment_ref)}</span>{chip(ticket.label, ticket.tone)}'
-        f'<span class="muted">{escape(since)}</span></div>',
+        + (
+            f'<span class="muted">{escape(owner)}</span>'
+            if (owner := owner_name(ticket.shipment_ref))
+            else ""
+        )
+        + f'<span class="muted">{escape(since)}</span></div>',
         unsafe_allow_html=True,
     )
     pages = st.session_state.get("pages")
@@ -329,6 +336,8 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]
         left, right = st.columns(2, gap="large")
         left.markdown(view.recommends(card.recommendation), unsafe_allow_html=True)
         _photo(left, ticket)
+        _history(left, ticket)
+        _outside(left, ticket)
         with right, st.container(key=f"panel-{aid}"):
             if item.is_credit:
                 proposer = (
@@ -370,6 +379,21 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]
             st.error("Write your reason for rejecting, then press Reject.")
         elif no:
             _decide(reviewer, card, note, approving=False)
+
+
+def _outside(column: DeltaGenerator, ticket: Ticket) -> None:
+    """What hubs and sellers wrote, with its source and the screen's verdict (ADR 0061)."""
+    with data.reader() as work:
+        html = notes_html(notes(work, ticket.case_id))
+    if html:
+        column.markdown(html, unsafe_allow_html=True)
+
+
+def _history(column: DeltaGenerator, ticket: Ticket) -> None:
+    """How the parcel compares with the seller's past shipments, when there is a comparison."""
+    html = panel_html(comparison_for(ticket.shipment_ref), "reviewer")
+    if html:
+        column.markdown(html, unsafe_allow_html=True)
 
 
 def _photo(column: DeltaGenerator, ticket: Ticket) -> None:
@@ -421,6 +445,8 @@ def _person_card(ticket: Ticket, reviewer: Actor) -> None:
                 unsafe_allow_html=True,
             )
             _photo(st.container(key=f"photo-person-{key}"), ticket)
+            _history(st.container(key=f"history-person-{key}"), ticket)
+            _outside(st.container(key=f"outside-person-{key}"), ticket)
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
         # 3. The decision, last: by now the reviewer has read what it rests on.
         _decision_form(ticket, reviewer, case, sheet, paid=paid, unknown=unknown)

@@ -1,0 +1,16 @@
+name: case_investigator_agent
+version: v3
+status: active  # live check passed 17 of 17 on Claude Haiku, 2026-11-24 (ADR 0060)
+owner: product
+purpose: Investigate a weight dispute in steps - open evidence, read policy, check its own draft - then recommend exactly one next step. Read-only tools; proposal only.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: read_only_steps  # tools are executed by code between turns (ADR 0042); no provider tool calling
+max_output_tokens: 4000
+eval_suite: tests/unit/modules/reasoning/test_agentic_reasoner.py (offline); scripts/agent_check.py (live)
+derived_from: case_investigator_agent/v2
+changelog:
+  - "v3: reads shipment.comparable_history (ADR 0060): anomalous -> scanner audit; normal with declared_below_history, packaging_consistent and 5+ references -> uphold as supported, never as proof; not_comparable or too little history -> decide as without history. Never a credit from history."
+  - "v3: rationale capped in words (three short sentences, under 600 characters) after a live run refused an over-long one (schema maxLength 800)."
+  - "v3 activated 2026-11-24: live Haiku check 17 of 17 distinct disputes as designed, no invalid answers (USD 0.021); S62-S67 end to end passed twice on v3 earlier (USD 0.009 and 0.012). Approved wording reached the hub on both anomalies."

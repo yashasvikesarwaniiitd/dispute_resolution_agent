@@ -56,6 +56,7 @@ from dispute_agent.kernel.policy.config import MessagesConfig
 from dispute_agent.modules.email.fake.channel import FakeMessageChannel
 from dispute_agent.modules.email.write_port import MessageWritePort
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import SELLER_CONTACT, fixture
+from dispute_agent.modules.evidence.synthetic_shipments.generator import TEST_DOMAIN
 from dispute_agent.modules.evidence.synthetic_shipments.source import SyntheticShipmentSource
 from dispute_agent.modules.ledger.simulated.ledger import SimulatedLedger
 from dispute_agent.modules.ledger.write_port import CreditWritePort
@@ -187,6 +188,10 @@ def open_world(
     """A synthetic dispute opened on the whole line, ready to drive, reply to and tick."""
     built = fixture(name)
     contact = live.seller_contact if live else SELLER_CONTACT
+    if not live and built.seller_contact.endswith(f"@{TEST_DOMAIN}"):
+        # A catalogue seller keeps their own synthetic address (ADR 0060), so a scenario never
+        # borrows another seller's identity. Any other domain stays refused (S27).
+        contact = built.seller_contact
     if live:
         built = dataclasses.replace(built, seller_contact=contact)
     if statement is not None:

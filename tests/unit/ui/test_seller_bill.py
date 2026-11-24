@@ -64,9 +64,9 @@ def test_an_open_ticket_wins_over_an_older_closed_one() -> None:
 
 def test_the_bill_shows_every_step_of_the_rate_card() -> None:
     # SHP-000005: the scanner read it bigger, so the size, not the scale, sets the charge.
-    from dispute_agent.ui.seller import DIVIDE, EXAMPLES, TIMES
+    from dispute_agent.ui.seller import DIVIDE, TIMES
 
-    s = {x.ref: x for x in catalogue(examples=EXAMPLES)}["SHP-000005"]
+    s = {x.ref: x for x in catalogue()}["SHP-000005"]
     plain = [tuple(c.replace(TIMES, "x").replace(DIVIDE, "/") for c in row) for row in s.breakdown]
     assert plain == [
         ("Size (L x W x H)", "20 x 15 x 10 cm", "34 x 22 x 15 cm"),
@@ -88,8 +88,39 @@ def test_the_verdict_says_what_there_is_to_dispute() -> None:
     assert verdict(7600, 7600, 7600).endswith("There is nothing to dispute.")
 
 
-def test_the_seller_page_lists_one_example_of_each_outcome() -> None:
-    from dispute_agent.ui.seller import EXAMPLES
+def test_each_demo_seller_sees_only_their_own_shipments() -> None:
+    # ADR 0060: the seller page lists the selected demo seller's shipments and no one else's.
+    from dispute_agent.ui.seller import personas, seller_shipments
 
-    refs = [s.ref for s in catalogue(examples=EXAMPLES)]
-    assert refs == ["SHP-000001", "SHP-000002", "SHP-000003", "SHP-000005", "SHP-000007"]
+    people = personas()
+    assert [p["business"] for p in people] == [
+        "CaseKraft Accessories",
+        "NorthCart Essentials",
+        "ThreadLane Apparel",
+    ]
+    seen: set[str] = set()
+    for person in people:
+        rows = seller_shipments(person["seller_id"])
+        assert len(rows) == 28 and sum(r.disputed for r in rows) == 4
+        assert {r.seller_ref for r in rows} == {person["seller_id"]}
+        refs = {r.ref for r in rows}
+        assert not refs & seen
+        seen |= refs
+
+
+def test_the_filter_comes_from_the_data_and_hides_empty_choices() -> None:
+    from dispute_agent.ui.seller import filter_options, seller_shipments
+
+    options = filter_options(seller_shipments("SELL-0103"))
+    assert "Bundle (2 or more) (1)" in options and "Scenario: Packaging change (1)" in options
+    assert all(rows for rows in options.values())
+    assert not any(k.startswith("Bundle") for k in filter_options(seller_shipments("SELL-0102")))
+
+
+def test_a_sellers_address_is_their_own_tagged_one_or_none() -> None:
+    from dispute_agent.ui.seller import contact_for
+
+    allow = "owner+casekraft@gmail.com, owner+threadlane@gmail.com"
+    assert contact_for("casekraft", allow) == "owner+casekraft@gmail.com"
+    assert contact_for("northcart", allow) is None  # never another seller's address
+    assert contact_for("northcart", None) is None
