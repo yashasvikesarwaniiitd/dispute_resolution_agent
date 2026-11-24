@@ -217,11 +217,43 @@ def test_a_wrong_token_shows_no_queue(desk: dict[str, Any]) -> None:
 
 def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
     at = AppTest.from_function(_ledger, default_timeout=60).run()
+    at.selectbox(key="ledger-seller").set_value("SELL-0001").run()  # this world's seller
     assert not at.exception
     text = _text(at)
     assert "<dt>Credited back</dt><dd>\u2212 ₹0.00</dd>" in text  # nothing approved yet
     assert "<dt>Charged</dt><dd>₹" in text  # money reads the same on every screen
     assert "No credits yet" in text
+
+
+def test_a_demo_seller_s_credit_shows_on_the_ledger(desk: dict[str, Any]) -> None:
+    """Live, 2026-11-25: SHP-102026 was credited INR 152 and read back, but the Ledger offered
+    only SELL-0001, so CaseKraft's charges and credit were nowhere to be seen."""
+    from dispute_agent.kernel.domain.external import CreditRequest
+    from dispute_agent.kernel.domain.ids import CaseId, IdempotencyKey
+    from dispute_agent.kernel.domain.values import Money
+    from dispute_agent.modules.ledger.simulated.ledger import SimulatedLedger
+
+    books = SimulatedLedger(desk["cases"].parent / "ledger.sqlite3")
+    books.seed_debit("SHP-102026", Money.of("190.00"), "weight_charge", "TXN-SHP-102026-1")
+    books.post_credit(
+        CreditRequest(
+            shipment_ref="SHP-102026",
+            amount=Money.of("152.00"),
+            reason_code="remeasurement_lower",
+            case_id=CaseId("case_ck"),
+        ),
+        IdempotencyKey("idem-ck-credit"),
+    )
+    at = AppTest.from_function(_ledger, default_timeout=60).run()
+    assert at.selectbox(key="ledger-seller").options == [
+        "CaseKraft Accessories",
+        "NorthCart Essentials",
+        "ThreadLane Apparel",
+        "SELL-0001",
+    ]
+    text = _text(at)  # CaseKraft is first, so it opens there
+    assert f"<dt>Credited back</dt><dd>{chr(0x2212)} ₹152.00</dd>" in text
+    assert "Credits from disputes (1)" in [h.value for h in at.header]
 
 
 @pytest.fixture

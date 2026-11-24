@@ -211,6 +211,10 @@ def _onward(case: Case) -> None:
     pages = st.session_state.get("pages")
     target = ONWARD.get(case.state)
     if pages and target and st.button(target[1], type="primary", key=f"onward-{case.id}"):
+        if target[0] == "ledger":  # open the ledger on this case's seller, not the first one
+            from dispute_agent.ui.screens.finance import SELLER
+
+            st.session_state[SELLER] = case.facts.seller_ref
         st.switch_page(pages[target[0]])
 
 
