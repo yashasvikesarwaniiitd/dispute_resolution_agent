@@ -452,6 +452,9 @@ def build_adapters(
     gateway_adapter = registry.adapter_name("model_gateway")
     if gateway_adapter == "disabled":
         gateway: ModelGateway = DisabledModelGateway()
+    elif gateway_adapter == "anthropic_direct":
+        # Built guarded by the runtime with settings and policy (I14), never unguarded here.
+        gateway = DisabledModelGateway()
     else:
         raise _not_built("model_gateway", gateway_adapter)
 
@@ -465,6 +468,8 @@ def build_adapters(
         from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 
         reasoner = RulesOnlyReasoner(pack=WeightDisputePack(), ids=ids, clock=clock)
+    elif reasoning_adapter == "llm" and gateway_adapter == "anthropic_direct":
+        reasoner = DisabledReasoner()  # replaced by the runtime's guarded LLM reasoner
     else:
         # `llm` needs the model route built with settings and policy; the runtime builds it
         # (build_model_gateway / build_llm_reasoner), never an unguarded one here (I14).
@@ -775,7 +780,9 @@ def _build_runtime(
         ids=ids,
         ports=ports,
         sources=lambda: {"evidence": adapters.evidence},
-        reasoner=adapters.reasoner if modules.get("reasoning") else None,
+        reasoner=_runtime_reasoner(config_dir, settings, clock, ids, adapters, registry)
+        if modules.get("reasoning")
+        else None,
         ledger=adapters.ledger if modules.get("ledger") else None,
         modules=modules,
         kill_switch=SqliteKillSwitch(engine, forced=settings.kill_switch),
@@ -893,6 +900,29 @@ MODEL_CALL_LOG = PROJECT_ROOT / "data" / "model_calls.sqlite3"
 FOUNDRY_AUTH_RECORD = PROJECT_ROOT / "data" / "foundry_auth_record.json"
 
 
+def _runtime_reasoner(
+    config_dir: Path,
+    settings: Settings,
+    clock: Clock,
+    ids: IdGenerator,
+    adapters: Adapters,
+    registry: Registry,
+) -> Reasoner:
+    """The configured reasoner; for `llm`, the guarded model route and the AI investigator."""
+    if registry.adapter_name("reasoning") != "llm":
+        return adapters.reasoner
+    policy = build_model_policy(config_dir, settings)
+    gateway = build_model_gateway(
+        registry.adapter_name("model_gateway"),
+        settings=settings,
+        policy=policy,
+        clock=clock,
+        ids=ids,
+        tracer=adapters.tracer,
+    )
+    return build_llm_reasoner(gateway, settings=settings, policy=policy, clock=clock, ids=ids)
+
+
 def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
     """policy.yaml with the environment's spending settings applied (config.md section 7)."""
     from dispute_agent.infra.policy import load_policy, with_llm_overrides
@@ -925,6 +955,7 @@ def build_model_gateway(
     from dispute_agent.infra.sqlite.model_call_log import open_model_call_log
     from dispute_agent.kernel.gateway.budgeted import BudgetedModelGateway
 
+    money = policy.llm_primary
     if adapter == "fake":
         from dispute_agent.modules.model_gateway.fake.gateway import FakeModelGateway
 
@@ -936,6 +967,17 @@ def build_model_gateway(
     elif adapter == "foundry_openai":
         primary = build_foundry_openai_gateway(settings, policy)
         route = "foundry_openai"
+    elif adapter == "anthropic_direct":
+        from dispute_agent.kernel.policy.config import LlmPrimaryConfig
+        from dispute_agent.modules.model_gateway.anthropic_direct.gateway import ROUTE
+
+        primary = build_haiku_gateway(settings, policy)
+        route = ROUTE
+        # Haiku is real money from the first call: held to the Haiku route's own cap, as the
+        # reply reader is, and paid usage is on by choosing it (ADR 0059).
+        money = LlmPrimaryConfig(
+            spend_cap_usd=policy.llm_secondary.spend_cap_usd, allow_paid_usage=True
+        )
     else:
         raise _not_built("model_gateway", adapter)
 
@@ -951,7 +993,7 @@ def build_model_gateway(
         route=route,
         ledger=open_model_call_log(log_path),
         limits=policy.llm,
-        money=policy.llm_primary,
+        money=money,
         clock=clock,
         ids=ids,
         secondary=second,
@@ -1147,9 +1189,16 @@ def build_scenario_models(
 
 
 def build_live_models(
-    settings: Settings, policy: PolicyConfig, clock: Clock, ids: IdGenerator
+    settings: Settings,
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    *,
+    route: str = "foundry_agent_service",
+    log_path: Path = MODEL_CALL_LOG,
 ) -> ScenarioModels:
-    """The real Foundry agent behind the spending guard, for live evals and the red-team run.
+    """A real model behind the spending guard, for live evals and the red-team run: the Foundry
+    agent by default, or Claude Haiku with `route="anthropic_direct"` (ADR 0059).
 
     Reasoner and reply interpreter share the one guarded gateway, so every call counts against
     the same per-case and lifetime caps (ADR 0017) and lands in the same call log.
@@ -1160,7 +1209,7 @@ def build_live_models(
 
     policy = engine_policy(policy, settings.reasoning_engine)
     gateway = build_model_gateway(
-        "foundry_agent_service", settings=settings, policy=policy, clock=clock, ids=ids
+        route, settings=settings, policy=policy, clock=clock, ids=ids, log_path=log_path
     )
     reasoner = build_llm_reasoner(gateway, settings=settings, policy=policy, clock=clock, ids=ids)
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
@@ -1334,10 +1383,13 @@ def build_llm_reasoner(
     clock: Clock,
     ids: IdGenerator,
 ) -> Reasoner:
+    from dispute_agent.modules.reasoning.llm import agentic
     from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, VERSION, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
+    if settings.reasoning_engine == "agent":  # the prompt the chosen engine will load
+        PROMPT, VERSION = agentic.PROMPT, agentic.VERSION  # noqa: N806
     status = str(registry.meta(PROMPT, VERSION).get("status", "inactive")).split()[0]
     if status != "active" and not settings.prompts_allow_inactive:
         # Fail at start-up, not on the first case (review, M4).

@@ -1,6 +1,6 @@
 """The agentic investigator's live check (ADR 0042). Costs a little; run only with approval.
 
-    PROMPTS_ALLOW_INACTIVE=true REASONING_ENGINE=agent uv run python scripts/agent_check.py --cap 0.25
+    PROMPTS_ALLOW_INACTIVE=true REASONING_ENGINE=agent uv run python scripts/agent_check.py --cap 0.25 [--route anthropic_direct]
 
 Scored **per distinct dispute**, not per scenario (the lesson of ADR 0041: 57 scenarios rest on
 13 disputes). Each dispute is investigated once by the agentic engine and once by the
@@ -40,7 +40,7 @@ from dispute_agent.modules.evals.harness import load_catalogue
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTE = "foundry_openai"
+ROUTE = "foundry_openai"  # or --route anthropic_direct: Claude Haiku (ADR 0059)
 
 
 def disputes() -> OrderedDict[str, str]:
@@ -53,9 +53,11 @@ def disputes() -> OrderedDict[str, str]:
     return found
 
 
-def reasoner_for(engine: str, settings: Settings, policy: Any, clock: Any, ids: Any) -> Any:
+def reasoner_for(
+    engine: str, settings: Settings, policy: Any, clock: Any, ids: Any, route: str = ROUTE
+) -> Any:
     os.environ["REASONING_ENGINE"] = engine
-    gateway = build_model_gateway(ROUTE, settings=settings, policy=policy, clock=clock, ids=ids)
+    gateway = build_model_gateway(route, settings=settings, policy=policy, clock=clock, ids=ids)
     return build_llm_reasoner(
         gateway,
         settings=settings.model_copy(update={"reasoning_engine": engine}),
@@ -70,21 +72,23 @@ def main() -> int:
     logging.disable(logging.WARNING)
     parser = argparse.ArgumentParser()
     parser.add_argument("--cap", type=Decimal, required=True)
+    parser.add_argument("--route", default=ROUTE, choices=(ROUTE, "anthropic_direct"))
     args = parser.parse_args()
     settings = Settings()
     clock, ids = SystemClock(), UlidIdGenerator()
     policy = build_model_policy(DEFAULT_CONFIG_DIR, settings)
     log = open_model_call_log(MODEL_CALL_LOG)
-    start = log.spend_usd(ROUTE)
+    route = args.route
+    start = log.spend_usd(route)
 
-    agent = reasoner_for("agent", settings, policy, clock, ids)
-    single = reasoner_for("single", settings, policy, clock, ids)
+    agent = reasoner_for("agent", settings, policy, clock, ids, route)
+    single = reasoner_for("single", settings, policy, clock, ids, route)
     inner = getattr(agent, "inner", agent)  # TwoPassReasoner wraps the engine
 
     rows, invalid, lookups = [], 0, 0
     print(f"{'dispute':26} {'expected':24} {'single':24} {'agent':24} agent steps")
     for fixture, expected in disputes().items():
-        if log.spend_usd(ROUTE) - start > args.cap - Decimal("0.03"):
+        if log.spend_usd(route) - start > args.cap - Decimal("0.03"):
             print(f"stopped before {fixture}: near the cap")
             break
         got: dict[str, str] = {}
@@ -104,7 +108,7 @@ def main() -> int:
             f"{fixture:26} {expected:24} {got['single']:24} {got['agent']:24} {' > '.join(trace) or '-'}"
         )
 
-    spent = log.spend_usd(ROUTE) - start
+    spent = log.spend_usd(route) - start
     n = len(rows)
     right = {k: sum(1 for r in rows if r[1] == r[i]) for k, i in (("single", 2), ("agent", 3))}
     print(

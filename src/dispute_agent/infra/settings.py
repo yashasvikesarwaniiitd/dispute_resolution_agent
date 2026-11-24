@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     reply_reader: Literal["anthropic_direct"] | None = None
     #: `single` (one model call per round), `graph` (two passes on LangGraph, ADR 0041) or
     #: `agent` (chooses its own read-only lookups, up to four turns, ADR 0042).
-    reasoning_engine: Literal["single", "graph", "agent"] = "single"
+    reasoning_engine: Literal["single", "graph", "agent"] = "agent"  # ADR 0059
 
     @field_validator(
         "azure_credit_expires_on",

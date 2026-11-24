@@ -1,0 +1,15 @@
+name: case_investigator_agent
+version: v2
+status: active  # live check passed 2026-11-24 on Claude Haiku (scripts/agent_check.py --route anthropic_direct)
+owner: product
+purpose: Investigate a weight dispute in steps - open evidence, read policy, check its own draft - then recommend exactly one next step. Read-only tools; proposal only.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: read_only_steps  # tools are executed by code between turns (ADR 0042); no provider tool calling
+max_output_tokens: 4000
+eval_suite: tests/unit/modules/reasoning/test_agentic_reasoner.py (offline); scripts/agent_check.py (live)
+derived_from: case_investigator_agent/v1
+changelog:
+  - "v2: hub first (ADR 0059). A measured box much larger than declared, with no proven error, goes to the hub for a re-measure before anything is asked of the seller; sellers are not asked for photos; after the hub confirms, the charge is upheld."
+  - "v2 activated 2026-11-24: agent_check.py on Claude Haiku decided all 11 distinct disputes validly (hub first on the 4 measurement disputes, credit on the 3 proven errors, a person for multi-error and both injections), USD 0.026; S60 and S61 end to end, USD 0.006."

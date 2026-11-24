@@ -350,6 +350,35 @@ class TestB6SitsAboveB8:
         assert row(items=inside, remeasurement_outstanding=False) == "B8"
 
 
+class TestB6aTheHubConfirmed:
+    """The hub's second look, with no error code can prove, settles it (ADR 0059)."""
+
+    def _hub(self, kind: str) -> list[EvidenceItem]:
+        return [*complete_items(measured=OVERSIZE), item("ops.finding", value={"kind": kind})]
+
+    def test_no_fault_found_upholds(self) -> None:
+        assert row(items=self._hub("no_fault_found"), gather_round=2) == "B6a"
+        assert action(items=self._hub("no_fault_found")) is ProposalAction.UPHOLD_CHARGE
+
+    def test_a_remeasure_that_proves_nothing_upholds(self) -> None:
+        assert row(items=self._hub("remeasured"), gather_round=2) == "B6a"
+
+    def test_a_remeasure_that_proves_an_error_credits(self) -> None:
+        proven = row(items=self._hub("remeasured"), definite_errors=("remeasurement_lower",))
+        assert proven == "B3"
+
+    def test_still_inspecting_is_not_an_answer(self) -> None:
+        assert row(items=self._hub("inspected"), gather_round=2) != "B6a"
+
+    def test_an_answer_settles_it_though_the_ops_timer_is_still_armed(self) -> None:
+        # T31 keeps OPS_TIMEOUT armed after a finding, so "outstanding" is true in that round.
+        answered = row(items=self._hub("no_fault_found"), remeasurement_outstanding=True)
+        assert answered == "B6a"
+
+    def test_still_inspecting_with_the_timer_armed_waits(self) -> None:
+        assert row(items=self._hub("inspected"), remeasurement_outstanding=True) == "B6"
+
+
 class TestB7AskTheSeller:
     def test_an_oversize_box_in_the_first_round_asks_for_evidence(self) -> None:
         oversize = complete_items(measured=OVERSIZE)

@@ -25,7 +25,7 @@ def scenario(sid: str, expected: str | None, baseline: str | None = None) -> Sce
 class TestTheCatalogue:
     def test_every_scenario_is_read(self) -> None:
         scenarios = load_catalogue(CATALOGUE)
-        assert len(scenarios) == 59
+        assert len(scenarios) == 61  # S60, S61: hub first (ADR 0059)
         s01 = next(s for s in scenarios if s.id == "S01")
         assert (s01.expected, s01.baseline, s01.fixture) == (
             "propose_credit",

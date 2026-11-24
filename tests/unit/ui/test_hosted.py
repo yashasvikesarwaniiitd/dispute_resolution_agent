@@ -115,11 +115,12 @@ class TestSecrets:
 
 
 class TestConfiguration:
-    def test_the_hosted_file_is_real_gmail_and_jira_with_the_rules_engine(self) -> None:
+    def test_the_hosted_file_is_real_gmail_and_jira_with_the_ai_investigator(self) -> None:
         modules = load_modules_file(DEFAULT_CONFIG_DIR, HOSTED).modules
         assert modules["email"].adapter == "gmail_api"
         assert modules["ticketing"].adapter == "jira_cloud"
-        assert modules["reasoning"].adapter == "rules_only"
+        assert modules["reasoning"].adapter == "llm"  # ADR 0059: Haiku, hub first
+        assert modules["model_gateway"].adapter == "anthropic_direct"
 
     def test_a_named_file_that_is_missing_is_an_error_not_a_fallback(self) -> None:
         with pytest.raises(ConfigError, match="MODULES_FILE"):

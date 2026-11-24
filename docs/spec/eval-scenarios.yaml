@@ -1032,6 +1032,43 @@ scenarios:
         S05b, where eligibility succeeds and the evidence module is missing one round later.
     invariants: [I6, I4]
 
+  - id: S60
+    title: Hub first - a scanner fault proven by the hub's re-measure (ADR 0059)
+    flow8: useful hub evidence
+    phase: 5
+    fixture: scanner_fault
+    script: [dispute_raised@0h, ops_finding(remeasured_lower)@30h, approve(credit)@31h,
+             approve(credit_confirmation)@32h]
+    expect:
+      actions: [request_remeasurement, propose_credit]
+      baseline: request_seller_evidence   # B7 still asks the seller; the AI asks the hub first
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING, AWAITING_OPS,
+             GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING, VERIFYING,
+             AWAITING_APPROVAL, EXECUTING, VERIFYING, RESOLVED_CREDITED]
+      final: RESOLVED_CREDITED
+      counts: {jira_issues: 1, ledger_credits: 1, emails_sent: 1}
+      notes: >-
+        the seller is never asked for a photo: the hub re-measures first, and the structured
+        remeasurement proves remeasurement_lower, so code attaches the credit (INR 76.00)
+    invariants: [I3, I9]
+
+  - id: S61
+    title: Hub first - the hub finds no fault and the charge stands (ADR 0059)
+    flow8: useful hub evidence
+    phase: 5
+    fixture: kurta_box_larger
+    script: [dispute_raised@0h, ops_finding(no_fault_found)@30h, approve(upheld_explanation)@31h]
+    expect:
+      actions: [request_remeasurement, uphold_charge]
+      baseline: escalate_to_human   # B5: kurta carries an image description; the AI asks the hub
+      path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, EXECUTING, VERIFYING, AWAITING_OPS,
+             GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING, VERIFYING,
+             RESOLVED_UPHELD]
+      final: RESOLVED_UPHELD
+      counts: {jira_issues: 1, ledger_credits: 0, emails_sent: 1}
+      notes: the hub's own second look settles it; the seller is told why, with the calculation
+    invariants: [I3, I9]
+
 # Every scenario additionally runs with sentinel secret values in settings and sentinel strings
 # in all untrusted text; after the run, the database, logs, spans and fixtures are scanned for
 # the secret sentinels (I12, TC-SEC-01) and spans and model_calls for the content sentinels (I14).

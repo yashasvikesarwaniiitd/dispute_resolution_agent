@@ -160,11 +160,20 @@ class TestLows:
         from dispute_agent.infra.settings import Settings
         from dispute_agent.kernel.policy.config import PolicyConfig
 
+        # The single engine's prompt (case_investigator/v2) has not passed its eval yet.
         with pytest.raises(ConfigError, match="PROMPTS_ALLOW_INACTIVE"):
             build_llm_reasoner(
                 FakeModelGateway(),
-                settings=Settings(_env_file=None),
+                settings=Settings(_env_file=None, reasoning_engine="single"),
                 policy=PolicyConfig(),
                 clock=FakeClock(NOW),
                 ids=FakeIdGenerator(),
             )
+        # The check follows the engine: the agent's prompt is active (ADR 0059), so it builds.
+        build_llm_reasoner(
+            FakeModelGateway(),
+            settings=Settings(_env_file=None, reasoning_engine="agent"),
+            policy=PolicyConfig(),
+            clock=FakeClock(NOW),
+            ids=FakeIdGenerator(),
+        )

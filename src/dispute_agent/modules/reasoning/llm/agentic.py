@@ -55,6 +55,7 @@ if TYPE_CHECKING:
 
 ADAPTER = "agent"
 PROMPT = "case_investigator_agent"
+VERSION = "v2"  # hub first (ADR 0059); v1 kept for replay
 MAX_TURNS = 4
 MAX_RESULT_CHARS = 2500
 TOOLS = ("open_evidence", "policy_lookup", "check_draft")
@@ -88,7 +89,7 @@ class AgenticReasoner:
     gateway: ModelGateway
     ids: IdGenerator
     clock: Clock
-    version: str = "v1"
+    version: str = VERSION
     max_output_tokens: int = 4000
     #: `query -> [(source, text)]`. The local policy index by default; injected in tests.
     policy_search: Callable[[str], list[tuple[str, str]]] | None = None
@@ -235,4 +236,4 @@ def _parse(output: Mapping[str, Any]) -> tuple[str, str, Mapping[str, Any]]:
     return step, str(output.get("argument") or "")[:200], draft
 
 
-__all__ = ["ADAPTER", "MAX_TURNS", "PROMPT", "TOOLS", "AgenticReasoner"]
+__all__ = ["ADAPTER", "MAX_TURNS", "PROMPT", "TOOLS", "VERSION", "AgenticReasoner"]

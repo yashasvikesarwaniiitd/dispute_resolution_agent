@@ -74,6 +74,8 @@ B7_ITEMS = (
     "Photo of the packed box beside a tape measure",
     "Packaging dimensions at dispatch",
 )
+#: Hub findings that are an answer: it measured again, or checked and found no fault.
+HUB_CONFIRMS = frozenset({"remeasured", "no_fault_found"})
 
 
 @dataclass(frozen=True)
@@ -197,6 +199,26 @@ def decide(
         )
     no("B5")
 
+    hub_answer = _hub_answer(items)
+
+    # B6a - above B6 on purpose (ADR 0059). The hub checked the parcel again and code still
+    # finds no error: the charge stands on the hub's own second look. OPS_TIMEOUT stays armed
+    # after a finding until a new plan (T31), so "outstanding" is still true here; an answer
+    # in the round settles it. A finding still "inspected" is not an answer and falls through.
+    if (
+        not errors
+        and hub_answer in HUB_CONFIRMS
+        and ProposalAction.UPHOLD_CHARGE in briefing.allowed_actions
+    ):
+        return BaselineDecision(
+            "B6a",
+            ProposalAction.UPHOLD_CHARGE,
+            f"the hub checked the parcel again ({hub_answer}) and the charge follows the rate card",
+            evidence_refs=_refs(items, (FINDING_KEY, MEASURED_KEY)),
+            skipped=tuple(skipped),
+        )
+    no("B6a")
+
     # B6 - above B8: do not uphold while our own hub is still measuring.
     if briefing.contact.remeasurement_outstanding:
         return BaselineDecision(
@@ -211,7 +233,8 @@ def decide(
     first_round = briefing.evidence.gather_round <= 1
 
     # B7 - the charge is right on what was measured, but the box measured bigger than it was
-    # declared. Ask the seller for the one thing that would settle it.
+    # declared. Ask the seller for the one thing that would settle it. (The AI investigator
+    # asks the hub first instead, ADR 0059; this table stays the bar it is measured against.)
     if not errors and oversize is True and first_round:
         return BaselineDecision(
             "B7",
@@ -366,6 +389,13 @@ def _evidence_supplied(items: Sequence[EvidenceItem]) -> bool:
             if not isinstance(entry, dict) or entry.get("status") != "provided":
                 return False
     return True
+
+
+def _hub_answer(items: Sequence[EvidenceItem]) -> str | None:
+    """The kind of the hub's finding in this round ("remeasured", "no_fault_found", ...)."""
+    item = _found(items, FINDING_KEY)
+    kind = (item.result.value or {}).get("kind") if item is not None else None
+    return str(kind) if kind else None
 
 
 def _needs_judgement(briefing: CaseBriefing, items: Sequence[EvidenceItem]) -> str:

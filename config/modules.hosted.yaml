@@ -20,16 +20,16 @@ modules:
       seed: 42                                    # makes synthetic data reproducible (I11)
 
   model_gateway:
-    enabled: false                                # on from Phase 4
-    adapter: fake
-    secondary_adapter: null                       # anthropic_direct from Phase 4b (F01)
+    enabled: true                                 # HOSTED: Claude Haiku, capped (ADR 0059)
+    adapter: anthropic_direct
+    secondary_adapter: null                       # Haiku is the one route here
     settings:
       drift_cache_s: 60
       in_adapter_retries: 2
 
   reasoning:
-    enabled: true                                 # the rules baseline; llm needs model_gateway
-    adapter: rules_only                           # llm from Phase 4; then depends on model_gateway
+    enabled: true                                 # HOSTED: the AI investigator, hub first (ADR 0059)
+    adapter: llm                                  # REASONING_ENGINE=agent; rules are its fallback
 
   input_screen:
     enabled: true
