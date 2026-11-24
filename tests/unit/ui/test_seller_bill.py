@@ -60,3 +60,36 @@ def test_an_open_ticket_wins_over_an_older_closed_one() -> None:
     new = _ticket("SHP-000001", is_open=True, at=T0 - timedelta(days=1), label="With a person")
     assert latest_ticket_for(_shipment("SHP-000001"), [old, new]) is new
     assert latest_ticket_for(_shipment("SHP-000099"), [old]) is None
+
+
+def test_the_bill_shows_every_step_of_the_rate_card() -> None:
+    # SHP-000005: the scanner read it bigger, so the size, not the scale, sets the charge.
+    from dispute_agent.ui.seller import DIVIDE, EXAMPLES, TIMES
+
+    s = {x.ref: x for x in catalogue(examples=EXAMPLES)}["SHP-000005"]
+    plain = [tuple(c.replace(TIMES, "x").replace(DIVIDE, "/") for c in row) for row in s.breakdown]
+    assert plain == [
+        ("Size (L x W x H)", "20 x 15 x 10 cm", "34 x 22 x 15 cm"),
+        ("Scale weight", "0.48 kg", "1.10 kg"),
+        ("Size weight (L x W x H / 5,000)", "0.60 kg", "2.244 kg"),
+        ("Charged weight (the higher)", "0.60 kg", "2.244 kg"),
+        ("Slabs of 0.50 kg (rounded up)", "2", "5"),
+        ("Rate per slab (zone B)", "₹38.00", "₹38.00"),
+        ("Charge (slabs x rate)", "₹76.00", "₹190.00"),
+    ]
+    assert s.verdict.startswith("Your bill matches the hub's measurement.")
+
+
+def test_the_verdict_says_what_there_is_to_dispute() -> None:
+    from dispute_agent.ui.seller import verdict
+
+    assert verdict(280000, 98000, 98000).startswith("You were charged ₹1,820.00 more")
+    assert verdict(19000, 7600, 19000).startswith("Your bill matches the hub's measurement.")
+    assert verdict(7600, 7600, 7600).endswith("There is nothing to dispute.")
+
+
+def test_the_seller_page_lists_one_example_of_each_outcome() -> None:
+    from dispute_agent.ui.seller import EXAMPLES
+
+    refs = [s.ref for s in catalogue(examples=EXAMPLES)]
+    assert refs == ["SHP-000001", "SHP-000002", "SHP-000003", "SHP-000005", "SHP-000007"]

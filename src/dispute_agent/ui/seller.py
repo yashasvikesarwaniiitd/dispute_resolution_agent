@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from dispute_agent.kernel.domain.enums import CaseState
 from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.policy.numbers import render_fact
-from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES, fixture
+from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD, FIXTURES, fixture
 from dispute_agent.packs.weight_dispute.pack import WeightDisputePack
 from dispute_agent.ui.labels import Tone, state
 
@@ -42,6 +42,15 @@ CLOSED = frozenset(
     }
 )
 
+
+#: The seller page's examples: one for each way a dispute can go (the rest stay for tests).
+EXAMPLES = (
+    "kurta_box_larger",  # SHP-000001: the bill is right on the hub's measurement
+    "calc_error_high_value",  # SHP-000002: billing error, credit for a reviewer to approve
+    "ambiguous_image",  # SHP-000003: evidence is unclear, a person decides
+    "scanner_fault",  # SHP-000005: the agent asks the hub (Jira) to re-measure
+    "not_delivered",  # SHP-000007: returned to origin, not eligible
+)
 
 #: Shipment statuses as a seller reads them; RTO is the courier term for "returned".
 STATUS = {
@@ -72,6 +81,11 @@ class Shipment:
     on_declared: str = ""
     #: Charged minus the card on the hub's measurement, when the bill is higher; else "".
     over_card: str = ""
+    #: The rate card worked out step by step, as (step, on declared, on hub's measurement),
+    #: so the seller sees exactly how each figure was reached before disputing it.
+    breakdown: tuple[tuple[str, str, str], ...] = ()
+    #: One plain sentence: does the bill match the hub's measurement, and what to dispute.
+    verdict: str = ""
 
 
 @dataclass(frozen=True)
@@ -111,7 +125,7 @@ def _card_line(charge: Any) -> str:
     return f"{render_fact(charge.amount)} for {kg:.2f} kg"
 
 
-def catalogue(added: Path | None = None) -> list[Shipment]:
+def catalogue(added: Path | None = None, examples: Iterable[str] = FIXTURES) -> list[Shipment]:
     """Every synthetic shipment once, served as the running app serves it: first fixture wins.
 
     `added` is the store of shipments added on the console (ADR 0056); they follow the
@@ -121,7 +135,7 @@ def catalogue(added: Path | None = None) -> list[Shipment]:
 
     pack = WeightDisputePack()  # the card the running app uses (app.py builds the same)
     seen: dict[str, Shipment] = {}
-    built = [fixture(name) for name in FIXTURES]
+    built = [fixture(name) for name in examples]
     if added is not None:
         built += AddedShipments(added).all()
     for one in built:
@@ -142,7 +156,69 @@ def catalogue(added: Path | None = None) -> list[Shipment]:
     return sorted(seen.values(), key=lambda s: s.ref)
 
 
-def _cards(pack: WeightDisputePack, s: Any) -> dict[str, str]:
+def _kg(grams: int) -> str:
+    """Grams as kg, to the gram when it matters: 1,100 -> 1.10, 2,244 -> 2.244."""
+    text = f"{Decimal(grams) / 1000:.3f}"
+    return f"{text[:-1] if text.endswith('0') else text} kg"
+
+
+TIMES, DIVIDE = chr(0xD7), chr(0xF7)  # the multiplication and division signs
+
+
+def _money(paise: int) -> str:
+    return render_fact(Money.from_paise(paise))
+
+
+def _dims(d: Any) -> str:
+    return f"{d.length_cm} {TIMES} {d.width_cm} {TIMES} {d.height_cm} cm"
+
+
+def breakdown(
+    declared: tuple[Any, Any], measured: tuple[Any, Any]
+) -> tuple[tuple[str, str, str], ...]:
+    """Each step of the rate card, on (dims, charge) as declared and as the hub measured."""
+    (d_dims, d), (m_dims, m) = declared, measured
+    by_size = all(c.chargeable_grams == max(c.dead_grams, c.volumetric_grams) for c in (d, m))
+    return (
+        (f"Size (L {TIMES} W {TIMES} H)", _dims(d_dims), _dims(m_dims)),
+        ("Scale weight", _kg(d.dead_grams), _kg(m.dead_grams)),
+        (
+            f"Size weight (L {TIMES} W {TIMES} H {DIVIDE} {CARD.volumetric_divisor:,})",
+            _kg(d.volumetric_grams),
+            _kg(m.volumetric_grams),
+        ),
+        (
+            "Charged weight (the higher)" if by_size else "Charged weight",
+            _kg(d.chargeable_grams),
+            _kg(m.chargeable_grams),
+        ),
+        (f"Slabs of {_kg(CARD.slab_grams)} (rounded up)", str(d.slabs), str(m.slabs)),
+        (
+            f"Rate per slab (zone {m.zone})",
+            _money(d.rate_paise_per_slab),
+            _money(m.rate_paise_per_slab),
+        ),
+        (f"Charge (slabs {TIMES} rate)", _money(d.amount_paise), _money(m.amount_paise)),
+    )
+
+
+def verdict(billed: int, on_declared: int, on_measured: int) -> str:
+    """What the bill means for the seller, in one sentence, from the three amounts."""
+    if billed > on_measured:
+        return (
+            f"You were charged {_money(billed - on_measured)} more than the rate card gives for "
+            "the hub's own measurement. That is a billing error you can dispute."
+        )
+    if billed > on_declared:
+        return (
+            "Your bill matches the hub's measurement. It is higher than your declared parcel "
+            "because the hub measured it bigger or heavier. Dispute it if you think the hub "
+            "measured wrong: the agent checks the hub's figures."
+        )
+    return "Your bill matches the parcel you declared. There is nothing to dispute."
+
+
+def _cards(pack: WeightDisputePack, s: Any) -> dict[str, Any]:
     on_measured = _card(pack, s.measured, s.measured_dead_grams, s.zone, s.packaging)
     on_declared = _card(pack, s.declared, s.declared_dead_grams, s.zone, s.packaging)
     over = s.billed_paise - on_measured.amount_paise
@@ -151,6 +227,8 @@ def _cards(pack: WeightDisputePack, s: Any) -> dict[str, str]:
         "card_on_declared": _card_line(on_declared),
         "on_declared": render_fact(on_declared.amount),
         "over_card": render_fact(Money.from_paise(over)) if over > 0 else "",
+        "breakdown": breakdown((s.declared, on_declared), (s.measured, on_measured)),
+        "verdict": verdict(s.billed_paise, on_declared.amount_paise, on_measured.amount_paise),
     }
 
 

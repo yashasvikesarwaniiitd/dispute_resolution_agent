@@ -32,8 +32,8 @@ from dispute_agent.ui import data, picker
 from dispute_agent.ui.add_shipment import STATUS_CHOICES, preview, save
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
-from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.seller import (
+    EXAMPLES,
     catalogue,
     latest_ticket_for,
     open_ticket_for,
@@ -52,7 +52,7 @@ FILTERS = ("Open", "Closed", "All")
 
 def page() -> None:
     settings = Settings()
-    shipments = catalogue(data.SHIPMENTS)
+    shipments = catalogue(data.SHIPMENTS, EXAMPLES)
     seller_ref = sellers(shipments)[0]
     contact = (settings.test_seller_email or "").split(",")[0].strip() or None
 
@@ -72,7 +72,7 @@ def page() -> None:
 
     refs = [s.ref for s in shipments]
     st.session_state.setdefault(SHIP, None)
-    left, right = st.columns([3, 2], gap="large")
+    left, right = st.columns([11, 9], gap="large")  # the bill's calculation needs the room
     with left, st.container(key="card-shipments"):
         _shipments(shipments, mine, refs)
     with right, st.container(key="card-bill"):
@@ -97,12 +97,11 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
             "label": "Your shipments",
             "selectable": True,
             "selected": st.session_state.get(SHIP),
-            # Status wide enough for "Returned to origin" on one line.
-            "grid": "1.2fr 1.6fr .45fr 1fr 1fr 1.7fr",
+            # Zone is on the bill; the ticket chip ("Awaiting approval") needs the room.
+            "grid": "1.15fr 1.45fr .95fr 1fr 1.75fr",
             "columns": [
                 {"label": "Shipment"},
                 {"label": "Status"},
-                {"label": "Zone"},
                 {"label": "Expected", "align": "right"},
                 {"label": "Charged", "align": "right"},
                 {"label": "Your ticket"},
@@ -113,7 +112,6 @@ def _shipments(shipments: list[Shipment], mine: list[Ticket], refs: list[str]) -
                     "cells": [
                         {"kind": "num", "text": s.ref},
                         {"kind": "text" if s.status == "Delivered" else "error", "text": s.status},
-                        s.zone,
                         {"kind": "num", "text": s.on_declared},
                         {"kind": "num", "text": s.charged},
                         _ticket_cell(latest_ticket_for(s, mine)),
@@ -174,7 +172,7 @@ def _add_dialog() -> None:
         key=f"{ADD}note",
     ).strip()
     photo = st.file_uploader(
-        "Parcel photo (optional, JPG or PNG, up to 5 MB)",
+        "Hub's parcel photo (optional, JPG or PNG, up to 5 MB)",
         type=["jpg", "jpeg", "png"],
         key=f"{ADD}photo",
     )
@@ -264,13 +262,23 @@ def _ticket_cell(ticket: Ticket | None) -> object:
     return {"chip": ticket.label, "tone": ticket.tone.value} if ticket else ""
 
 
-def _over(chosen: Shipment) -> str:
-    """Say plainly when the bill is above the card on the hub's own measurement."""
-    if not chosen.over_card:
-        return ""
+def _calculation(chosen: Shipment) -> str:
+    """The rate card, step by step, for the parcel as declared and as the hub measured it."""
+    head = (
+        '<thead><tr><th scope="col">Step</th><th scope="col">As you declared</th>'
+        '<th scope="col">As the hub measured</th></tr></thead>'
+    )
+    body = "".join(
+        f'<tr><th scope="row">{escape(step)}</th><td>{escape(mine)}</td><td>{escape(hub)}</td></tr>'
+        for step, mine, hub in chosen.breakdown
+    )
+    tone = "calc-verdict calc-verdict--error" if chosen.over_card else "calc-verdict"
     return (
-        f'<p class="line line--error" role="alert">You were charged {escape(chosen.over_card)} '
-        "more than the rate card gives for the hub's own measurement.</p>"
+        '<p class="calc-title">How the charge is worked out</p>'
+        f'<table class="calc">{head}<tbody>{body}</tbody></table>'
+        '<p class="muted calc-note">Couriers charge the higher of the scale weight and the weight '
+        "by size, because a large, light box takes as much space as a heavy one.</p>"
+        f'<p class="{tone}" role="status">{escape(chosen.verdict)}</p>'
     )
 
 
@@ -292,23 +300,12 @@ def _bill(
         )
         return
     st.markdown(
-        f'<p class="muted">Charged for zone {escape(chosen.zone)}</p>'
-        f'<p class="figure-lg">{escape(chosen.charged)}</p><hr class="rule">'
-        + pairs([("You declared", chosen.declared), ("The hub measured", chosen.measured)])
-        + '<hr class="rule"><p class="muted">What the rate card says, worked out in code</p>'
-        + pairs(
-            [
-                ("On the hub's measurement", chosen.card_on_measured),
-                ("On your declared size", chosen.card_on_declared),
-            ]
-        )
-        + _over(chosen)
+        f'<p class="muted">You were charged, zone {escape(chosen.zone)}</p>'
+        f'<p class="figure-lg">{escape(chosen.charged)}</p>'
+        + _calculation(chosen)
         + '<hr class="rule">',
         unsafe_allow_html=True,
     )
-    photo = photo_for(chosen.ref)
-    if photo is not None:
-        st.image(str(photo), caption="Your parcel photo", width="stretch")
     if chosen.status != "Delivered":
         st.markdown(
             f'<p class="line line--error" role="alert">⚠ Its status is "{escape(chosen.status)}", '

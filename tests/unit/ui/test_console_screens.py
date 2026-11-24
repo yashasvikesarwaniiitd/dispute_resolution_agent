@@ -96,7 +96,7 @@ def test_the_seller_sees_their_shipments_and_their_ticket(desk: dict[str, Any]) 
     assert at.title[0].value == "Raise a ticket"
     headers = [h.value for h in at.header]
     assert {"Your shipments", "Dispute a charge", "Your tickets"} <= set(headers)
-    assert len(at.selectbox[0].options) == 14  # every shipment, chosen from the list or a row
+    assert len(at.selectbox[0].options) == 5  # one example per outcome (seller.EXAMPLES)
     assert "correct" not in " ".join(m.value for m in at.markdown).lower()  # brief 13.5
 
 
