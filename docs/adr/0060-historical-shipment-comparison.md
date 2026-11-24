@@ -33,10 +33,11 @@ There are 11 products, 10 packaging profiles, 72 past shipments and 12 disputes.
 **UI:**
 - **Raise a ticket:**
   - **A "Viewing as (demo seller)" selector:** labelled as not a login.
-  - **One "Show" filter:** its options are built from that seller's data, so empty ones are hidden.
-  - **A "Compared with your past shipments" panel,** under the calculation.
+  - **Only the seller's 4 disputed shipments are listed,** with no filter. The 24 past shipments stay in the data, where the agent's comparison reads them.
+  - **No comparison panel.** The comparison is evidence the agent weighs after a dispute is raised; showing it first would preview the agent's reasoning.
+  - **The verdict comes before the working,** and a shipment debited twice reads as a billing error.
   - **SELL-0001's five examples are removed.**
-- **Review:** the seller's name on each card, and the same panel.
+- **Review:** the seller's name on each card, and the "Compared with this seller's past shipments" panel.
 - **Raising a dispute** uses the seller's own `+tag` address from `TEST_SELLER_EMAIL`. Without it the button explains what to add, and no other seller's address is used.
 
 ## Scenarios

@@ -30,12 +30,10 @@ from dispute_agent.modules.evidence.synthetic_shipments.added import (
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.add_shipment import STATUS_CHOICES, preview, save
-from dispute_agent.ui.history_panel import panel_html
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
 from dispute_agent.ui.seller import (
     contact_for,
-    filter_options,
     latest_ticket_for,
     open_ticket_for,
     personas,
@@ -57,16 +55,14 @@ def page() -> None:
     settings = Settings()
     people = personas()
     st.title("Raise a ticket")
-    pick, show_col = st.columns([3, 2], vertical_alignment="bottom")
+    pick, _ = st.columns([3, 2], vertical_alignment="bottom")
     chosen_name = pick.selectbox(
         "Viewing as (demo seller)", [p["business"] for p in people], key=PERSONA
     )
     persona = next(p for p in people if p["business"] == chosen_name)
     seller_ref = persona["seller_id"]
-    everything = seller_shipments(seller_ref)
-    options = filter_options(everything)
-    show = show_col.selectbox("Show", list(options), key=f"show-{seller_ref}")
-    shipments = options.get(show, everything)
+    # Only disputes are actionable; past shipments stay in the data as the agent's history.
+    shipments = [s for s in seller_shipments(seller_ref) if s.disputed]
     contact = contact_for(persona["contact_tag"], settings.test_seller_email)
     st.caption(
         f"{persona['owner']} · {persona['category']}. A synthetic demo seller: this selector is "
@@ -277,13 +273,14 @@ def _calculation(chosen: Shipment) -> str:
         f'<tr><th scope="row">{escape(step)}</th><td>{escape(mine)}</td><td>{escape(hub)}</td></tr>'
         for step, mine, hub in chosen.breakdown
     )
-    tone = "calc-verdict calc-verdict--error" if chosen.over_card else "calc-verdict"
+    tone = "calc-verdict calc-verdict--error" if chosen.billing_error else "calc-verdict"
+    # The answer first, then the working: a gap between the bill and the card is read first.
     return (
+        f'<p class="{tone}" role="status">{escape(chosen.verdict)}</p>'
         '<p class="calc-title">How the charge is worked out</p>'
         f'<table class="calc">{head}<tbody>{body}</tbody></table>'
         '<p class="muted calc-note">Couriers charge the higher of the scale weight and the weight '
         "by size, because a large, light box takes as much space as a heavy one.</p>"
-        f'<p class="{tone}" role="status">{escape(chosen.verdict)}</p>'
     )
 
 
@@ -309,7 +306,6 @@ def _bill(
         f'<p class="muted">You were charged, zone {escape(chosen.zone)}</p>'
         f'<p class="figure-lg">{escape(chosen.charged)}</p>'
         + _calculation(chosen)
-        + panel_html(chosen.comparison, "seller")
         + '<hr class="rule">',
         unsafe_allow_html=True,
     )

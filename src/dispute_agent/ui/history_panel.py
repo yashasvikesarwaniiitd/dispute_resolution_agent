@@ -1,4 +1,7 @@
-"""The "compared with past shipments" panel, shared by the seller and review screens (ADR 0060).
+"""The "compared with past shipments" panel on the Review screen (ADR 0060).
+
+The seller never sees it: the comparison is evidence the agent weighs after a dispute is
+raised, not a preview of its reasoning.
 
 It shows what code computed - the counts, the usual size, the range, and which shipments it
 rests on - in plain words. No percentages and no confidence: a comparison is supporting
@@ -8,12 +11,11 @@ but these numbers reach HTML too).
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
 from dispute_agent.ui.theme import escape
 
-Audience = Literal["seller", "reviewer"]
 TIMES = chr(0xD7)
 
 
@@ -27,9 +29,9 @@ def owner_name(shipment_ref: str) -> str | None:
     return owner.seller.business if owner else None
 
 
-def headline(comparison: dict[str, Any], audience: Audience) -> str:
+def headline(comparison: dict[str, Any]) -> str:
     """The verdict as one plain sentence."""
-    your = "your" if audience == "seller" else "this seller's"
+    your = "this seller's"
     flags = comparison.get("flags") or {}
     verdict = comparison.get("verdict")
     if verdict == "anomalous":
@@ -60,15 +62,11 @@ def _sides(shape: dict[str, Any] | None) -> str:
     return f" {TIMES} ".join(shape["sides_cm"]) + f" cm, {shape['grams']} g"
 
 
-def panel_html(comparison: dict[str, Any] | None, audience: Audience) -> str:
+def panel_html(comparison: dict[str, Any] | None) -> str:
     """The panel as HTML, or "" when this shipment has no comparison (named fixtures)."""
     if not comparison:
         return ""
-    title = (
-        "Compared with your past shipments"
-        if audience == "seller"
-        else "Compared with this seller's past shipments"
-    )
+    title = "Compared with this seller's past shipments"
     rows = ""
     if comparison.get("typical"):
         low, high = (comparison.get("range") or {}).get("volume_cm3", ["-", "-"])
@@ -99,7 +97,7 @@ def panel_html(comparison: dict[str, Any] | None, audience: Audience) -> str:
     small = "".join(f'<p class="muted hist-note">{escape(n)}</p>' for n in [*notes, based] if n)
     return (
         f'<div class="hist-panel"><p class="calc-title">{escape(title)}</p>'
-        f'<p class="calc-verdict">{escape(headline(comparison, audience))}</p>'
+        f'<p class="calc-verdict">{escape(headline(comparison))}</p>'
         f"{rows}{small}</div>"
     )
 

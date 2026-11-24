@@ -96,18 +96,20 @@ def test_the_seller_sees_their_shipments_and_their_ticket(desk: dict[str, Any]) 
     assert at.title[0].value == "Raise a ticket"
     headers = [h.value for h in at.header]
     assert {"Your shipments", "Dispute a charge", "Your tickets"} <= set(headers)
-    # ADR 0060: three demo sellers; the first one's 28 shipments (24 past, 4 disputed).
+    # ADR 0060: three demo sellers; the page lists only the first one's 4 disputed shipments
+    # (the 24 past ones stay in the data as the agent's history).
     assert at.selectbox(key="persona").options == [
         "CaseKraft Accessories",
         "NorthCart Essentials",
         "ThreadLane Apparel",
     ]
-    assert len(at.selectbox(key="ship").options) == 28
+    assert len(at.selectbox(key="ship").options) == 4
+    assert not any(s.label == "Show" for s in at.selectbox)  # no filter
     assert "correct" not in " ".join(m.value for m in at.markdown).lower()  # brief 13.5
 
 
 class TestDemoSellers:
-    """ADR 0060: a selector, a filter from the data, and one seller's rows only."""
+    """ADR 0060: a selector, and one seller's disputed rows only."""
 
     def test_switching_seller_shows_only_that_sellers_shipments(self, desk: dict[str, Any]) -> None:
         at = AppTest.from_function(_seller, default_timeout=60).run()
@@ -115,29 +117,17 @@ class TestDemoSellers:
         at.selectbox(key="persona").set_value("ThreadLane Apparel").run()
         assert not at.exception
         refs = at.selectbox(key="ship").options
-        assert len(refs) == 28 and all(o.startswith("SHP-103") for o in refs)
+        assert sorted(refs) == ["SHP-103025", "SHP-103026", "SHP-103027", "SHP-103028"]
 
-    def test_the_filter_offers_only_what_the_seller_has(self, desk: dict[str, Any]) -> None:
-        at = AppTest.from_function(_seller, default_timeout=60).run()
-        options = at.selectbox(key="show-SELL-0102").options
-        assert "Disputed shipments (4)" in options
-        assert "Scenario: Measurement anomaly (2)" in options
-        assert not any(o.startswith("Bundle") for o in options)  # CaseKraft ships singles
-        at.selectbox(key="show-SELL-0102").set_value("Disputed shipments (4)").run()
-        assert len(at.selectbox(key="ship").options) == 4
-        at.selectbox(key="persona").set_value("ThreadLane Apparel").run()
-        assert "Bundle (2 or more) (1)" in at.selectbox(key="show-SELL-0103").options
-
-    def test_the_bill_shows_how_the_parcel_compares(self, desk: dict[str, Any]) -> None:
+    def test_the_seller_never_sees_the_agents_comparison(self, desk: dict[str, Any]) -> None:
+        # The comparison is evidence the agent weighs after a dispute, shown on Review only.
         at = AppTest.from_function(_seller, default_timeout=60).run()
         at.selectbox(key="ship").set_value("SHP-102025").run()
         assert not at.exception
         text = _text(at)
-        assert "Compared with your past shipments" in text
-        assert "Much larger than your usual shipments of this product" in text
-        assert "not proof of an error" in text
-        assert "Based on: SHP-102" in text
-        assert "correct" not in text.lower()  # brief 13.5 holds with the panel too
+        assert "How the charge is worked out" in text
+        assert "past shipments" not in text.lower()
+        assert "Based on: SHP-" not in text
 
     def test_a_seller_without_a_test_address_borrows_no_one_elses(
         self, desk: dict[str, Any]

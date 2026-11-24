@@ -86,6 +86,18 @@ def test_the_verdict_says_what_there_is_to_dispute() -> None:
     assert verdict(280000, 98000, 98000).startswith("You were charged ₹1,820.00 more")
     assert verdict(19000, 7600, 19000).startswith("Your bill matches the hub's measurement.")
     assert verdict(7600, 7600, 7600).endswith("There is nothing to dispute.")
+    # A second debit of a bill that matches the card is still an error (SHP-101025).
+    assert verdict(15200, 15200, 15200, debits=2).startswith(
+        "You were charged ₹152.00 twice for this one shipment."
+    )
+
+
+def test_a_shipment_debited_twice_reads_as_a_billing_error() -> None:
+    from dispute_agent.ui.seller import seller_shipments
+
+    lamp = next(s for s in seller_shipments("SELL-0101") if s.ref == "SHP-101025")
+    assert lamp.billing_error and "extra charge is a billing error" in lamp.verdict
+    assert "nothing to dispute" not in lamp.verdict
 
 
 def test_each_demo_seller_sees_only_their_own_shipments() -> None:
@@ -106,15 +118,6 @@ def test_each_demo_seller_sees_only_their_own_shipments() -> None:
         refs = {r.ref for r in rows}
         assert not refs & seen
         seen |= refs
-
-
-def test_the_filter_comes_from_the_data_and_hides_empty_choices() -> None:
-    from dispute_agent.ui.seller import filter_options, seller_shipments
-
-    options = filter_options(seller_shipments("SELL-0103"))
-    assert "Bundle (2 or more) (1)" in options and "Scenario: Packaging change (1)" in options
-    assert all(rows for rows in options.values())
-    assert not any(k.startswith("Bundle") for k in filter_options(seller_shipments("SELL-0102")))
 
 
 def test_a_sellers_address_is_their_own_tagged_one_or_none() -> None:

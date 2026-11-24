@@ -72,18 +72,16 @@ class Shipment:
     on_declared: str = ""
     #: Charged minus the card on the hub's measurement, when the bill is higher; else "".
     over_card: str = ""
+    #: Charged more than the card gives for the hub's measurement, or debited more than once.
+    billing_error: bool = False
     #: The rate card worked out step by step, as (step, on declared, on hub's measurement),
     #: so the seller sees exactly how each figure was reached before disputing it.
     breakdown: tuple[tuple[str, str, str], ...] = ()
     #: One plain sentence: does the bill match the hub's measurement, and what to dispute.
     verdict: str = ""
-    #: Seller-catalogue shipments (ADR 0060): how it was packed, whether it is one of the
-    #: seller's disputes, a filter label for people, and the comparison code computed.
-    quantity: int = 1
-    packing: str = ""
+    #: Seller-catalogue shipments (ADR 0060): whether it is one of the seller's disputes, the
+    #: only ones the page lists.
     disputed: bool = False
-    demo_label: str = ""
-    comparison: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -153,11 +151,7 @@ def _ui_shipment(pack: WeightDisputePack, one: Any, row: Any = None) -> Shipment
         declared=_size(s.declared, s.declared_dead_grams),
         measured=_size(s.measured, s.measured_dead_grams),
         charged=render_fact(Money.from_paise(s.billed_paise)),
-        quantity=one.quantity,
-        packing=s.packaging,
         disputed=bool(row is not None and row.role == "dispute"),
-        demo_label=(row.demo_label or "") if row is not None else "",
-        comparison=one.comparable_history,
         **_cards(pack, s),
     )
 
@@ -180,32 +174,6 @@ def seller_shipments(seller_id: str) -> list[Shipment]:
     pack = WeightDisputePack()
     rows = sorted(found.shipments, key=lambda r: r.measured_at, reverse=True)
     return [_ui_shipment(pack, sellers_().by_ref[r.ref], r) for r in rows]
-
-
-def packing_kind(shipment: Shipment) -> str:
-    """The packing a seller recognises: poly-mailer, mailer or envelope, or box or carton."""
-    kind = shipment.packing.lower()
-    if "poly" in kind:
-        return "Poly-mailer"
-    if "mailer" in kind or "envelope" in kind:
-        return "Mailer or envelope"
-    return "Box or carton"
-
-
-def filter_options(shipments: list[Shipment]) -> dict[str, list[Shipment]]:
-    """The seller screen's one filter: label -> shipments, built from the data. Empty ones are
-    left out, so the screen never offers a choice that shows nothing."""
-    groups: dict[str, list[Shipment]] = {
-        "All shipments": shipments,
-        "Disputed shipments": [s for s in shipments if s.disputed],
-        "Single item": [s for s in shipments if s.quantity == 1],
-        "Bundle (2 or more)": [s for s in shipments if s.quantity > 1],
-    }
-    for kind in ("Poly-mailer", "Mailer or envelope", "Box or carton"):
-        groups[kind] = [s for s in shipments if packing_kind(s) == kind]
-    for label in sorted({s.demo_label for s in shipments if s.demo_label}):
-        groups[f"Scenario: {label}"] = [s for s in shipments if s.demo_label == label]
-    return {f"{k} ({len(v)})": v for k, v in groups.items() if v}
 
 
 def contact_for(tag: str, allowlist: str | None) -> str | None:
@@ -263,8 +231,14 @@ def breakdown(
     )
 
 
-def verdict(billed: int, on_declared: int, on_measured: int) -> str:
+def verdict(billed: int, on_declared: int, on_measured: int, debits: int = 1) -> str:
     """What the bill means for the seller, in one sentence, from the three amounts."""
+    if debits > 1:  # the same charge taken again is an error whatever the parcel measured
+        return (
+            f"You were charged {_money(billed)} {'twice' if debits == 2 else f'{debits} times'} "
+            "for this one shipment. The extra "
+            "charge is a billing error you can dispute."
+        )
     if billed > on_measured:
         return (
             f"You were charged {_money(billed - on_measured)} more than the rate card gives for "
@@ -283,13 +257,17 @@ def _cards(pack: WeightDisputePack, s: Any) -> dict[str, Any]:
     on_measured = _card(pack, s.measured, s.measured_dead_grams, s.zone, s.packaging)
     on_declared = _card(pack, s.declared, s.declared_dead_grams, s.zone, s.packaging)
     over = s.billed_paise - on_measured.amount_paise
+    debits = sum(1 for entry in s.ledger if entry.kind == "DEBIT")
     return {
         "card_on_measured": _card_line(on_measured),
         "card_on_declared": _card_line(on_declared),
         "on_declared": render_fact(on_declared.amount),
         "over_card": render_fact(Money.from_paise(over)) if over > 0 else "",
+        "billing_error": over > 0 or debits > 1,
         "breakdown": breakdown((s.declared, on_declared), (s.measured, on_measured)),
-        "verdict": verdict(s.billed_paise, on_declared.amount_paise, on_measured.amount_paise),
+        "verdict": verdict(
+            s.billed_paise, on_declared.amount_paise, on_measured.amount_paise, debits
+        ),
     }
 
 

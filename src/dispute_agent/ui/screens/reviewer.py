@@ -391,7 +391,7 @@ def _outside(column: DeltaGenerator, ticket: Ticket) -> None:
 
 def _history(column: DeltaGenerator, ticket: Ticket) -> None:
     """How the parcel compares with the seller's past shipments, when there is a comparison."""
-    html = panel_html(comparison_for(ticket.shipment_ref), "reviewer")
+    html = panel_html(comparison_for(ticket.shipment_ref))
     if html:
         column.markdown(html, unsafe_allow_html=True)
 
