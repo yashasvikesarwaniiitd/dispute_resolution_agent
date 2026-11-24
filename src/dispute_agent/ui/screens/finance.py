@@ -16,7 +16,7 @@ import streamlit as st
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.finance import Row, rows, totals
 from dispute_agent.ui.labels import money, when
-from dispute_agent.ui.seller import catalogue, personas, seller_shipments, sellers
+from dispute_agent.ui.seller import personas, seller_shipments
 from dispute_agent.ui.theme import escape
 
 KINDS = ("All", "Charges", "Credits")
@@ -29,17 +29,15 @@ GRID_ENTRIES = "1.5fr 1fr .8fr 1fr 1.2fr 1.6fr"
 def page() -> None:
     title, pick = st.columns([3, 1], vertical_alignment="bottom")
     title.title("Ledger")
-    # The demo sellers first (ADR 0060), then the named fixtures' seller. Listing only the
-    # latter hid every demo seller's charges and credits (live, 2026-11-25).
+    # The demo sellers only (ADR 0060), as on Raise a ticket. Listing the named fixtures'
+    # SELL-0001 instead hid every demo seller's charges and credits (live, 2026-11-25).
     names = {p["seller_id"]: p["business"] for p in personas()}
-    shipments = [*(s for ref in names for s in seller_shipments(ref)), *catalogue()]
-    options = [*names, *(r for r in sellers(catalogue()) if r not in names)]
-    if st.session_state.get(SELLER) not in options:
+    if st.session_state.get(SELLER) not in names:
         st.session_state.pop(SELLER, None)  # a case's seller this list does not have
     seller_ref = pick.selectbox(
-        "Seller", options, key=SELLER, format_func=lambda r: names.get(r, r)
+        "Seller", list(names), key=SELLER, format_func=lambda ref: names[ref]
     )
-    refs = [s.ref for s in shipments if s.seller_ref == seller_ref]
+    refs = [s.ref for s in seller_shipments(seller_ref)] if seller_ref else []
 
     entries = data.ledger_entries(refs)
     if not entries:

@@ -216,10 +216,16 @@ def test_a_wrong_token_shows_no_queue(desk: dict[str, Any]) -> None:
 
 
 def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
+    from dispute_agent.kernel.domain.values import Money
+    from dispute_agent.modules.ledger.simulated.ledger import SimulatedLedger
+
+    books = SimulatedLedger(desk["cases"].parent / "ledger.sqlite3")
+    books.seed_debit("SHP-101028", Money.of("114.00"), "weight_charge", "TXN-SHP-101028-1")
     at = AppTest.from_function(_ledger, default_timeout=60).run()
-    at.selectbox(key="ledger-seller").set_value("SELL-0001").run()  # this world's seller
+    at.selectbox(key="ledger-seller").set_value("SELL-0101").run()  # NorthCart
     assert not at.exception
     text = _text(at)
+    assert "<dt>Charged</dt><dd>₹114.00</dd>" in text
     assert "<dt>Credited back</dt><dd>\u2212 ₹0.00</dd>" in text  # nothing approved yet
     assert "<dt>Charged</dt><dd>₹" in text  # money reads the same on every screen
     assert "No credits yet" in text
@@ -245,11 +251,11 @@ def test_a_demo_seller_s_credit_shows_on_the_ledger(desk: dict[str, Any]) -> Non
         IdempotencyKey("idem-ck-credit"),
     )
     at = AppTest.from_function(_ledger, default_timeout=60).run()
+    # The demo sellers only, as on Raise a ticket: SELL-0001 is the old test seller.
     assert at.selectbox(key="ledger-seller").options == [
         "CaseKraft Accessories",
         "NorthCart Essentials",
         "ThreadLane Apparel",
-        "SELL-0001",
     ]
     text = _text(at)  # CaseKraft is first, so it opens there
     assert f"<dt>Credited back</dt><dd>{chr(0x2212)} ₹152.00</dd>" in text
