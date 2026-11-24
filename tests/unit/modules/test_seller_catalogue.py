@@ -96,6 +96,7 @@ def test_every_dispute_gives_the_seller_a_reason_to_dispute() -> None:
         for row in seller.shipments:
             if row.role != "dispute":
                 continue
+            assert row.fixture is not None, row.ref  # every dispute names its fixture
             s = fixture(row.fixture).shipment
             declared = calculate(s.declared, s.declared_dead_grams, s.zone, DEFAULT_RATE_CARD)
             assert s.billed_paise > declared.amount_paise or row.duplicate_debit, row.ref
