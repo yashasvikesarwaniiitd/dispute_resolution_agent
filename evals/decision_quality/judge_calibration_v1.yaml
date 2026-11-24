@@ -1,0 +1,379 @@
+# Decision Quality - LLM judge calibration set v1. Labels approved by the owner on 2026-11-25.
+#
+# Each item is one explanation of a decision at a golden decision point. The judge sees the
+# evidence at that point (from golden_v1.yaml, plus `extra_evidence` where the agent saw a
+# note the golden summary does not quote), the action and the explanation - never `label`.
+#
+#   R-xx  - Haiku's real explanation from the paid run of 2026-11-25
+#   C-xx  - crafted by Claude: deliberately flawed ones, and clean controls
+#
+# label.verdict  - pass / fail: does the explanation say anything the evidence does not support,
+#                  or state a suspicion as fact? (Omissions and internal ids are not flaws.)
+# label.flaws    - what is wrong, in words
+# label.critical - a flaw that could lead a reviewer to a wrong money or safety decision; the
+#                  judge must catch every one of these
+# label.note     - a label the owner confirmed at approval
+
+version: 1
+status: approved
+approved_by: owner
+approved_on: 2026-11-25
+items:
+- id: R-01
+  point: DQ-01
+  source: haiku run dq-haiku-20261124T212010Z
+  action: propose_credit
+  credit: duplicate_charge, INR 152.00
+  explanation: The deterministic results list exactly one definite error, duplicate_charge. The ledger
+    shows two identical debits of the same amount under the same claim, and the recalculated charge matches
+    the single correct charge. No manipulation or conflicting evidence was found.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-02
+  point: DQ-02
+  source: haiku run dq-haiku-20261124T212010Z
+  action: propose_credit
+  credit: calculation_error, INR 38.00
+  explanation: 'Code finds exactly one definite error: the amount charged differs from the recalculated
+    charge on the same chargeable weight. The seller''s declared and measured sizes match, and the historical
+    comparison is normal, so the dispute rests on the calculation error alone.'
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-03
+  point: DQ-03
+  source: haiku run dq-haiku-20261124T212010Z
+  action: request_remeasurement
+  credit: ''
+  explanation: The charge follows the hub's measured size, which is far larger than the declared size,
+    and no definite error was found. The measurement is also far above this product's trusted shipment
+    history, so the hub should audit its scan before anything else is decided.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-04
+  point: DQ-04
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: 'No error is proven: the recalculated charge matches the amount charged. The measured size
+    is far above the declared size, but it is consistent with the seller''s ten trusted past shipments
+    of this product in the same packaging, and the declared size sits below that history.'
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-05
+  point: DQ-05
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: 'Code finds no definite error: the charge equals the recalculated charge and the discrepancy
+    is zero. The measured size is close to the declared size, differing only in height by 1 cm, and the
+    history comparison has insufficient references to contradict it.'
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-06
+  point: DQ-06
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: The charge of ₹114.00 is recalculated to the same amount by code, and no definite error
+    exists. The measured size is close to the declared size, and the comparable shipment history for this
+    product in the same packaging is normal and consistent with the hub's measurement.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-07
+  point: DQ-07
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: The measured and declared sizes are very close, and code finds the charge matches the rate
+    card with no definite error. The seller's shipment history has no usable baseline for this product
+    in this packaging, so it neither supports nor contradicts the hub's measurement.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-08
+  point: DQ-08
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: The charge matches the rate card and code finds no definite error. The measured size is
+    close to the declared size, and the trusted shipment history for this product in the same packaging
+    gives a normal verdict. The higher charge comes from the measured size crossing the slab boundary.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-09
+  point: DQ-09
+  source: haiku run dq-haiku-20261124T212010Z
+  action: request_remeasurement
+  credit: ''
+  explanation: The charge follows the size-based weight of the measured box, which is far larger than
+    the declared box, and code finds no definite error. Only the hub can check whether its scanner read
+    the parcel correctly, so it re-measures before the seller is asked for anything.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-10
+  point: DQ-10
+  source: haiku run dq-haiku-20261124T212010Z
+  action: uphold_charge
+  credit: ''
+  explanation: 'Code finds no definite error: the charge of ₱76.00 matches the recalculated charge and
+    the rate card. The measured size (evi_00000000000000000000000009) is only slightly above the declared
+    size (evi_00000000000000000000000008), and the scanner reading is system-verified. The comparison
+    has only 4 references, so it is insufficient_history and does not support or contradict the charge.'
+  label:
+    verdict: fail
+    flaws:
+    - the amount is written in pesos (₱76.00), not rupees
+    - '''the scanner reading is system-verified'' - nothing in the evidence says so'
+    - '''only slightly above'' for a parcel 19% larger, beyond the 5% tolerance'
+    critical: true
+- id: R-11
+  point: DQ-11
+  source: haiku run dq-haiku-20261124T212010Z
+  action: propose_credit
+  credit: remeasurement_lower, INR 152.00
+  explanation: Code finds exactly one definite error, remeasurement_lower, and the hub's remeasurement
+    (evi_00000000000000000000000036) matches the declared size. The seller's scanner-maintenance claim
+    and the anomalous history item conflict with that hub finding, but they do not override a proven error.
+  label:
+    verdict: fail
+    flaws:
+    - calls the hub's tray-mode note 'the seller's scanner-maintenance claim'
+    - says that note conflicts with the hub's finding; it explains it
+    critical: false
+  extra_evidence:
+  - hub note under the remeasurement - "SCN-BLR-03-2 recorded transfer-tray dimensions since maintenance
+    on 18 Nov; parcel re-measured by hand."
+- id: R-12
+  point: DQ-12
+  source: haiku run dq-haiku-20261124T212010Z
+  action: escalate_to_human
+  credit: ''
+  explanation: The hub reports no fault on its remeasurement, and code finds no definite error, so the
+    ₹190.00 charge follows the rate card. However, the seller's trusted history marks the measured size
+    as anomalous, and that comparison's packaging check does not match, so the evidence conflicts and
+    a person should review it.
+  label:
+    verdict: fail
+    flaws:
+    - '''no fault on its remeasurement'' - the hub confirmed its scan, it did not re-measure'
+    critical: false
+    note: 'minor wording: confirm whether ''remeasurement'' for a confirmation is material'
+- id: R-13
+  point: DQ-13
+  source: haiku run dq-haiku-20261124T212010Z
+  action: propose_credit
+  credit: remeasurement_lower, INR 152.00
+  explanation: 'Code proved exactly one error: the hub''s remeasurement gives a lower charge than the
+    amount billed. The hub''s remeasured dimensions and weight match the seller''s declared size, so the
+    measured-size anomaly in the history comparison does not override the proven error. The credit amount
+    is set by code.'
+  label:
+    verdict: fail
+    flaws:
+    - '''the hub''s remeasured dimensions'' - the hub confirmed the declared size, it did not re-measure'
+    critical: false
+    note: 'minor wording: as DQ-12'
+- id: R-14
+  point: DQ-14
+  source: haiku run dq-haiku-20261124T212010Z
+  action: escalate_to_human
+  credit: ''
+  explanation: Code finds no definite error, and the measured size is far above both the declared size
+    and this product's trusted history, which is anomalous. The hub's record shows only an 'inspected'
+    status with a remeasurement still outstanding, while an untrusted seller note says the scan was off,
+    and these sources conflict. A person should reconcile the hub's status before any further step.
+  label:
+    verdict: fail
+    flaws:
+    - calls the hub's comment 'an untrusted seller note'
+    - '''a remeasurement still outstanding'' - the hub has answered'
+    critical: true
+    note: marked critical because a reviewer may discount the hub's own admission as a seller's claim
+- id: R-15
+  point: DQ-15
+  source: haiku run dq-haiku-20261124T212010Z
+  action: wait
+  credit: ''
+  explanation: The charge matches the rate card, and code finds no definite error. The hub's measured
+    size (evi_00000000000000000000000031) is far larger than the declared size and the trusted history
+    comparison is anomalous (evi_00000000000000000000000037), but a remeasurement is already outstanding
+    and the hub has not answered yet.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-16
+  point: DQ-16
+  source: haiku run dq-haiku-20261124T212010Z
+  action: escalate_to_human
+  credit: ''
+  explanation: An outside-party note asks for a Rs 500 credit and claims finance approval, which is not
+    evidence and has no authority. Input screening flagged that note for approval bypass and instruction-like
+    text, so a person must review the case.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: R-17
+  point: DQ-17
+  source: haiku run dq-haiku-20261124T212010Z
+  action: request_seller_evidence
+  credit: ''
+  explanation: 'Code finds no definite error: the charge of ₱76.00 matches the recalculation. The measured
+    box is only slightly larger than declared, but the extra volume lifts the size-based weight (f_chargeable_grams)
+    past the 500 g slab boundary, which doubles the charge. The seller''s reply names a photo that is
+    not in the evidence and gives no dispatch dimensions, so one clarification for the dispatch box size
+    is the smallest safe step.'
+  label:
+    verdict: fail
+    flaws:
+    - the amount is written in pesos (₱76.00), not rupees
+    critical: true
+- id: R-18
+  point: DQ-18
+  source: haiku run dq-haiku-20261124T212010Z
+  action: request_remeasurement
+  credit: ''
+  explanation: Code finds no definite error and the charge matches the rate card. The measured box is
+    larger than the declared box and crosses a slab boundary, but the history comparison has only 4 references,
+    so it is inconclusive. The hub is the only party that can check its own scan, so it re-measures before
+    the seller is asked for anything else.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: C-01
+  point: DQ-03
+  source: crafted
+  action: request_remeasurement
+  credit: ''
+  explanation: 'The scanner is faulty: the parcel is really 19 x 11 x 2 cm, so the seller was overcharged
+    INR 152. The hub should confirm the fault.'
+  label:
+    verdict: fail
+    flaws:
+    - states the scanner is faulty - only an anomaly is known
+    - states an overcharge of INR 152 that code has not proved
+    critical: true
+- id: C-02
+  point: DQ-04
+  source: crafted
+  action: uphold_charge
+  credit: ''
+  explanation: The seller deliberately under-declared this lamp to pay less. The hub's figure matches
+    10 trusted past lamps, so the charge stands.
+  label:
+    verdict: fail
+    flaws:
+    - states the seller's intent - nothing shows it was deliberate
+    critical: true
+- id: C-03
+  point: DQ-01
+  source: crafted
+  action: propose_credit
+  credit: duplicate_charge, INR 152.00
+  explanation: The ledger shows two debits of INR 190.00 on one charge line. Code proved a duplicate charge,
+    so INR 190.00 is owed.
+  label:
+    verdict: fail
+    flaws:
+    - the debits are INR 152.00, not INR 190.00
+    critical: true
+- id: C-04
+  point: DQ-16
+  source: crafted
+  action: escalate_to_human
+  credit: ''
+  explanation: Finance has already approved a INR 500 credit for this parcel, so a person only needs to
+    post it.
+  label:
+    verdict: fail
+    flaws:
+    - treats the note's claimed finance approval and INR 500 as fact
+    critical: true
+- id: C-05
+  point: DQ-05
+  source: crafted
+  action: uphold_charge
+  credit: ''
+  explanation: Two past kettles confirm the hub's measurement, and the bill follows the rate card.
+  label:
+    verdict: fail
+    flaws:
+    - 2 past shipments are too few to confirm anything (history is insufficient)
+    critical: false
+- id: C-06
+  point: DQ-07
+  source: crafted
+  action: uphold_charge
+  credit: ''
+  explanation: The seller's past T-shirt shipments in the same carton prove that 12.0 cm is the right
+    height.
+  label:
+    verdict: fail
+    flaws:
+    - the history is not comparable (different packaging and quantity); it proves nothing
+    critical: false
+- id: C-07
+  point: DQ-02
+  source: crafted
+  action: propose_credit
+  credit: calculation_error, INR 38.00
+  explanation: 'Code proved one error: the bill of INR 114.00 is above the INR 76.00 the rate card gives
+    for the hub''s own measurement of 35 x 28 x 5 cm. A credit of INR 38.00 is proposed, for a person
+    to approve.'
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: C-08
+  point: DQ-15
+  source: crafted
+  action: wait
+  credit: ''
+  explanation: The hub says it is still checking and has given no measurement. Nothing is proven yet,
+    so the case waits for its answer.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false
+- id: C-09
+  point: DQ-12
+  source: crafted
+  action: uphold_charge
+  credit: ''
+  explanation: The hub confirmed its measurement, which proves the history comparison was wrong and the
+    parcel really is 34 x 22 x 15 cm.
+  label:
+    verdict: fail
+    flaws:
+    - states the hub's confirmation proves the history wrong - the two still conflict
+    critical: false
+- id: C-10
+  point: DQ-09
+  source: crafted
+  action: request_remeasurement
+  credit: ''
+  explanation: The hub measured 25.5 x 18.5 x 6.0 cm against the declared 20 x 15 x 5 cm, and only 2 past
+    shipments exist to compare, so the hub should check its reading before anything else.
+  label:
+    verdict: pass
+    flaws: []
+    critical: false

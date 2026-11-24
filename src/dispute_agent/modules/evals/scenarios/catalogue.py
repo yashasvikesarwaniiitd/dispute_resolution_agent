@@ -135,6 +135,12 @@ def load(path: Path) -> list[Scenario]:
     return scenarios
 
 
+def script(tokens: list[str]) -> tuple[Step, ...]:
+    """Steps from script tokens ("dispute_raised@0h", "ops_finding(no_fault_found)@30h"), for a
+    run that is not in the catalogue (Decision Quality's replays, ADR 0064)."""
+    return _resolve(list(tokens), lambda _sid: ())
+
+
 def _resolve(tokens: list[Any], steps_of: Any) -> tuple[Step, ...]:
     steps: list[Step] = []
     ends: dict[str, timedelta] = {}

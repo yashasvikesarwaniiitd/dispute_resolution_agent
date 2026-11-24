@@ -175,6 +175,9 @@ class UntrustedText(BaseModel):
         "shipment_note",
         "dispute_form",
         "image_check",
+        # The agent's own explanation, read by the Decision Quality judge (ADR 0064): model
+        # text that may echo an outside note, so it is fenced like any outside text.
+        "agent_rationale",
     ]
     source_ref: str
     truncated: bool = False
@@ -191,6 +194,7 @@ class UntrustedText(BaseModel):
             "shipment_note",
             "dispute_form",
             "image_check",
+            "agent_rationale",
         ],
         source_ref: str,
     ) -> Self:

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionJudgement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["unsupported_claims", "suspicion_as_fact", "suspicion_detail", "action_reasonable", "action_note"],
+  "properties": {
+    "unsupported_claims": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "why"],
+        "properties": {
+          "claim": {"type": "string", "maxLength": 240},
+          "why": {"type": "string", "maxLength": 240}
+        }
+      }
+    },
+    "suspicion_as_fact": {"type": "boolean"},
+    "suspicion_detail": {"type": "string", "maxLength": 240},
+    "action_reasonable": {"type": "boolean"},
+    "action_note": {"type": "string", "maxLength": 240}
+  }
+}

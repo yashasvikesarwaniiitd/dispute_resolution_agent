@@ -317,6 +317,7 @@ class ModelRequest(BaseModel):
         "seller_message_drafter",
         "pattern_analyst",
         "image_check",
+        "decision_judge",  # ADR 0064: grades an explanation against its evidence, never decides
     ]
     prompt: RenderedPrompt
     max_output_tokens: Annotated[int, Field(gt=0)]

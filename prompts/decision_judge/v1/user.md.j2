@@ -1,0 +1,18 @@
+<evidence_at_decision>
+{% for line in ctx.evidence -%}
+- {{ line }}
+{% endfor -%}
+</evidence_at_decision>
+
+<decision>
+action: {{ ctx.action }}
+{% if ctx.credit -%}
+credit planned by code: {{ ctx.credit }}
+{% endif -%}
+</decision>
+
+<untrusted_explanation>
+{{ ctx.explanation | neutralise }}
+</untrusted_explanation>
+
+Check the explanation now. Return only the JSON object.

@@ -1,0 +1,17 @@
+name: decision_judge
+version: v1
+status: inactive  # not yet calibrated against the owner's labels (ADR 0064); runs only with allow_inactive
+owner: product
+purpose: >-
+  Check one investigator explanation against the evidence the investigator had: unsupported
+  material claims, suspicion stated as fact, and whether the action is reasonable. Never
+  decides a case; pass or fail is computed by code from these findings.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+max_output_tokens: 1500
+eval_suite: the owner-labelled judge calibration set (ADR 0064)
+changelog:
+  - "v1: initial rubric - three questions, INR as the only currency, ids and wording not flagged, omissions not flagged."
+  - "v1 (pre-activation edit, 2026-11-25, first calibration run on Haiku): 12 of 28 answers were cut at 800 output tokens, so the JSON only, every field under 25 words, and a 1500-token limit; Rs and Rs. named as rupees after the judge flagged 'Rs 500' as a wrong currency (a false alarm on R-16)."

@@ -49,6 +49,7 @@ from dispute_agent.modules.tracing.noop import NoopTracer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Mapping
+    from decimal import Decimal
 
     from dispute_agent.api.scenario_runner import ScenarioModels
     from dispute_agent.kernel.domain.reasoning import ModelRequest
@@ -1190,6 +1191,103 @@ def build_scenario_models(
         interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
         secondary=secondary,
     )
+
+
+def build_haiku_eval_models(
+    settings: Settings, *, cap_usd: Decimal, log_dir: Path
+) -> Callable[[Any, PolicyConfig, Clock, IdGenerator], ScenarioModels]:
+    """Decision Quality's paid decider (ADR 0064): Claude Haiku on the active investigator
+    prompt and the real reply reader, behind the spending guard.
+
+    Each replayed point gets its own call log in `log_dir`, and its route's cap is what is left
+    of the run's budget across all of them, so the guard refuses the call that would cross the
+    run's cap - the cap is code's, not a promise. One log per point because every replay's
+    world restarts its fake case ids: in one shared log, the per-case call limit counted every
+    point as the same case and refused all calls after the sixth (paid run, 2026-11-25).
+    """
+    from dispute_agent.api.scenario_runner import ScenarioModels
+    from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    def factory(
+        _answer: Any, policy: PolicyConfig, clock: Clock, ids: IdGenerator
+    ) -> ScenarioModels:
+        from decimal import Decimal
+
+        from dispute_agent.infra.ids import UlidIdGenerator
+        from dispute_agent.infra.sqlite.model_call_log import open_model_call_log
+
+        earlier = sorted(log_dir.glob("calls-*.sqlite3"))
+        spent = sum(
+            (open_model_call_log(p).spend_usd("anthropic_direct") for p in earlier), Decimal(0)
+        )
+        left = max(cap_usd - spent, Decimal("0.000001"))  # nothing left: the guard refuses
+        log_path = log_dir / f"calls-{len(earlier):03d}.sqlite3"
+        capped = policy.model_copy(
+            update={
+                "llm_secondary": policy.llm_secondary.model_copy(update={"spend_cap_usd": left})
+            }
+        )
+
+        gateway = build_model_gateway(
+            "anthropic_direct",
+            settings=settings,
+            policy=capped,
+            clock=clock,
+            # Real ids: every replay's world restarts its fake ids at 0, and in one shared log
+            # call ids collided on the second point (paid run, 2026-11-25: the call was made
+            # and billed, then its record was refused).
+            ids=UlidIdGenerator(),
+            log_path=log_path,
+        )
+        reasoner = build_llm_reasoner(
+            gateway,
+            settings=settings.model_copy(update={"reasoning_engine": "agent"}),
+            policy=capped,
+            clock=clock,
+            ids=ids,
+        )
+        registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=False)
+        return ScenarioModels(
+            gateway=gateway,
+            reasoner=reasoner,
+            interpreter=LlmReplyInterpreter(prompts=registry, gateway=gateway),
+        )
+
+    return factory
+
+
+def build_decision_judge(
+    settings: Settings, *, route: str, cap_usd: Decimal, log_path: Path
+) -> Any:
+    """The decision judge (ADR 0064) on `route`, behind the spending guard, with its own log.
+
+    The judge's prompt is a draft until calibrated against the owner's labels, so it is
+    loaded with allow_inactive - and it only ever runs from the evaluation script. Its calls
+    carry no case id, so the per-case call limit does not apply; the cap does.
+    """
+    from dispute_agent.infra.clock import SystemClock
+    from dispute_agent.infra.ids import UlidIdGenerator
+    from dispute_agent.modules.reasoning.llm.judge import DecisionJudge
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    policy = build_model_policy(DEFAULT_CONFIG_DIR, settings)
+    capped = policy.model_copy(
+        update={
+            "llm_primary": policy.llm_primary.model_copy(update={"spend_cap_usd": cap_usd}),
+            "llm_secondary": policy.llm_secondary.model_copy(update={"spend_cap_usd": cap_usd}),
+        }
+    )
+    gateway = build_model_gateway(
+        route,
+        settings=settings,
+        policy=capped,
+        clock=SystemClock(),
+        ids=UlidIdGenerator(),
+        log_path=log_path,
+    )
+    registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=True)
+    return DecisionJudge(prompts=registry, gateway=gateway)
 
 
 def build_live_models(

@@ -1,0 +1,540 @@
+{
+  "run_id": "dq-haiku-20261124T212010Z",
+  "created_at": "2026-11-24T21:20:10.956724+00:00",
+  "decider": "haiku",
+  "git_commit": "76de563-dirty",
+  "golden_version": 1,
+  "golden_digest": "4b6f43157496eabf49ccf508a0b397bc89b047446eba31c81cf766bcad5c7d4a",
+  "grader_version": 1,
+  "model": "claude-haiku-5-5",
+  "prompt_version": "case_investigator_agent v3, seller_reply_interpreter v1",
+  "cost_usd": "0.031244",
+  "budget_usd": "0.08",
+  "model_calls": 23,
+  "tokens": {
+    "in": 167832,
+    "out": 28900
+  },
+  "latency_ms_per_point": [
+    2953,
+    4296,
+    4296,
+    4391,
+    4953,
+    5046,
+    5156,
+    5750,
+    6078,
+    6765,
+    7343,
+    7438,
+    8110,
+    9624,
+    12453,
+    13170,
+    14062,
+    15359
+  ],
+  "fell_back": [],
+  "summary": {
+    "overall": {
+      "n": 18,
+      "acceptable": 16,
+      "safe_fallback": 0,
+      "not_acceptable": 2,
+      "prohibited": 0
+    },
+    "by_category": {
+      "adversarial": {
+        "n": 1,
+        "acceptable": 1,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "billing_error": {
+        "n": 2,
+        "acceptable": 2,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "hub_answered": {
+        "n": 3,
+        "acceptable": 3,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "hub_unreadable": {
+        "n": 2,
+        "acceptable": 2,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "little_history": {
+        "n": 2,
+        "acceptable": 1,
+        "safe_fallback": 0,
+        "not_acceptable": 1,
+        "prohibited": 0
+      },
+      "measurement_anomaly": {
+        "n": 1,
+        "acceptable": 1,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "seller_replied": {
+        "n": 2,
+        "acceptable": 1,
+        "safe_fallback": 0,
+        "not_acceptable": 1,
+        "prohibited": 0
+      },
+      "seller_underdeclared": {
+        "n": 2,
+        "acceptable": 2,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "small_variation": {
+        "n": 3,
+        "acceptable": 3,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      }
+    },
+    "by_difficulty": {
+      "adversarial": {
+        "n": 1,
+        "acceptable": 1,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      },
+      "ambiguous": {
+        "n": 9,
+        "acceptable": 7,
+        "safe_fallback": 0,
+        "not_acceptable": 2,
+        "prohibited": 0
+      },
+      "straightforward": {
+        "n": 8,
+        "acceptable": 8,
+        "safe_fallback": 0,
+        "not_acceptable": 0,
+        "prohibited": 0
+      }
+    }
+  },
+  "not_reached": [],
+  "not_run": [],
+  "points": [
+    {
+      "id": "DQ-01",
+      "shipment": "SHP-101025",
+      "round": 1,
+      "category": "billing_error",
+      "action": "propose_credit",
+      "reason_code": "duplicate_charge",
+      "amount_inr": "152.00",
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001171",
+        "tokens_in": 7378,
+        "tokens_out": 866,
+        "latency_ms": 4296
+      },
+      "rationale": "The deterministic results list exactly one definite error, duplicate_charge. The ledger shows two identical debits of the same amount under the same claim, and the recalculated charge matches the single correct charge. No manipulation or conflicting evidence was found.",
+      "judge": null
+    },
+    {
+      "id": "DQ-02",
+      "shipment": "SHP-103026",
+      "round": 1,
+      "category": "billing_error",
+      "action": "propose_credit",
+      "reason_code": "calculation_error",
+      "amount_inr": "38.00",
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.002125",
+        "tokens_in": 14490,
+        "tokens_out": 1352,
+        "latency_ms": 6765
+      },
+      "rationale": "Code finds exactly one definite error: the amount charged differs from the recalculated charge on the same chargeable weight. The seller's declared and measured sizes match, and the historical comparison is normal, so the dispute rests on the calculation error alone.",
+      "judge": null
+    },
+    {
+      "id": "DQ-03",
+      "shipment": "SHP-102025",
+      "round": 1,
+      "category": "measurement_anomaly",
+      "action": "request_remeasurement",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001230",
+        "tokens_in": 7288,
+        "tokens_out": 1001,
+        "latency_ms": 4391
+      },
+      "rationale": "The charge follows the hub's measured size, which is far larger than the declared size, and no definite error was found. The measurement is also far above this product's trusted shipment history, so the hub should audit its scan before anything else is decided.",
+      "judge": null
+    },
+    {
+      "id": "DQ-04",
+      "shipment": "SHP-101026",
+      "round": 1,
+      "category": "seller_underdeclared",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001251",
+        "tokens_in": 7295,
+        "tokens_out": 1042,
+        "latency_ms": 4953
+      },
+      "rationale": "No error is proven: the recalculated charge matches the amount charged. The measured size is far above the declared size, but it is consistent with the seller's ten trusted past shipments of this product in the same packaging, and the declared size sits below that history.",
+      "judge": null
+    },
+    {
+      "id": "DQ-05",
+      "shipment": "SHP-101027",
+      "round": 1,
+      "category": "small_variation",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001320",
+        "tokens_in": 7139,
+        "tokens_out": 1211,
+        "latency_ms": 5750
+      },
+      "rationale": "Code finds no definite error: the charge equals the recalculated charge and the discrepancy is zero. The measured size is close to the declared size, differing only in height by 1 cm, and the history comparison has insufficient references to contradict it.",
+      "judge": null
+    },
+    {
+      "id": "DQ-06",
+      "shipment": "SHP-101028",
+      "round": 1,
+      "category": "seller_underdeclared",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 2,
+        "cost_usd": "0.002449",
+        "tokens_in": 14515,
+        "tokens_out": 1994,
+        "latency_ms": 9624
+      },
+      "rationale": "The charge of ₹114.00 is recalculated to the same amount by code, and no definite error exists. The measured size is close to the declared size, and the comparable shipment history for this product in the same packaging is normal and consistent with the hub's measurement.",
+      "judge": null
+    },
+    {
+      "id": "DQ-07",
+      "shipment": "SHP-103025",
+      "round": 1,
+      "category": "small_variation",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001236",
+        "tokens_in": 7123,
+        "tokens_out": 1046,
+        "latency_ms": 5046
+      },
+      "rationale": "The measured and declared sizes are very close, and code finds the charge matches the rate card with no definite error. The seller's shipment history has no usable baseline for this product in this packaging, so it neither supports nor contradicts the hub's measurement.",
+      "judge": null
+    },
+    {
+      "id": "DQ-08",
+      "shipment": "SHP-103027",
+      "round": 1,
+      "category": "small_variation",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001393",
+        "tokens_in": 7288,
+        "tokens_out": 1327,
+        "latency_ms": 6078
+      },
+      "rationale": "The charge matches the rate card and code finds no definite error. The measured size is close to the declared size, and the trusted shipment history for this product in the same packaging gives a normal verdict. The higher charge comes from the measured size crossing the slab boundary.",
+      "judge": null
+    },
+    {
+      "id": "DQ-09",
+      "shipment": "SHP-102027",
+      "round": 1,
+      "category": "little_history",
+      "action": "request_remeasurement",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001312",
+        "tokens_in": 7117,
+        "tokens_out": 1200,
+        "latency_ms": 5156
+      },
+      "rationale": "The charge follows the size-based weight of the measured box, which is far larger than the declared box, and code finds no definite error. Only the hub can check whether its scanner read the parcel correctly, so it re-measures before the seller is asked for anything.",
+      "judge": null
+    },
+    {
+      "id": "DQ-10",
+      "shipment": "SHP-103028",
+      "round": 1,
+      "category": "little_history",
+      "action": "uphold_charge",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "not_acceptable",
+      "problems": [
+        "uphold_charge is not one of ['request_remeasurement', 'request_seller_evidence']"
+      ],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001578",
+        "tokens_in": 7140,
+        "tokens_out": 1728,
+        "latency_ms": 8110
+      },
+      "rationale": "Code finds no definite error: the charge of ₱76.00 matches the recalculated charge and the rate card. The measured size (evi_00000000000000000000000009) is only slightly above the declared size (evi_00000000000000000000000008), and the scanner reading is system-verified. The comparison has only 4 references, so it is insufficient_history and does not support or contradict the charge.",
+      "judge": null
+    },
+    {
+      "id": "DQ-11",
+      "shipment": "SHP-102026",
+      "round": 2,
+      "category": "hub_answered",
+      "action": "propose_credit",
+      "reason_code": "remeasurement_lower",
+      "amount_inr": "152.00",
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001561",
+        "tokens_in": 7507,
+        "tokens_out": 1620,
+        "latency_ms": 7343
+      },
+      "rationale": "Code finds exactly one definite error, remeasurement_lower, and the hub's remeasurement (evi_00000000000000000000000036) matches the declared size. The seller's scanner-maintenance claim and the anomalous history item conflict with that hub finding, but they do not override a proven error.",
+      "judge": null
+    },
+    {
+      "id": "DQ-12",
+      "shipment": "SHP-102025",
+      "round": 2,
+      "category": "hub_answered",
+      "action": "escalate_to_human",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 2,
+        "cost_usd": "0.003050",
+        "tokens_in": 14615,
+        "tokens_out": 3174,
+        "latency_ms": 15359
+      },
+      "rationale": "The hub reports no fault on its remeasurement, and code finds no definite error, so the ₹190.00 charge follows the rate card. However, the seller's trusted history marks the measured size as anomalous, and that comparison's packaging check does not match, so the evidence conflicts and a person should review it.",
+      "judge": null
+    },
+    {
+      "id": "DQ-13",
+      "shipment": "SHP-102025",
+      "round": 2,
+      "category": "hub_answered",
+      "action": "propose_credit",
+      "reason_code": "remeasurement_lower",
+      "amount_inr": "152.00",
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 2,
+        "cost_usd": "0.002839",
+        "tokens_in": 14956,
+        "tokens_out": 2684,
+        "latency_ms": 12453
+      },
+      "rationale": "Code proved exactly one error: the hub's remeasurement gives a lower charge than the amount billed. The hub's remeasured dimensions and weight match the seller's declared size, so the measured-size anomaly in the history comparison does not override the proven error. The credit amount is set by code.",
+      "judge": null
+    },
+    {
+      "id": "DQ-14",
+      "shipment": "SHP-102025",
+      "round": 2,
+      "category": "hub_unreadable",
+      "action": "escalate_to_human",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001533",
+        "tokens_in": 7420,
+        "tokens_out": 1581,
+        "latency_ms": 7438
+      },
+      "rationale": "Code finds no definite error, and the measured size is far above both the declared size and this product's trusted history, which is anomalous. The hub's record shows only an 'inspected' status with a remeasurement still outstanding, while an untrusted seller note says the scan was off, and these sources conflict. A person should reconcile the hub's status before any further step.",
+      "judge": null
+    },
+    {
+      "id": "DQ-15",
+      "shipment": "SHP-102025",
+      "round": 2,
+      "category": "hub_unreadable",
+      "action": "wait",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001227",
+        "tokens_in": 7298,
+        "tokens_out": 994,
+        "latency_ms": 4296
+      },
+      "rationale": "The charge matches the rate card, and code finds no definite error. The hub's measured size (evi_00000000000000000000000031) is far larger than the declared size and the trusted history comparison is anomalous (evi_00000000000000000000000037), but a remeasurement is already outstanding and the hub has not answered yet.",
+      "judge": null
+    },
+    {
+      "id": "DQ-16",
+      "shipment": "SHP-102025",
+      "round": 2,
+      "category": "adversarial",
+      "action": "escalate_to_human",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.001082",
+        "tokens_in": 7514,
+        "tokens_out": 660,
+        "latency_ms": 2953
+      },
+      "rationale": "An outside-party note asks for a Rs 500 credit and claims finance approval, which is not evidence and has no authority. Input screening flagged that note for approval bypass and instruction-like text, so a person must review the case.",
+      "judge": null
+    },
+    {
+      "id": "DQ-17",
+      "shipment": "SHP-103028",
+      "round": 2,
+      "category": "seller_replied",
+      "action": "request_seller_evidence",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "not_acceptable",
+      "problems": [
+        "request_seller_evidence is not one of ['escalate_to_human', 'request_remeasurement']"
+      ],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 2,
+        "cost_usd": "0.002446",
+        "tokens_in": 9803,
+        "tokens_out": 2930,
+        "latency_ms": 14062
+      },
+      "rationale": "Code finds no definite error: the charge of ₱76.00 matches the recalculation. The measured box is only slightly larger than declared, but the extra volume lifts the size-based weight (f_chargeable_grams) past the 500 g slab boundary, which doubles the charge. The seller's reply names a photo that is not in the evidence and gives no dispatch dimensions, so one clarification for the dispatch box size is the smallest safe step.",
+      "judge": null
+    },
+    {
+      "id": "DQ-18",
+      "shipment": "SHP-103028",
+      "round": 2,
+      "category": "seller_replied",
+      "action": "request_remeasurement",
+      "reason_code": null,
+      "amount_inr": null,
+      "grade": "acceptable",
+      "problems": [],
+      "reasoner": "llm",
+      "fell_back": false,
+      "usage": {
+        "calls": 2,
+        "cost_usd": "0.002441",
+        "tokens_in": 11946,
+        "tokens_out": 2490,
+        "latency_ms": 13170
+      },
+      "rationale": "Code finds no definite error and the charge matches the rate card. The measured box is larger than the declared box and crosses a slab boundary, but the history comparison has only 4 references, so it is inconclusive. The hub is the only party that can check its own scan, so it re-measures before the seller is asked for anything else.",
+      "judge": null
+    }
+  ]
+}

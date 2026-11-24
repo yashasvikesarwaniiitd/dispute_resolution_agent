@@ -54,6 +54,7 @@ from dispute_agent.kernel.policy.config import LlmConfig, PolicyConfig
 from dispute_agent.modules.evals.scenarios import answers
 from dispute_agent.modules.evals.scenarios.checks import Outcome, Result, check
 from dispute_agent.modules.evidence.synthetic_shipments import fixtures as bank
+from dispute_agent.packs.weight_dispute.baseline import B7_ITEMS
 
 if TYPE_CHECKING:
     from dispute_agent.api.full_run import World
@@ -80,6 +81,9 @@ FINDING_KIND = {
     "inconclusive_still_checking": "inspected",
     "with_injected_note": "no_fault_found",
     "tray_mode_corrected": "remeasured",  # ADR 0060, scenario F
+    "declared_size_confirmed": "remeasured",  # ADR 0064, Decision Quality
+    "seller_is_right_unreadable": "inspected",
+    "approval_bypass_note": "inspected",
 }
 
 
@@ -115,7 +119,13 @@ class ScriptedModel:
             label = (answers.LABEL.search(text) or _NO_LABEL).group(1)
             if self.fault == "content_filter_block" and label in ("jailbreak",):
                 return "guardrail"
-            return answers.reading(label)
+            # The items the case actually asked for. The recorded investigator's list, as
+            # always; the rules' B7 list only when the case asked for that and not for this
+            # (ADR 0064, Decision Quality's rules-only replays).
+            recorded = all(item in text for item in answers.REQUESTED_ITEMS)
+            rules = all(item in text for item in B7_ITEMS)
+            asked = B7_ITEMS if rules and not recorded else answers.REQUESTED_ITEMS
+            return answers.reading(label, asked)
         if self._last is not None and self._last[0] == text:
             if req.prompt.name == "case_investigator_agent":
                 return {"step": "decide", "argument": "", "draft": self._last[1]}

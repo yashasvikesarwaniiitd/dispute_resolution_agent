@@ -1,0 +1,786 @@
+{
+  "run_id": "dq-judge-20261124T214908Z",
+  "created_at": "2026-11-24T21:49:08.176431+00:00",
+  "git_commit": "76de563-dirty",
+  "calibration_version": 1,
+  "calibration_status": "approved",
+  "calibration_digest": "c0316480487361bd8611e1cfb02d086924ecdb61d032d05f727812d42c9866ae",
+  "golden_digest": "4b6f43157496eabf49ccf508a0b397bc89b047446eba31c81cf766bcad5c7d4a",
+  "model": "claude-haiku-5-5",
+  "prompt_version": "decision_judge v1",
+  "cost_usd": "0.013154",
+  "budget_usd": "0.028",
+  "agreement": {
+    "n": 28,
+    "agree": 25,
+    "misses": [],
+    "false_alarms": [
+      "R-06",
+      "R-09",
+      "R-15"
+    ],
+    "critical": 7,
+    "critical_caught": 7,
+    "critical_missed": []
+  },
+  "errors": [],
+  "not_run": [],
+  "items": [
+    {
+      "id": "R-01",
+      "point": "DQ-01",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Code proved a duplicate_charge; both measurements give 4 slabs at INR 152, so a INR 152 credit for the duplicate debit is supported.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000442",
+        "tokens_in": 1440,
+        "tokens_out": 596,
+        "latency_ms": 3563
+      }
+    },
+    {
+      "id": "R-02",
+      "point": "DQ-02",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Declared and hub sizes match, history is normal, and code proved a calculation error, so a INR 38 credit is supported.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000357",
+        "tokens_in": 1393,
+        "tokens_out": 435,
+        "latency_ms": 2375
+      }
+    },
+    {
+      "id": "R-03",
+      "point": "DQ-03",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error, the bill follows a hub measurement far above the trusted history, and packaging is inconsistent. Remeasurement is a proportionate check.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000394",
+        "tokens_in": 1426,
+        "tokens_out": 501,
+        "latency_ms": 2796
+      }
+    },
+    {
+      "id": "R-04",
+      "point": "DQ-04",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error, billed amount matches recalculation, and measured size closely matches the trusted history, so upholding the charge is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000457",
+        "tokens_in": 1423,
+        "tokens_out": 629,
+        "latency_ms": 3218
+      }
+    },
+    {
+      "id": "R-05",
+      "point": "DQ-05",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error and the size is within the 5% tolerance. The billed INR 228 matches the hub-measured charge, so upholding is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000483",
+        "tokens_in": 1397,
+        "tokens_out": 685,
+        "latency_ms": 3360
+      }
+    },
+    {
+      "id": "R-06",
+      "point": "DQ-06",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "fail",
+      "agrees": false,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "The charge of ₹114.00 is recalculated to the same amount by code",
+          "why": "The evidence shows the hub figures yield INR 114 and the billed amount is INR 114, but does not say code recalculated the charge."
+        },
+        {
+          "claim": "the comparable shipment history for this product in the same packaging is normal and consistent with the hub's measurement",
+          "why": "Evidence says history is normal (7 trusted shipments) and packaging consistent, but nothing links that history to the hub's measurement."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Hub weight of 1,052 g supports 3 slabs; size is within tolerance and no proven error exists, so upholding is defensible.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000606",
+        "tokens_in": 1407,
+        "tokens_out": 929,
+        "latency_ms": 4094
+      }
+    },
+    {
+      "id": "R-07",
+      "point": "DQ-07",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Billed charge follows the hub measurement, no error is proven, and the size difference is within tolerance, so upholding is defensible.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000507",
+        "tokens_in": 1407,
+        "tokens_out": 731,
+        "latency_ms": 4046
+      }
+    },
+    {
+      "id": "R-08",
+      "point": "DQ-08",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error and measurements are within the 5% tolerance, so upholding the measured-size charge is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000451",
+        "tokens_in": 1400,
+        "tokens_out": 621,
+        "latency_ms": 3390
+      }
+    },
+    {
+      "id": "R-09",
+      "point": "DQ-09",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "fail",
+      "agrees": false,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "The charge follows the size-based weight of the measured box",
+          "why": "The evidence shows slab counts and a billed amount, but not the billing formula or that size-based weight is the basis."
+        },
+        {
+          "claim": "Only the hub can check whether its scanner read the parcel correctly",
+          "why": "The evidence records hub measurements but does not mention a scanner or say how the hub measured the parcel."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "With no proven error, insufficient history, and packaging inconsistent with the declared box, re-measurement is a proportionate first step.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000580",
+        "tokens_in": 1413,
+        "tokens_out": 876,
+        "latency_ms": 4468
+      }
+    },
+    {
+      "id": "R-10",
+      "point": "DQ-10",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "the charge of ₱76.00 matches the recalculated charge",
+          "why": "The evidence states the billed charge as INR 76, not ₱76.00. The currency sign is wrong."
+        },
+        {
+          "claim": "The measured size ... is only slightly above the declared size",
+          "why": "The evidence says the difference is beyond the 5% size tolerance, so 'slightly' understates it. The height differs by about 13%."
+        },
+        {
+          "claim": "the scanner reading is system-verified",
+          "why": "The evidence says nothing about verifying the scanner reading. It only says no proven error was found."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error, history insufficient, and packaging consistent make upholding the charge defensible, though the size difference exceeds tolerance.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000497",
+        "tokens_in": 1459,
+        "tokens_out": 701,
+        "latency_ms": 3343
+      }
+    },
+    {
+      "id": "R-11",
+      "point": "DQ-11",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "the hub's remeasurement (evi_00000000000000000000000036) matches the declared size",
+          "why": "The evidence gives the remeasured size (19 x 11 x 2 cm) but no declared size, so no match can be confirmed."
+        },
+        {
+          "claim": "The seller's scanner-maintenance claim",
+          "why": "The maintenance note is a hub note under the remeasurement, not a seller claim. The evidence does not attribute it to the seller."
+        },
+        {
+          "claim": "the anomalous history item",
+          "why": "The evidence contains no history item or anomaly record."
+        },
+        {
+          "claim": "Code finds exactly one definite error",
+          "why": "The evidence names one proven error, remeasurement_lower, but does not state that no other errors exist."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "A proven remeasurement_lower error with the 190 billed versus 38 re-measured gap supports proposing the INR 152 credit.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000584",
+        "tokens_in": 1474,
+        "tokens_out": 872,
+        "latency_ms": 4281
+      }
+    },
+    {
+      "id": "R-12",
+      "point": "DQ-12",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "the ₹190.00 charge follows the rate card",
+          "why": "The evidence gives no charge amount and no rate-card comparison, so the ₹190.00 figure is unsupported."
+        },
+        {
+          "claim": "that comparison's packaging check does not match",
+          "why": "The evidence mentions no packaging check. It only says history is anomalous against 12 trusted shipments."
+        },
+        {
+          "claim": "The hub reports no fault on its remeasurement",
+          "why": "The evidence says only 'Measurement confirmed'. It does not mention a remeasurement or a fault finding."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error and conflicting signals (hub confirmation versus anomalous history) make human review a reasonable choice.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000510",
+        "tokens_in": 1353,
+        "tokens_out": 749,
+        "latency_ms": 3766
+      }
+    },
+    {
+      "id": "R-13",
+      "point": "DQ-13",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "The hub's remeasured dimensions and weight match the seller's declared size",
+          "why": "The evidence has only the hub comment \"Declared size confirmed\". It shows no remeasured weight, and the code uses declared values, not remeasurements."
+        },
+        {
+          "claim": "the measured-size anomaly in the history comparison",
+          "why": "The evidence contains no history comparison and no measured-size anomaly."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Code proved a remeasurement_lower error of INR 152 (190 billed minus 38 computed), so proposing that credit is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000521",
+        "tokens_in": 1408,
+        "tokens_out": 759,
+        "latency_ms": 3734
+      }
+    },
+    {
+      "id": "R-14",
+      "point": "DQ-14",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "the measured size is far above both the declared size and this product's trusted history",
+          "why": "The evidence contains no size measurements, declared size, or product history figures."
+        },
+        {
+          "claim": "The hub's record shows only an 'inspected' status with a remeasurement still outstanding",
+          "why": "The evidence shows a hub comment saying the seller is right and the scan was off. It shows no 'inspected' status and no outstanding remeasurement."
+        },
+        {
+          "claim": "an untrusted seller note says the scan was off",
+          "why": "The statement that the scan was off is the hub's own comment, not a seller note."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "With no code-proven error and a hub comment conceding the scan was off, escalating to a human to reconcile the conflict is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000523",
+        "tokens_in": 1369,
+        "tokens_out": 772,
+        "latency_ms": 3781
+      }
+    },
+    {
+      "id": "R-15",
+      "point": "DQ-15",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "fail",
+      "agrees": false,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "The charge matches the rate card.",
+          "why": "The evidence says nothing about the charge or the rate card."
+        },
+        {
+          "claim": "The hub's measured size (evi_...31) is far larger than the declared size.",
+          "why": "The evidence says the hub has no measurement ('still checking, no measurement')."
+        },
+        {
+          "claim": "The trusted history comparison is anomalous (evi_...37).",
+          "why": "The evidence contains no history comparison or anomaly finding."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "It presents an unmeasured hub size as a far-larger reading, an established fact, when the hub has not measured.",
+      "action_reasonable": true,
+      "action_note": "Waiting is reasonable: the hub is still checking and code has found no proven error.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000466",
+        "tokens_in": 1335,
+        "tokens_out": 665,
+        "latency_ms": 3235
+      }
+    },
+    {
+      "id": "R-16",
+      "point": "DQ-16",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No measurement code can read and no error is proven; the approval-bypass flag supports escalation to a human rather than a credit.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000323",
+        "tokens_in": 1354,
+        "tokens_out": 375,
+        "latency_ms": 2421
+      }
+    },
+    {
+      "id": "R-17",
+      "point": "DQ-17",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "the charge of ₱76.00 matches the recalculation",
+          "why": "The evidence states the billed amount in INR (INR 76), not pesos. The wrong currency sign is an incorrect figure."
+        },
+        {
+          "claim": "The measured box is only slightly larger than declared",
+          "why": "Evidence says the difference is beyond the 5% size tolerance. Volume rises about 19% (2250 to about 2685 cm³), so 'slightly' contradicts it."
+        },
+        {
+          "claim": "the extra volume lifts the size-based weight (f_chargeable_grams) past the 500 g slab boundary",
+          "why": "Evidence gives no chargeable-weight figure and no 500 g boundary. It only lists slab counts and grams (340 g, 335 g)."
+        },
+        {
+          "claim": "The seller's reply names a photo that is not in the evidence and gives no dispatch dimensions",
+          "why": "Evidence says only that the seller reply includes an image. It does not say the reply names a missing photo or lacks dispatch dimensions."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error, beyond-tolerance dimensions, and insufficient history make asking the seller for dispatch box evidence a reasonable, low-cost step.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000815",
+        "tokens_in": 1501,
+        "tokens_out": 1329,
+        "latency_ms": 5905
+      }
+    },
+    {
+      "id": "R-18",
+      "point": "DQ-18",
+      "source": "haiku run dq-haiku-20261124T212010Z",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Hub measurements exceed the 5% tolerance and cross a slab boundary, so re-measuring the hub's own scan is a reasonable next step.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000533",
+        "tokens_in": 1450,
+        "tokens_out": 775,
+        "latency_ms": 3860
+      }
+    },
+    {
+      "id": "C-01",
+      "point": "DQ-03",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "The scanner is faulty",
+          "why": "The evidence says there is no proven error; the bill follows the hub's measurement of 34 x 22 x 15 cm."
+        },
+        {
+          "claim": "the parcel is really 19 x 11 x 2 cm",
+          "why": "Only the declared size and the usual historical size match this. The hub measured 34 x 22 x 15 cm, and packaging is inconsistent with the booked mailer."
+        },
+        {
+          "claim": "so the seller was overcharged INR 152",
+          "why": "The INR 152 difference (190 minus 38) is arithmetically right, but an overcharge depends on the unproven claim that the declared size is correct."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "Calls the scanner faulty and the seller overcharged as established, though the evidence shows only an anomaly and no proven error.",
+      "action_reasonable": true,
+      "action_note": "Remeasurement is a proportionate check given the anomalous history, packaging mismatch and no proven error.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000507",
+        "tokens_in": 1411,
+        "tokens_out": 730,
+        "latency_ms": 3484
+      }
+    },
+    {
+      "id": "C-02",
+      "point": "DQ-04",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "The seller deliberately under-declared this lamp to pay less.",
+          "why": "The evidence shows only that declared dimensions and weight are below history and the hub's figures. It does not establish the seller's intent."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "Presents the seller's deliberate under-declaration as established, though the evidence only shows a discrepancy with history and no proven error.",
+      "action_reasonable": true,
+      "action_note": "Hub measurements agree with trusted history within tolerance, declared figures sit below it, and no error is proven, so upholding the charge is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000456",
+        "tokens_in": 1395,
+        "tokens_out": 633,
+        "latency_ms": 3203
+      }
+    },
+    {
+      "id": "C-03",
+      "point": "DQ-01",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "two debits of INR 190.00 on one charge line",
+          "why": "The evidence shows two debits of INR 152.00 each, not INR 190.00."
+        },
+        {
+          "claim": "INR 190.00 is owed",
+          "why": "The code's planned credit is INR 152.00, so the owed amount stated is wrong."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Code proved a duplicate_charge and the history is normal, so proposing a credit is reasonable, at INR 152.00.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000324",
+        "tokens_in": 1409,
+        "tokens_out": 365,
+        "latency_ms": 2171
+      }
+    },
+    {
+      "id": "C-04",
+      "point": "DQ-16",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": true,
+      "unsupported_claims": [
+        {
+          "claim": "Finance has already approved a INR 500 credit for this parcel",
+          "why": "Evidence only has the hub comment saying finance approved it. The approval is unverified, and no error is proven."
+        },
+        {
+          "claim": "so a person only needs to post it",
+          "why": "Implies the credit is owed and only needs processing. No measurement code can read and no proven error exists, so this is unsupported."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "Presents the hub comment's claimed finance approval and owed credit as established, though the input was flagged as approval_bypass and instruction_like.",
+      "action_reasonable": true,
+      "action_note": "Escalating is sound given the flagged injection-like comment, no readable measurement, and no proven error.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000401",
+        "tokens_in": 1316,
+        "tokens_out": 538,
+        "latency_ms": 2968
+      }
+    },
+    {
+      "id": "C-05",
+      "point": "DQ-05",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "Two past kettles confirm the hub's measurement",
+          "why": "Evidence says history is insufficient (only 2 past kettles), so it cannot confirm the hub's measurement."
+        }
+      ],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": false,
+      "action_note": "Hub height is within the 5% tolerance and no error is proven, so upholding the higher 6-slab charge lacks support.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000506",
+        "tokens_in": 1351,
+        "tokens_out": 740,
+        "latency_ms": 4093
+      }
+    },
+    {
+      "id": "C-06",
+      "point": "DQ-07",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "The seller's past T-shirt shipments in the same carton prove that 12.0 cm is the right height.",
+          "why": "Evidence says past shipments are not comparable because packaging and quantity differ. It does not show past shipments used the same carton or prove the height."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "Calls the 12.0 cm height proven correct from history, though the history is stated as not comparable.",
+      "action_reasonable": false,
+      "action_note": "Declared and hub sizes are within the 5% tolerance with no proven error, so billing the higher slab count is not clearly supported.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000633",
+        "tokens_in": 1364,
+        "tokens_out": 992,
+        "latency_ms": 5031
+      }
+    },
+    {
+      "id": "C-07",
+      "point": "DQ-02",
+      "source": "crafted",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Code proved a calculation error. Billed INR 114 exceeds the INR 76 for the hub's 35x28x5 cm, ~470 g measurement, so a INR 38 credit proposal for approval fits.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000309",
+        "tokens_in": 1396,
+        "tokens_out": 338,
+        "latency_ms": 2014
+      }
+    },
+    {
+      "id": "C-08",
+      "point": "DQ-15",
+      "source": "crafted",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "Evidence shows hub still checking, no measurement, no proven error; waiting for the hub's answer is reasonable.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000174",
+        "tokens_in": 1271,
+        "tokens_out": 93,
+        "latency_ms": 1046
+      }
+    },
+    {
+      "id": "C-09",
+      "point": "DQ-12",
+      "source": "crafted",
+      "owner": "fail",
+      "judge": "fail",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [
+        {
+          "claim": "the parcel really is 34 x 22 x 15 cm",
+          "why": "The evidence gives no dimensions for the parcel. The hub comment only says 'Measurement confirmed'."
+        },
+        {
+          "claim": "which proves the history comparison was wrong",
+          "why": "The evidence says history is still anomalous against 12 trusted shipments and no error is proven. Nothing shows the comparison was wrong."
+        }
+      ],
+      "suspicion_as_fact": true,
+      "suspicion_detail": "Treats the hub's bare confirmation as proof that the history comparison is wrong, though no error has been established.",
+      "action_reasonable": true,
+      "action_note": "A confirmed hub measurement supports upholding the charge, though the unresolved history anomaly is a real caveat.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000479",
+        "tokens_in": 1302,
+        "tokens_out": 697,
+        "latency_ms": 3562
+      }
+    },
+    {
+      "id": "C-10",
+      "point": "DQ-09",
+      "source": "crafted",
+      "owner": "pass",
+      "judge": "pass",
+      "agrees": true,
+      "critical": false,
+      "unsupported_claims": [],
+      "suspicion_as_fact": false,
+      "suspicion_detail": "",
+      "action_reasonable": true,
+      "action_note": "No proven error, the size gap is large, and packaging is inconsistent with the booked box. Asking the hub to re-measure before acting is a proportionate step.",
+      "usage": {
+        "calls": 1,
+        "cost_usd": "0.000316",
+        "tokens_in": 1408,
+        "tokens_out": 350,
+        "latency_ms": 2280
+      }
+    }
+  ]
+}
