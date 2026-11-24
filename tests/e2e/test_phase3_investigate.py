@@ -336,9 +336,13 @@ class TestTheReviewerSeesTheEmail:
         """ "Approve this email" is hard to answer well. "Approve this email, in which
         INR 190.00 is the amount charged" is not."""
         item, _ = self.view_of_the_pending_approval(engine)
-        shown = dict(item.numbers)
-        assert shown["₹190.00"] == "amount charged"
-        assert shown["2,244 g"] == "chargeable weight in grams"
+        # A figure can appear more than once with different sources (ADR 0063: ₹190.00 is
+        # the amount charged and the result of the working), so each source must be listed.
+        shown: dict[str, set[str]] = {}
+        for text, source in item.numbers:
+            shown.setdefault(text, set()).add(source)
+        assert "amount charged" in shown["₹190.00"]
+        assert "chargeable weight in grams" in shown["2,244 g"]
 
     def test_only_the_figures_this_email_uses_are_listed(self, engine) -> None:
         """Every fact on the case would bury the two that matter."""

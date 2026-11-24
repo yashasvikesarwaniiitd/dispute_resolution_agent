@@ -308,10 +308,16 @@ def _item(step: Step, number: int, opened: datetime) -> str:
         parts.append(recorded(step.quote_caption, listed))
         said, findings = "", ()
     if said:
-        parts.append(
-            recorded(f"Its reasoning, exactly as recorded · proposed by {step.proposer}", said)
+        how = (
+            "evidence named in words, exact text under Details"
+            if step.reworded
+            else ("exactly as recorded")
         )
-    details = [*step.lines, *(f"As recorded: {f}" for f in findings)]
+        parts.append(recorded(f"Its reasoning, {how} · proposed by {step.proposer}", said))
+    if step.reworded:  # findings in words first; the exact recorded text is in the lines
+        details = [*findings, *step.lines]
+    else:
+        details = [*step.lines, *(f"As recorded: {f}" for f in findings)]
     if details:
         items = "".join(f"<li>{escape(line)}</li>" for line in details)
         parts.append(f'<details class="more"><summary>Details</summary><ul>{items}</ul></details>')

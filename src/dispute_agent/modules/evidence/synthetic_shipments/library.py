@@ -86,7 +86,7 @@ class SyntheticLibrarySource:
         if requirement.key == FINDING_KEY and self.received is not None:
             answered = self.received(case_id)
             if answered is not None:
-                return self._from_hub(answered)
+                return self._from_hub(answered, self._source(facts.shipment_ref))
         source = self._source(facts.shipment_ref) or self._unknown
         assert source is not None
         return source.fetch(case_id, facts, requirement)
@@ -103,18 +103,36 @@ class SyntheticLibrarySource:
         self._by_shipment[shipment_ref] = source
         return source
 
-    def _from_hub(self, finding: OpsFinding) -> EvidenceResult:
+    def _from_hub(
+        self, finding: OpsFinding, source: SyntheticShipmentSource | None = None
+    ) -> EvidenceResult:
         """The hub's answer as the `ops.finding` item, in the fixture's own shape.
 
         Sizes as strings so a Decimal survives JSON (I9), grams as an int. The comment's
-        words travel only as UntrustedText (I5): the figures are what code reads.
+        words travel only as UntrustedText (I5): the figures are what code reads. "The
+        seller's declared size is right" (ADR 0062) takes its figures from the shipment's own
+        declared record, never from the comment; with no record it carries none.
         """
+        measured: dict[str, object] = dict(finding.measured)
         value: dict[str, object] = {"kind": finding.kind}
+        if measured.pop("declared_confirmed", None) is True:
+            value["declared_confirmed"] = True
+            shipment = source.fixture.shipment if source and source.fixture else None
+            measured = (
+                {
+                    "length_cm": shipment.declared.length_cm,
+                    "width_cm": shipment.declared.width_cm,
+                    "height_cm": shipment.declared.height_cm,
+                    "dead_grams": shipment.declared_dead_grams,
+                }
+                if shipment is not None
+                else {}
+            )
         for side in ("length_cm", "width_cm", "height_cm"):
-            if side in finding.measured:
-                value[side] = str(finding.measured[side])
-        if "dead_grams" in finding.measured:
-            value["dead_grams"] = int(str(finding.measured["dead_grams"]))
+            if side in measured:
+                value[side] = str(measured[side])
+        if "dead_grams" in measured:
+            value["dead_grams"] = int(str(measured["dead_grams"]))
         now = self.clock.now() if self.clock is not None else finding.at
         return EvidenceResult(
             requirement_key=FINDING_KEY,

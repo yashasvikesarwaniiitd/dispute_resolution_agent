@@ -4,9 +4,21 @@ Hello,
 
 We have reviewed your dispute about the charge on shipment {{ shipment_ref }} and
 found it was charged incorrectly.
+{% if reason_code == "duplicate_charge" %}
+The same charge was taken from your account more than once.
+{% elif reason_code == "remeasurement_lower" %}
+Our hub checked the parcel again, and it is smaller than the size we billed.
+{% elif reason_code == "calculation_error" %}
+The charge did not match our rates for the parcel our hub measured.
+{% endif %}
 
+{% if has('f_charged') %}
+You were charged {{ fact('f_charged') }}. A credit of {{ fact('credited_amount') }} has been
+posted to your account. No further action is needed.
+{% else %}
 A credit of {{ fact('credited_amount') }} has been posted to your account. No further
 action is needed.
+{% endif %}
 
 Thank you,
 Seller Support

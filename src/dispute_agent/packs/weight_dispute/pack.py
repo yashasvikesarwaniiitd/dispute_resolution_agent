@@ -21,6 +21,7 @@ number it could not compute comes back as `None`, and the baseline's B1 reads th
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.enums import CaseState, EvidenceStatus, ProposalAction
@@ -29,6 +30,7 @@ from dispute_agent.kernel.domain.evidence import ChargeAssessment, EvidenceRequi
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import AssessmentId
 from dispute_agent.kernel.domain.values import Money, Weight
+from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.packs.weight_dispute import eligibility as eligibility_rules
 from dispute_agent.packs.weight_dispute.baseline import baseline_proposal, decide
 from dispute_agent.packs.weight_dispute.calculator import Charge, Dimensions, calculate
@@ -115,6 +117,40 @@ class WeightDisputePack:
         asked = (question or "").strip()
         return asked if asked in APPROVED_HUB_QUESTIONS else None
 
+    def hub_issue_details(self, bundle: EvidenceBundle) -> str:
+        """What the hub needs to find and check the parcel, from trusted evidence (ADR 0063).
+
+        The hub's own record only: scanner, measured size and weight, booked packaging, zone,
+        and the charge it led to. Never the seller's declared size or the history's usual size,
+        so a re-measurement is the hub's own reading rather than a figure copied back; never
+        any outside text (I5).
+        """
+        lines = []
+        measured = _dims(bundle, MEASURED)
+        grams = _int(bundle, MEASURED, "dead_grams")
+        if measured is not None and grams is not None:
+            lines.append(
+                f"- Measurement on record: {measured.length_cm} x {measured.width_cm} x "
+                f"{measured.height_cm} cm, {Decimal(grams) / 1000:.2f} kg"
+            )
+        scanner = _str(bundle, MEASURED, "scanner_id")
+        if scanner:
+            lines.append(f"- Scanner: {scanner}")
+        packaging = _str(bundle, ZONE, "packaging")
+        if packaging:
+            lines.append(f"- Packaging booked: {packaging}")
+        zone = _str(bundle, ZONE, "zone")
+        if measured is not None and grams is not None and zone is not None:
+            charge = calculate(measured, grams, zone, self._card, packaging)
+            lines.append(
+                f"- Charge on this measurement: {charge.slabs} slabs x "
+                f"{render_fact(Money.from_paise(charge.rate_paise_per_slab))} (zone {zone}) = "
+                f"{render_fact(charge.amount)}"
+            )
+        if not lines:
+            return ""
+        return "What we have on record:\n" + "\n".join(lines)
+
     def charge_for(
         self,
         length_cm: object,
@@ -191,7 +227,29 @@ class WeightDisputePack:
         remeasured_charge: Money | None = None
         duplicate_total: Money | None = None
         definite_errors: tuple[str, ...] = ()
-        facts: list[Fact] = []
+        facts: list[Fact] = _size_facts(bundle, self._card)
+
+        declared = _dims(bundle, DECLARED)
+        declared_dead = _int(bundle, DECLARED, "dead_grams")
+        if declared is not None and declared_dead is not None and zone is not None:
+            # What the seller's own declaration would have cost, so an email can set the two
+            # bills side by side (ADR 0063). It proves nothing; only the reconciliation does.
+            on_declared = calculate(declared, declared_dead, zone, self._card, packaging)
+            refs = tuple(i.id for k in (DECLARED, ZONE) if (i := _found(bundle, k)) is not None)
+            facts += [
+                Fact(
+                    fact_id="f_declared_charge",
+                    label="charge on the declared size",
+                    value=on_declared.amount,
+                    source_items=refs,
+                ),
+                Fact(
+                    fact_id="f_declared_chargeable",
+                    label="chargeable weight on the declared size",
+                    value=on_declared.chargeable,
+                    source_items=refs,
+                ),
+            ]
 
         if measured is not None and dead is not None and zone is not None:
             charge = calculate(measured, dead, zone, self._card, packaging)
@@ -418,7 +476,58 @@ def _charge_facts(charge: object, bundle: EvidenceBundle) -> list[Fact]:
             value=charge.amount,  # type: ignore[attr-defined]
             source_items=refs,
         ),
+        # The bill's steps, so an email can show how the charge was reached (ADR 0063).
+        Fact(
+            fact_id="f_size_weight",
+            label="size-based weight",
+            value=Weight.from_grams(charge.volumetric_grams),  # type: ignore[attr-defined]
+            source_items=refs,
+        ),
+        Fact(fact_id="f_slabs", label="slabs charged", value=charge.slabs, source_items=refs),  # type: ignore[attr-defined]
+        Fact(
+            fact_id="f_rate_per_slab",
+            label="rate per slab",
+            value=Money.from_paise(charge.rate_paise_per_slab),  # type: ignore[attr-defined]
+            source_items=refs,
+        ),
     ]
+
+
+def _size_facts(bundle: EvidenceBundle, card: RateCard) -> list[Fact]:
+    """The declared and measured size and weight, and the rate card's two constants, as facts
+    a message may quote (ADR 0063). Sides in centimetres, checked by R09 as such."""
+    facts = [
+        Fact(fact_id="f_size_divisor", label="size divisor", value=card.volumetric_divisor),
+        Fact(
+            fact_id="f_slab_weight", label="slab weight", value=Weight.from_grams(card.slab_grams)
+        ),
+    ]
+    for key, who in ((DECLARED, "declared"), (MEASURED, "measured")):
+        item = _found(bundle, key)
+        dims = _dims(bundle, key)
+        grams = _int(bundle, key, "dead_grams")
+        if item is None or dims is None or grams is None:
+            continue
+        sides = (dims.length_cm, dims.width_cm, dims.height_cm)
+        for side, value in zip(("length", "width", "height"), sides, strict=True):
+            facts.append(
+                Fact(
+                    fact_id=f"f_{who}_{side}",
+                    label=f"{who} {side}",
+                    value=value,
+                    unit="cm",
+                    source_items=(item.id,),
+                )
+            )
+        facts.append(
+            Fact(
+                fact_id=f"f_{who}_weight",
+                label=f"{who} weight",
+                value=Weight.from_grams(grams),
+                source_items=(item.id,),
+            )
+        )
+    return facts
 
 
 def _eligible_from_evidence(

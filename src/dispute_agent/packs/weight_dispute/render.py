@@ -83,9 +83,13 @@ class FactCiter:
                 f"missing_fact: {fact_id} - the template asked for a fact this case does not have; "
                 "refusing to render rather than leaving a blank where a number goes (I9)"
             )
-        text = render_fact(fact.value)
+        text = render_fact(fact.value) + (f" {fact.unit}" if fact.unit else "")
         self.used.append(NumberUse(text=text, fact_id=fact_id))
         return text
+
+    def has(self, fact_id: str) -> bool:
+        """Whether this case has the fact, so a template can leave out a line it cannot fill."""
+        return fact_id in self._facts
 
 
 def render(ctx: DraftContext, *, shipment_ref: str) -> DraftedMessage:
@@ -112,7 +116,9 @@ def render(ctx: DraftContext, *, shipment_ref: str) -> DraftedMessage:
             shipment_ref=shipment_ref,
             requested_items=ctx.requested_items,
             next_step=ctx.next_step,
+            reason_code=ctx.reason_code or "",
             fact=citer,
+            has=citer.has,
         )
     except TemplateNotFound as missing:  # pragma: no cover - caught by the registry test
         raise DomainValidationError(f"template file missing: {name}") from missing

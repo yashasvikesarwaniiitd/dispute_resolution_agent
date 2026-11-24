@@ -15,6 +15,7 @@ escaped plain text, "exactly as recorded", never as markup.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from enum import StrEnum
@@ -29,7 +30,7 @@ from dispute_agent.kernel.domain.enums import (
 )
 from dispute_agent.ui import came_back, photo_check
 from dispute_agent.ui import trail_words as said
-from dispute_agent.ui.labels import ACTION, FINDING, Tone, handed_over, when, words
+from dispute_agent.ui.labels import ACTION, EVIDENCE, FINDING, Tone, handed_over, when, words
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -91,6 +92,9 @@ class Step:
     #: When set, every quoted line is shown together under this caption (not a proposal's
     #: "reasoning, then findings"): the photo check's observations (ADR 0049).
     quote_caption: str = ""
+    #: The quoted text names evidence in words where the record has ids; the exact recorded
+    #: text is in `lines`.
+    reworded: bool = False
 
     @property
     def tag(self) -> str:
@@ -206,6 +210,7 @@ def build(
         except Exception:  # a plan that cannot be read: the step says less, never guesses
             continue
     asked_hub = any(type(p).__name__ == "IssuePayload" for p in plans.values())
+    names = evidence_names(work, case)
     rounds = investigations = decisions = executions = verifications = 0
     after = "Looked again"
 
@@ -332,7 +337,7 @@ def build(
             elif step == "investigate":
                 proposal = proposals[investigations] if investigations < len(proposals) else None
                 investigations += 1
-                add(_proposed(at, proposal, to_state, review))
+                add(_proposed(at, proposal, to_state, review, names))
             elif step == "apply_approval":
                 approval = approvals[decisions] if decisions < len(approvals) else None
                 decisions += 1
@@ -483,8 +488,36 @@ def _eligibility(at: datetime, case: Case, to_state: CaseState | None, review: A
     )
 
 
+#: An evidence item's id as the record and the model write it.
+EVIDENCE_ID = re.compile(r"\bevi_[0-9A-Za-z]{26}\b")
+
+
+def evidence_names(work: SqliteUnitOfWork, case: Case) -> dict[str, str]:
+    """Each evidence item's id -> what it is, in words ("hub measurement")."""
+    names: dict[str, str] = {}
+    for n in range(1, case.gather_round + 1):
+        try:
+            bundle = work.evidence.bundle(case.id, n)
+        except Exception:  # a round with no stored evidence names nothing
+            continue
+        for item in bundle.items:
+            key = item.result.requirement_key
+            names[str(item.id)] = EVIDENCE.get(key, key).lower()
+    return names
+
+
+def plain(text: str, names: dict[str, str]) -> str:
+    """Model text with each evidence id replaced by what it is. An id the case does not hold
+    is said so, never given a name it has not earned."""
+    return EVIDENCE_ID.sub(lambda m: names.get(m.group(0), "an evidence id not in this case"), text)
+
+
 def _proposed(
-    at: datetime, proposal: Proposal | None, to_state: CaseState | None, review: Any
+    at: datetime,
+    proposal: Proposal | None,
+    to_state: CaseState | None,
+    review: Any,
+    names: dict[str, str] | None = None,
 ) -> Step:
     message = proposal is not None and proposal.action.value in (
         "request_seller_evidence",
@@ -495,19 +528,28 @@ def _proposed(
         return Step(at, Actor.SYSTEM, "Investigation ended without a proposal", (note,), tone=tone)
     rec = recommendation(proposal)
     code = rec.rationale.partition(":")[0].strip()
+    names = names or {}
     lines = ((f"Rule {code}",) if code[:1] == "B" and code[1:].isdigit() else ()) + tuple(
-        f"{kind}: cites {', '.join(refs)}" for kind, _text, refs in rec.findings if refs
+        f"{kind}: cites {', '.join(plain(r, names) for r in refs)} ({', '.join(refs)})"
+        for kind, _text, refs in rec.findings
+        if refs
     )
+    raw = (rec.rationale, *tuple(f"{kind}: {text}" for kind, text, _refs in rec.findings))
+    shown = tuple(plain(text, names) for text in raw)
+    reworded = shown != raw
+    if reworded:
+        lines += tuple(f"Exactly as recorded: {text}" for text in raw)
     return Step(
         at,
         Actor.AI if proposal.reasoner == "llm" else Actor.RULES,
         f"Proposed: {rec.action}",
         lines,
-        (rec.rationale, *tuple(f"{kind}: {text}" for kind, text, _refs in rec.findings)),
+        shown,
         tone=tone,
         mark=Mark.PERSON if tone is Tone.ATTENTION else Mark.PROPOSE,
         summary=f"{rec.confidence.capitalize()} confidence. {note}".strip(),
         proposer=rec.by,
+        reworded=reworded,
     )
 
 

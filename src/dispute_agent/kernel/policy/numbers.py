@@ -171,7 +171,7 @@ def _matches(token: NumberToken, fact: Fact) -> str | None:
     if token.text == rendered:
         return None
 
-    expected_unit = _unit_of(fact.value)
+    expected_unit = fact.unit or _unit_of(fact.value)
     if token.unit != expected_unit:
         return (
             f"{token.text!r} is in {token.unit or 'no unit'} but fact {fact.fact_id!r} "
@@ -204,6 +204,10 @@ def _numeric(value: object) -> Decimal | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
+        return Decimal(value)
+    if isinstance(value, str) and re.fullmatch(r"\d+(?:\.\d+)?", value):
+        # A Decimal fact read back from storage arrives as its text ("30", "35.1"): JSON has
+        # no decimal type (ADR 0063). Plain digits only, so a word fact never becomes a number.
         return Decimal(value)
     return None
 

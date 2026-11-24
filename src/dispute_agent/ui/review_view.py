@@ -57,13 +57,28 @@ def finding_words(statement: str) -> str:
     return f"{meaning[0].lower()}{meaning[1:]}" if meaning else statement
 
 
-def recommends(rec: Recommendation | None) -> str:
-    """The left half: what the agent recommends, who proposed it, and its reasoning."""
+def recommends(rec: Recommendation | None, names: dict[str, str] | None = None) -> str:
+    """The left half: what the agent recommends, who proposed it, and its reasoning.
+
+    `names` (evidence id -> what it is) puts evidence in words; the exact text is kept below.
+    """
+    from dispute_agent.ui.trail import plain
+
     if rec is None:
         return '<h3>What the agent recommends</h3><p class="muted">No proposal is recorded for this item.</p>'
+    names = names or {}
     found = "".join(
-        f"<li>{escape(kind)}: {escape(finding_words(text))}</li>" for kind, text, _ in rec.findings
+        f"<li>{escape(kind)}: {escape(plain(finding_words(text), names))}</li>"
+        for kind, text, _ in rec.findings
     )
+    reasoning = plain(rec.rationale, names)
+    if reasoning == rec.rationale:
+        said = recorded("Reasoning, exactly as recorded:", rec.rationale)
+    else:
+        said = recorded("Reasoning, with evidence named in words:", reasoning) + (
+            '<details class="more"><summary>Exactly as recorded</summary>'
+            f"{recorded('', rec.rationale)}</details>"
+        )
     codes = "".join(
         f"<li>{escape(text.partition(':')[0])} · cites {escape(', '.join(refs))}</li>"
         for _kind, text, refs in rec.findings
@@ -74,12 +89,8 @@ def recommends(rec: Recommendation | None) -> str:
         "<h3>What the agent recommends</h3>"
         f"<p><strong>{escape(rec.action)}</strong>, {escape(rec.confidence)} confidence</p>"
         f'<p class="muted by by--{style}">Proposed by the {escape(rec.by)}</p>'
-        + recorded("Reasoning, exactly as recorded:", rec.rationale)
-        + (
-            f'<p class="caption">Findings, as recorded:</p><ul class="checks">{found}</ul>'
-            if found
-            else ""
-        )
+        + said
+        + (f'<p class="caption">Findings:</p><ul class="checks">{found}</ul>' if found else "")
         + (
             f'<details class="more"><summary>Codes behind the findings</summary><ul>{codes}</ul></details>'
             if codes

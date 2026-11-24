@@ -3,11 +3,12 @@ Subject: Our decision on the weight charge on your shipment {{ shipment_ref }}
 Hello,
 
 We have reviewed your dispute about the charge on shipment {{ shipment_ref }}.
+The charge of {{ fact('f_charged') }} matches our rates for the parcel our hub
+measured, so it stands.
 
 We charge on the greater of a parcel's actual weight and its size-based weight.
-Our hub recorded a size-based weight of {{ fact('f_chargeable_grams') }} for this
-parcel, and the charge of {{ fact('f_charged') }} matches our rates for it, so the
-charge stands.
+
+{% include "_working.md.j2" %}
 
 If you have evidence we have not seen, reply to this email and we will look again.
 

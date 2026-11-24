@@ -44,6 +44,8 @@ def hub_answer(item: EvidenceItem) -> tuple[str, tuple[str, ...]]:
         size = f"{value['length_cm']} x {value['width_cm']} x {value['height_cm']} cm"
         grams = value.get("dead_grams")
         weight = f", {Decimal(str(grams)) / 1000:.2f} kg" if grams is not None else ""
+        if value.get("declared_confirmed") is True:
+            return f"Confirmed the seller's declared size: {size}{weight}.", ()
         return f"Re-measured the parcel: {size}{weight}.", ()
     if kind == "no_fault_found":
         return "The hub stands by its measurement: no fault found.", ()

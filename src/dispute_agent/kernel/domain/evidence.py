@@ -112,6 +112,9 @@ class Fact(BaseModel):
     label: str
     value: Money | Weight | Decimal | str | int
     source_items: tuple[EvidenceItemId, ...] = ()
+    #: A length, written "34 cm" and checked as centimetres (ADR 0063). Money and Weight carry
+    #: their own units; a bare Decimal or int has none.
+    unit: Literal["cm"] | None = None
 
 
 class EligibilityResult(BaseModel):

@@ -57,8 +57,24 @@ class TestTheHubRequest:
     def test_b_an_ordinary_remeasurement_request_is_unchanged(self) -> None:
         # S03: the recorded investigator asks with its own words, which are not approved.
         text = _issue("S03", build_scenario_models)
-        assert text.startswith(f"{STANDARD} SHP-000003 (claim CLM-000003).\n\nReply with")
+        # ADR 0063: the hub's own record follows the standard opening, then how to reply.
+        assert text.startswith(
+            f"{STANDARD} SHP-000003 (claim CLM-000003).\n\nWhat we have on record:"
+        )
+        assert "\n\nReply with a comment" in text
         assert B4B_QUESTION not in text
+
+    def test_the_hub_sees_its_own_record_but_never_the_declared_size(self) -> None:
+        text = _issue("S62", _rules)  # SHP-102025, declared 19 x 11 x 2 cm, 72 g
+        for line in (
+            "- Measurement on record: 34 x 22 x 15 cm, 0.07 kg",
+            "- Scanner: SCN-BLR-03-2",
+            "- Packaging booked: bubble mailer",
+            "- Charge on this measurement: 5 slabs x ₹38.00 (zone B) = ₹190.00",
+        ):
+            assert line in text
+        # The re-measurement must be the hub's own reading, not a figure it could copy back.
+        assert "19 x 11 x 2" not in text and "declared:" not in text.lower()
 
     def test_d_a_models_or_outsiders_words_never_reach_jira(
         self, monkeypatch: pytest.MonkeyPatch

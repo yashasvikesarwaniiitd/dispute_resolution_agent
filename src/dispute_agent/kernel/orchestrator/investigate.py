@@ -776,6 +776,15 @@ class InvestigateStep:
                 else f"Please remeasure shipment {case.facts.shipment_ref} "
                 f"(claim {case.facts.claim_ref}).\n\n"
             )
+            # The hub's own record of the parcel, from the pack (ADR 0063). Optional, so a
+            # pack or test fake without it opens the issue as before.
+            details = getattr(self.pack, "hub_issue_details", None)
+            known = (
+                details(self.evidence.bundle(case.id, case.gather_round))
+                if callable(details)
+                else ""
+            )
+            opening += f"{known}\n\n" if known else ""
             return IssuePayload(
                 summary=f"Remeasure {case.facts.shipment_ref}",
                 # How to answer, in the forms code reads (ADR 0052). The old text pointed at
@@ -784,7 +793,9 @@ class InvestigateStep:
                     opening + "Reply with a comment whose first line is one of:\n"
                     "Remeasured: <length> x <width> x <height> cm, <weight> kg "
                     "(for example: Remeasured: 30 x 22 x 15 cm, 1.10 kg)\n"
-                    "Measurement confirmed (if the original measurement stands)\n\n"
+                    "Measurement confirmed (if the original measurement stands)\n"
+                    # ADR 0062: the hub's own scan was wrong; code uses the declared figures.
+                    "Declared size confirmed (if the size the seller declared is right)\n\n"
                     "Any other reply is passed to a person to read."
                 ),
             )

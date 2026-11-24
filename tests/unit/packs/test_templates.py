@@ -223,12 +223,45 @@ class TestPhaseFiveTemplates:
             shipment_ref=SHIPMENT,
         )
         assert "₹40.00" in message.body
-        assert [n.fact_id for n in message.numbers_used] == ["credited_amount"]
+        # ADR 0063: it also says what was charged, a fact like any other.
+        assert [n.fact_id for n in message.numbers_used] == ["f_charged", "credited_amount"]
 
     def test_an_uphold_cites_every_figure_it_shows(self) -> None:
         message = render(a_context(MessageKind.UPHELD_EXPLANATION), shipment_ref=SHIPMENT)
-        assert {n.fact_id for n in message.numbers_used} == {"f_chargeable_grams", "f_charged"}
-        assert "charge stands" in message.body
+        # Only the charge: the working is left out when the case lacks its facts (ADR 0063).
+        assert {n.fact_id for n in message.numbers_used} == {"f_charged"}
+        assert "so it stands" in message.body
+
+    def test_an_uphold_shows_the_working_when_every_figure_is_a_fact(self) -> None:
+        cm = Decimal
+        full = (
+            *FACTS,
+            *(
+                Fact(fact_id=f"f_{who}_{side}", label=side, value=cm(v), unit="cm")
+                for who, sides in (("declared", (30, 12, 12)), ("measured", (40, 15, 15)))
+                for side, v in zip(("length", "width", "height"), sides, strict=True)
+            ),
+            Fact(fact_id="f_declared_weight", label="w", value=Weight.from_grams(900)),
+            Fact(fact_id="f_measured_weight", label="w", value=Weight.from_grams(1418)),
+            Fact(fact_id="f_size_divisor", label="d", value=5000),
+            Fact(fact_id="f_size_weight", label="s", value=Weight.from_grams(1800)),
+            Fact(fact_id="f_slab_weight", label="s", value=Weight.from_grams(500)),
+            Fact(fact_id="f_slabs", label="n", value=4),
+            Fact(fact_id="f_rate_per_slab", label="r", value=Money.of("38.00")),
+            Fact(fact_id="f_recalculated", label="c", value=Money.of("152.00")),
+            Fact(fact_id="f_declared_charge", label="c", value=Money.of("76.00")),
+        )
+        message = render(
+            a_context(MessageKind.UPHELD_EXPLANATION, facts=full), shipment_ref=SHIPMENT
+        )
+        assert "What you declared: 30 cm x 12 cm x 12 cm, 900 g" in message.body
+        assert "What our hub measured: 40 cm x 15 cm x 15 cm, 1,418 g" in message.body
+        assert "Charge: 4 x ₹38.00 = ₹152.00" in message.body
+        assert "would have been ₹76.00" in message.body
+        # Every figure shown is cited, so R09 can check each one against its fact.
+        assert {"f_declared_length", "f_size_divisor", "f_declared_charge"} <= {
+            n.fact_id for n in message.numbers_used
+        }
 
     def test_the_error_names_what_was_missing(self) -> None:
         """So the failure is actionable rather than "a template broke"."""
@@ -262,7 +295,9 @@ class TestTheTemplateFilesAndTheRegistryAgree:
 
     def test_every_template_on_disk_is_registered(self) -> None:
         """An unregistered template is wording nobody can send and nobody reviews."""
-        on_disk = {p.name for p in Path(TEMPLATES).glob("*.j2")}
+        # A name starting "_" is a shared part included by registered templates, never sent
+        # on its own (ADR 0063: the bill's working).
+        on_disk = {p.name for p in Path(TEMPLATES).glob("*.j2") if not p.name.startswith("_")}
         assert on_disk == set(template_names())
 
     def test_every_template_starts_with_a_subject_line(self) -> None:
@@ -275,10 +310,10 @@ class TestTheTemplateFilesAndTheRegistryAgree:
         number with no id, which R09 would deny at send time - better to never write it."""
         import re
 
-        for name in template_names():
+        for name in (p.name for p in Path(TEMPLATES).glob("*.j2")):  # shared parts too
             text = (TEMPLATES / name).read_text(encoding="utf-8")
             # Strip the Jinja expressions, then look for bare digits in the prose.
-            prose = re.sub(r"\{\{.*?\}\}|\{%.*?%\}", "", text, flags=re.DOTALL)
+            prose = re.sub(r"\{\{.*?\}\}|\{%.*?%\}|\{#.*?#\}", "", text, flags=re.DOTALL)
             assert not re.search(r"\d", prose), f"{name} contains a literal digit"
 
 

@@ -80,3 +80,44 @@ def test_a_negation_is_never_a_confirmation(text: str) -> None:
 )
 def test_anything_else_is_not_an_answer(text: str) -> None:
     assert parse(text) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Declared size confirmed",
+        "Declared size is correct.",
+        # The owner's own reply on the live SHP-102025 issue, which code could not read.
+        "The seller measurement is correct.",
+        "Seller's measurement was right, our scanner was off",
+        "The declared dimensions are accurate",
+        "Seller declaration stands.",
+    ],
+)
+def test_the_seller_s_declared_size_confirmed_carries_no_figures(text: str) -> None:
+    # ADR 0062: the figures come from the shipment's declared record, never from the comment.
+    answer = parse(text)
+    assert answer is not None and answer.kind == "remeasured"
+    assert answer.measured == {"declared_confirmed": True}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The seller measurement is wrong",
+        "The seller measurement is not correct",
+        "Seller's declared size isn't right",
+        "The seller measurement is too small",  # a statement about it, not a confirmation
+        "The seller measurement",
+        "Please ask whether the seller measurement is correct",  # not at the start
+    ],
+)
+def test_anything_short_of_confirming_the_declared_size_is_not_that(text: str) -> None:
+    answer = parse(text)
+    assert answer is None or answer.measured != {"declared_confirmed": True}
+
+
+def test_the_measurement_is_correct_still_means_the_hub_s_own() -> None:
+    # Without "seller" or "declared", "the measurement" is the hub's scan, as before.
+    answer = parse("The measurement is correct")
+    assert answer is not None and answer.kind == "no_fault_found"

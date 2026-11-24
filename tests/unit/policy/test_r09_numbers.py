@@ -285,3 +285,34 @@ class TestMaskingCannotBlindTheChecker:
             now=NOW,
         )
         assert MessageNumbersVerified().evaluate(ctx).verdict is VerdictKind.DENY
+
+
+class TestLengthsInCentimetres:
+    """ADR 0063: an email may state a size; each side is a fact checked as centimetres."""
+
+    SIDE = Fact(
+        fact_id="f_measured_length", label="measured length", value=Decimal("40.2"), unit="cm"
+    )
+
+    def test_a_side_cited_in_centimetres_is_justified(self) -> None:
+        message = intent(body="Our hub measured 40.2 cm.", **{"40.2 cm": "f_measured_length"})
+        assert verdict(message, self.SIDE).verdict.name == "ALLOW"
+
+    def test_a_side_read_back_from_storage_is_still_a_number(self) -> None:
+        stored = Fact.model_validate_json(self.SIDE.model_dump_json())  # Decimal -> "40.2"
+        message = intent(body="Our hub measured 40.2 cm.", **{"40.2 cm": "f_measured_length"})
+        assert verdict(message, stored).verdict.name == "ALLOW"
+
+    def test_the_same_number_in_another_unit_is_refused(self) -> None:
+        message = intent(body="Our hub measured 40.2 g.", **{"40.2 g": "f_measured_length"})
+        result = verdict(message, self.SIDE)
+        assert result.verdict.name == "DENY" and "cm" in result.reason
+
+    def test_a_different_length_is_refused(self) -> None:
+        message = intent(body="Our hub measured 40.3 cm.", **{"40.3 cm": "f_measured_length"})
+        assert verdict(message, self.SIDE).verdict.name == "DENY"
+
+    def test_a_word_fact_never_becomes_a_number(self) -> None:
+        word = Fact(fact_id="f_zone", label="zone", value="B")
+        message = intent(body="Zone 2 applies.", **{"2": "f_zone"})
+        assert verdict(message, word).verdict.name == "DENY"

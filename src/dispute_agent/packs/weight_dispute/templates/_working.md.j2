@@ -1,0 +1,19 @@
+{#- The bill, worked out step by step (ADR 0063). Every figure is a fact R09 checks; a line
+    whose facts this case does not have is left out rather than rendered with a blank. -#}
+{% if has('f_declared_length') %}
+What you declared: {{ fact('f_declared_length') }} x {{ fact('f_declared_width') }} x {{ fact('f_declared_height') }}, {{ fact('f_declared_weight') }}
+{% endif %}
+{% if has('f_measured_length') %}
+What our hub measured: {{ fact('f_measured_length') }} x {{ fact('f_measured_width') }} x {{ fact('f_measured_height') }}, {{ fact('f_measured_weight') }}
+{% endif %}
+{% if has('f_recalculated') %}
+
+How the charge is worked out, on the hub's measurement:
+- Size-based weight (length x width x height / {{ fact('f_size_divisor') }}): {{ fact('f_size_weight') }}
+- Charged weight (the higher of the scale weight and the size-based weight): {{ fact('f_chargeable_grams') }}
+- Slabs of {{ fact('f_slab_weight') }}, rounded up: {{ fact('f_slabs') }}
+- Charge: {{ fact('f_slabs') }} x {{ fact('f_rate_per_slab') }} = {{ fact('f_recalculated') }}
+{% endif %}
+{% if has('f_declared_charge') %}
+- On the size and weight you declared, the charge would have been {{ fact('f_declared_charge') }}.
+{% endif %}

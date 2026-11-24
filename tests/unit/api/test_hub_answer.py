@@ -117,6 +117,42 @@ def test_a_remeasurement_on_jira_moves_the_case_and_code_proves_it(app: Any) -> 
     assert any("correct ₹76.00, overcharged ₹76.00" in line for line in said)
 
 
+def test_the_hub_confirming_the_declared_size_proves_the_error_from_the_record(app: Any) -> None:
+    """ADR 0062: "Declared size confirmed" carries no figures; code takes the seller's declared
+    ones from the shipment record and proves the lower charge exactly as for a remeasurement."""
+    from dispute_agent.modules.ticketing.hub_comment import parse
+
+    case_id = _waiting_on_the_hub(app)
+    key = _issue_key(app, case_id)
+    said_by_hub = "The seller measurement is correct."
+    answer = parse(said_by_hub)
+    assert answer is not None
+    app.state.application.adapters.ticketing.post_finding(
+        OpsFinding(
+            issue_key=key,
+            finding_id="comment:9",
+            kind=answer.kind,
+            measured=dict(answer.measured),
+            note=UntrustedText.create(said_by_hub, "jira_comment", f"{key}:9"),
+            at=datetime.now(UTC),
+        )
+    )
+    _job(app)._last_run = None
+    app.state.application.runtime.runner.tick()
+
+    assert _state(app, case_id) is not CaseState.AWAITING_OPS
+    with _work(app) as work:
+        assessment = work.assessments.latest(CaseId(case_id))
+        steps = build(work, work.cases.get(CaseId(case_id))).steps
+    assert assessment is not None and "remeasurement_lower" in assessment.definite_errors
+    said = [f"{s.title} | {s.summary}" for s in steps]
+    assert (
+        "The hub sent its finding | Confirmed the seller's declared size: 20 x 15 x 10 cm, 0.48 kg."
+        in said
+    )
+    assert any("correct ₹76.00, overcharged ₹76.00" in line for line in said)
+
+
 def test_the_confirmation_email_names_where_its_amount_came_from(app: Any) -> None:
     """Every credit confirmation showed its amount as "NO SOURCE FOUND - do not approve":
     the card read only the assessment's facts, not the credited amount R09 cleared it with."""

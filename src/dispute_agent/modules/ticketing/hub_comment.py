@@ -6,6 +6,8 @@ first line with strict patterns: no model, no guessing.
     Remeasured: 30 x 22 x 15 cm, 1.10 kg      -> remeasured, with the new size and weight
     Measurement confirmed / No fault found    -> no fault found: the original size stands
     The previous measurement was correct ...  -> the same, said the way a person says it
+    Declared size confirmed                   -> the seller's declared size is right (ADR 0062)
+    The seller measurement is correct ...     -> the same, said the way a person says it
 
 A comment that is none of these is not read as an answer here (None). The adapter still
 passes it on as a reply with no measurement, so it reaches a person rather than vanishing.
@@ -50,6 +52,18 @@ CONFIRMED = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+#: The seller's declared size is the right one (ADR 0062). The opposite of CONFIRMED: the hub's
+#: own scan was wrong. Code fills in the declared figures from the shipment record, so the
+#: comment carries no numbers to mistype, and the credit is still proved and approved as for a
+#: remeasurement.
+DECLARED_CONFIRMED = re.compile(
+    r"^\s*(?:"
+    r"declared\s+(?:size|measurement|dimensions?|weight)s?\s+(?:is\s+|are\s+)?(?:confirmed|correct)"
+    r"|(?:the\s+)?(?:seller'?s?|declared)\s+(?:measurement|size|dimensions?|declaration|reading)s?"
+    r"\s+(?:(?:is|was|were|are)\s+(?:correct|right|accurate|fine|confirmed)|stands?)"
+    r")\b",
+    re.IGNORECASE,
+)
 NEGATION = re.compile(
     r"\b(?:not|no\b(?!\s+fault)|never|incorrect|wrong|inaccurate)\b|n't", re.IGNORECASE
 )
@@ -64,7 +78,9 @@ class HubAnswer:
     """One parsed answer. `measured` uses the evidence keys the pack reads."""
 
     kind: str  # "remeasured" | "no_fault_found"
-    measured: dict[str, Decimal | int] = field(default_factory=dict)
+    #: The figures, or {"declared_confirmed": True} when the hub says the seller's declared
+    #: size is right; the evidence source fills in the declared figures (ADR 0062).
+    measured: dict[str, Decimal | int | bool] = field(default_factory=dict)
 
 
 def parse(comment: str) -> HubAnswer | None:
@@ -73,6 +89,8 @@ def parse(comment: str) -> HubAnswer | None:
     if not first:
         return None
     line = first[0]
+    if NEGATION.search(line) is None and DECLARED_CONFIRMED.match(line):
+        return HubAnswer(kind="remeasured", measured={"declared_confirmed": True})
     if CONFIRMED.match(line) and not NEGATION.search(line):
         return HubAnswer(kind="no_fault_found")
     found = REMEASURED.match(line)

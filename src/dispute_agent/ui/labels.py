@@ -65,6 +65,7 @@ EVIDENCE: dict[str, str] = {
     "shipment.image_description": "Hub's photo note",
     "parcel.image_check": "Photo check",
     "shipment.history": "Earlier shipments of this item",
+    "shipment.comparable_history": "Comparison with past shipments",
     "ops.finding": "Hub finding",
     "seller_reply": "Seller's reply",
 }

@@ -363,6 +363,8 @@ class VerifyStep:
                 kind=MessageKind.CREDIT_CONFIRMATION,
                 facts=facts,
                 seller_ref=case.facts.seller_ref,
+                # Why the seller was owed it, said in words by the pack's template (ADR 0063).
+                reason_code=getattr(credit.payload, "reason_code", None),
                 next_step="No further action is needed.",
             ),
             shipment_ref=case.facts.shipment_ref,

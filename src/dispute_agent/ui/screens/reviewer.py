@@ -320,6 +320,14 @@ def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
             )
 
 
+def _names(ticket: Any) -> dict[str, str]:
+    """The case's evidence ids, each with what it is, for the reasoning shown in words."""
+    from dispute_agent.ui.trail import evidence_names
+
+    with data.reader() as work:
+        return evidence_names(work, work.cases.get(ticket.case_id))
+
+
 def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]) -> None:
     item, ticket = card.item, card.case
     aid = item.approval.id
@@ -334,7 +342,7 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]
         )
         st.markdown('<hr class="rule">', unsafe_allow_html=True)
         left, right = st.columns(2, gap="large")
-        left.markdown(view.recommends(card.recommendation), unsafe_allow_html=True)
+        left.markdown(view.recommends(card.recommendation, _names(ticket)), unsafe_allow_html=True)
         _photo(left, ticket)
         _history(left, ticket)
         _outside(left, ticket)
