@@ -49,4 +49,4 @@ Prompt `case_explainer/v2` (v1 kept for replay): one sentence that answers the q
 ## Consequences
 
 - The Explainer is now part of the product, not only `make explain`. Its answers are still a convenience, not a record, and nothing it says is acted on.
-- Not yet proven: that the Agent SDK's bundled CLI starts on Streamlit Cloud. The first hosted question will show it. If it does not, the card reports that it could not answer, and the rest of the Review screen is unaffected.
+- Proven on 2026-11-24: the Agent SDK's bundled CLI starts on Streamlit Cloud, and a hosted question was answered once the NLTK fix above was deployed. If it ever fails, the card names the error, and the rest of the Review screen is unaffected.
