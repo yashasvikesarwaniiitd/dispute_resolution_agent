@@ -645,12 +645,12 @@ shipments:
   declared_cm:
   - 25
   - 22
-  - 24
+  - 22.5
   declared_grams: 1360
   measured_cm:
-  - 24.8
-  - 22.1
-  - 24.0
+  - 25.0
+  - 22.0
+  - 23.5
   measured_grams: 1373
   billed_paise: 22800
   measurement_status: disputed
@@ -670,7 +670,7 @@ shipments:
   - 22
   - 12
   - 12
-  declared_grams: 1040
+  declared_grams: 900
   measured_cm:
   - 22.3
   - 12.3
@@ -679,4 +679,4 @@ shipments:
   billed_paise: 11400
   measurement_status: disputed
   fixture: nc_mugs_normal
-  demo_label: Normal bill
+  demo_label: Box weight left out

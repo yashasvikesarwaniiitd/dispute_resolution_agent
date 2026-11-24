@@ -10,7 +10,7 @@ Status: accepted. The owner approved the plan, the dataset, the method and the i
 - **CaseKraft Accessories** (SELL-0102), mobile accessories;
 - **ThreadLane Apparel** (SELL-0103), clothing.
 
-There are 11 products, 10 packaging profiles, 72 past shipments and 12 disputes. Every charge follows the rate card except the two deliberate billing errors. The data is YAML only; Supabase is deferred. `catalogue.py` validates the files on load and serves every shipment to the agent as a named fixture is served.
+There are 11 products, 10 packaging profiles, 73 past shipments and 11 disputes. Every charge follows the rate card except the two deliberate billing errors. **Every dispute gives the seller a real reason to dispute:** a bill above what they declared, or a charge taken twice. The first version had six disputes whose bill equalled the declaration; no real seller raises those, so they were made realistic on 2026-11-25 with each case's purpose kept, and CaseKraft's protector, whose any honest measurement is one slab, became a past shipment. The data is YAML only; Supabase is deferred. `catalogue.py` validates the files on load and serves every shipment to the agent as a named fixture is served.
 
 **The comparison** is an evidence item computed in code during every evidence round: `shipment.comparable_history`, from `packs/weight_dispute/history.py`, which is pure. The AI and the rules read the same result.
 - **The reference pool:** the same seller, SKU, packaging and quantity; measured before this parcel; not this parcel; `trusted` only.
@@ -48,9 +48,9 @@ The table shows the rules alone, with the AI off. The recorded AI answers reach 
 |---|---|---|---|
 | S62 A | `ck_tray_anomaly` | B4b scanner audit | waiting on the hub |
 | S63 F | `ck_tray_confirmed` | B4b, then B3 (`remeasurement_lower`, INR 152) | credited after two approvals |
-| S64 B | `tl_tee_carton` | B8: `not_comparable` favours no side; declared = measured = 6 slabs, INR 228 | upheld |
+| S64 B | `tl_tee_carton` | B8: `not_comparable` favours no side; the hub's carton, 4.6% taller than declared, is 6 slabs (INR 228) against the declared 5 (INR 190) | upheld |
 | S65 C | `nc_lamp_duplicate` | B3 `duplicate_charge` | credited after approval |
-| S66 D | `nc_kettle_new` | B8 (2 past kettles: too little to compare) | upheld |
+| S66 D | `nc_kettle_new` | B8 (2 past kettles: too little to compare); 4.4% taller than declared, 6 slabs against 5 | upheld |
 | S67 E | `nc_lamp_underdeclared` | B4c, consistent with 10 trusted lamps | upheld after approval |
 
 ## Two fixes found by the golden acceptance test (owner-approved)

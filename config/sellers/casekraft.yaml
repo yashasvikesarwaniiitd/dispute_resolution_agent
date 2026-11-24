@@ -641,20 +641,20 @@ shipments:
   - 5
   declared_grams: 240
   measured_cm:
-  - 20.0
-  - 15.1
-  - 5.3
-  measured_grams: 228
-  billed_paise: 3800
+  - 25.5
+  - 18.5
+  - 6.0
+  measured_grams: 236
+  billed_paise: 7600
   measurement_status: disputed
   fixture: ck_magsafe_new
   demo_label: Little history
 - ref: SHP-102028
-  role: dispute
+  role: history
   sku_id: CK-SP-2PK
   packaging_id: PKG-CK-RIGID-ENV
   quantity: 1
-  measured_at: '2026-11-20T10:00:00Z'
+  measured_at: '2026-11-16T10:00:00Z'
   hub_id: HUB-BLR-03
   scanner_id: SCN-BLR-03-1
   zone: B
@@ -670,6 +670,4 @@ shipments:
   - 0.8
   measured_grams: 67
   billed_paise: 3800
-  measurement_status: disputed
-  fixture: ck_protector_normal
-  demo_label: Normal bill
+  measurement_status: trusted

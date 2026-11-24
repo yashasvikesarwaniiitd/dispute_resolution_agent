@@ -111,9 +111,10 @@ def test_each_demo_seller_sees_only_their_own_shipments() -> None:
         "ThreadLane Apparel",
     ]
     seen: set[str] = set()
+    disputes = {"CaseKraft Accessories": 3, "NorthCart Essentials": 4, "ThreadLane Apparel": 4}
     for person in people:
         rows = seller_shipments(person["seller_id"])
-        assert len(rows) == 28 and sum(r.disputed for r in rows) == 4
+        assert len(rows) == 28 and sum(r.disputed for r in rows) == disputes[person["business"]]
         assert {r.seller_ref for r in rows} == {person["seller_id"]}
         refs = {r.ref for r in rows}
         assert not refs & seen

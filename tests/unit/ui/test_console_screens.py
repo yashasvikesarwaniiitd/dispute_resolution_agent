@@ -96,14 +96,14 @@ def test_the_seller_sees_their_shipments_and_their_ticket(desk: dict[str, Any]) 
     assert at.title[0].value == "Raise a ticket"
     headers = [h.value for h in at.header]
     assert {"Your shipments", "Dispute a charge", "Your tickets"} <= set(headers)
-    # ADR 0060: three demo sellers; the page lists only the first one's 4 disputed shipments
-    # (the 24 past ones stay in the data as the agent's history).
+    # ADR 0060: three demo sellers; the page lists only the first one's 3 disputed shipments
+    # (the 25 past ones stay in the data as the agent's history).
     assert at.selectbox(key="persona").options == [
         "CaseKraft Accessories",
         "NorthCart Essentials",
         "ThreadLane Apparel",
     ]
-    assert len(at.selectbox(key="ship").options) == 4
+    assert len(at.selectbox(key="ship").options) == 3
     assert not any(s.label == "Show" for s in at.selectbox)  # no filter
     assert "correct" not in " ".join(m.value for m in at.markdown).lower()  # brief 13.5
 
@@ -133,7 +133,7 @@ class TestDemoSellers:
         self, desk: dict[str, Any]
     ) -> None:
         at = AppTest.from_function(_seller, default_timeout=60).run()
-        at.selectbox(key="ship").set_value("SHP-102028").run()
+        at.selectbox(key="ship").set_value("SHP-102027").run()
         assert "+casekraft" in _text(at)
         assert all(b.label != "Raise a dispute" for b in at.button)
 

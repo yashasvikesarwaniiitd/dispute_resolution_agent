@@ -11,7 +11,7 @@ from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD
 BILLING_ERRORS = {"tl_dress_wrong_slab", "nc_lamp_duplicate"}
 
 
-def test_three_sellers_seventy_two_past_shipments_and_twelve_disputes() -> None:
+def test_three_sellers_seventy_three_past_shipments_and_eleven_disputes() -> None:
     files = catalogue().sellers
     assert [f.seller.business for f in files] == [
         "CaseKraft Accessories",
@@ -19,8 +19,8 @@ def test_three_sellers_seventy_two_past_shipments_and_twelve_disputes() -> None:
         "ThreadLane Apparel",
     ]
     rows = [r for f in files for r in f.shipments]
-    assert sum(r.role == "history" for r in rows) == 72
-    assert sum(r.role == "dispute" for r in rows) == 12
+    assert sum(r.role == "history" for r in rows) == 73
+    assert sum(r.role == "dispute" for r in rows) == 11
     assert all(f.seller.synthetic for f in files)
 
 
@@ -79,11 +79,23 @@ def test_the_hubs_correction_is_not_in_the_data_only_in_the_findings_bank() -> N
     assert FINDINGS["tray_mode_corrected"].kind == "remeasured"
 
 
-def test_scenario_b_charges_agree_in_one_slab() -> None:
-    # Declared, measured and billed all land on 6 slabs (INR 228), so the bill is commercially
-    # consistent with what the seller expected from the carton they declared.
+def test_scenario_b_the_carton_measured_a_little_taller_crosses_one_slab() -> None:
+    # The seller declared 5 slabs (INR 190); the hub's carton, under 5% bigger, is 6 (INR 228)
+    # and the bill follows the hub. A real reason to dispute, inside the rules' tolerance.
     s = fixture("tl_tee_carton").shipment
     declared = calculate(s.declared, s.declared_dead_grams, s.zone, DEFAULT_RATE_CARD)
     measured = calculate(s.measured, s.measured_dead_grams, s.zone, DEFAULT_RATE_CARD)
-    assert declared.slabs == measured.slabs == 6
-    assert s.billed_paise == declared.amount_paise == 22800
+    assert (declared.slabs, measured.slabs) == (5, 6)
+    assert s.billed_paise == measured.amount_paise == 22800 > declared.amount_paise
+
+
+def test_every_dispute_gives_the_seller_a_reason_to_dispute() -> None:
+    # A seller disputes a bill above what they declared, or a charge taken twice; a dispute
+    # whose bill equals the declaration is not one a real seller raises.
+    for seller in catalogue().sellers:
+        for row in seller.shipments:
+            if row.role != "dispute":
+                continue
+            s = fixture(row.fixture).shipment
+            declared = calculate(s.declared, s.declared_dead_grams, s.zone, DEFAULT_RATE_CARD)
+            assert s.billed_paise > declared.amount_paise or row.duplicate_debit, row.ref

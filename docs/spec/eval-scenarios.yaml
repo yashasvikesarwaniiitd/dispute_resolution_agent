@@ -1113,12 +1113,15 @@ scenarios:
     script: [dispute_raised@0h, approve(upheld_explanation)@1h]
     expect:
       actions: [uphold_charge]
-      baseline: same   # B8: the hub's measurement matches the declared carton; not_comparable favours no side
+      baseline: same   # B8: the hub's carton is within 5% of the declared one; not_comparable favours no side
       path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
              VERIFYING, RESOLVED_UPHELD]
       final: RESOLVED_UPHELD
       counts: {jira_issues: 0, ledger_credits: 0, emails_sent: 1}
-      notes: declared, measured and billed agree on 6 slabs (INR 228.00); history says not comparable
+      notes: >-
+        the carton measured 12.0 cm high against the declared 11.5, crossing from 5 slabs (INR
+        190.00) to 6 (INR 228.00); within tolerance, so the hub's figure stands; history says not
+        comparable
     invariants: [I9]
 
   - id: S65
@@ -1142,7 +1145,7 @@ scenarios:
     script: [dispute_raised@0h, approve(upheld_explanation)@1h]
     expect:
       actions: [uphold_charge]
-      baseline: same   # B8: insufficient_history adds nothing; the measurement matches the declaration
+      baseline: same   # B8: insufficient_history adds nothing; the measurement is within 5% of the declaration
       path: [RECEIVED, GATHERING_EVIDENCE, CALCULATING, INVESTIGATING, AWAITING_APPROVAL, EXECUTING,
              VERIFYING, RESOLVED_UPHELD]
       final: RESOLVED_UPHELD
