@@ -160,6 +160,15 @@ def test_a_credit_code_did_not_prove_is_refused_and_the_case_stays_with_the_pers
         assert after["pending"] == []
         [refused] = after["refused"]
         assert "credit_reason_unproven" in refused.payload.detail
+        # The Agent steps screen says why, in words (owner, 2026-11-25), not just that it failed.
+        from dispute_agent.ui.trail import build
+
+        with SqliteUnitOfWork(world.engine, clock=SystemClock()) as work:
+            steps = build(work, work.cases.get(world.case_id)).steps
+        [step] = [s for s in steps if s.title == "The person's decision could not be carried out"]
+        assert step.summary.startswith(
+            "Why: code has not proved the error this credit is for on this case"
+        )
     finally:
         world.close()
 

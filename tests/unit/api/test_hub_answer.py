@@ -153,6 +153,16 @@ def test_the_hub_confirming_the_declared_size_proves_the_error_from_the_record(a
     assert any("correct ₹76.00, overcharged ₹76.00" in line for line in said)
 
 
+def test_the_running_app_s_ledger_holds_the_demo_sellers_charges(app: Any) -> None:
+    """Live, 2026-11-25: a person chose the proven INR 152 credit on SHP-102025 and R16 refused
+    it - the ledger had never been given the demo sellers' charges, so nothing was owed."""
+    ledger = app.state.application.adapters.ledger
+    debits = [e for e in ledger.get_entries("SHP-102025") if e.type == "DEBIT"]
+    assert [str(e.amount.amount) for e in debits] == ["190.00"]
+    twice = [e for e in ledger.get_entries("SHP-101025") if e.type == "DEBIT"]
+    assert [str(e.amount.amount) for e in twice] == ["152.00", "152.00"]  # the double charge
+
+
 def test_the_confirmation_email_names_where_its_amount_came_from(app: Any) -> None:
     """Every credit confirmation showed its amount as "NO SOURCE FOUND - do not approve":
     the card read only the assessment's facts, not the credited amount R09 cleared it with."""

@@ -158,9 +158,13 @@ def _seed_charges(ledger: Any, added: Path | None = None) -> None:
     """
     from dispute_agent.kernel.domain.values import Money
     from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
     from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FIXTURES, fixture
 
     built = [fixture(name) for name in FIXTURES]
+    # The demo sellers' shipments (ADR 0060). Left out, R16 found nothing owed on them and
+    # refused every credit a person or the agent chose (live, SHP-102025, 2026-11-25).
+    built += list(catalogue().by_ref.values())
     if added is not None:
         built += AddedShipments(added).all()
     for one in built:

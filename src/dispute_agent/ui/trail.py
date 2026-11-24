@@ -27,6 +27,7 @@ from dispute_agent.kernel.domain.enums import (
     CaseState,
     InboundEventType,
     InternalEventType,
+    ProposalAction,
 )
 from dispute_agent.ui import came_back, photo_check
 from dispute_agent.ui import trail_words as said
@@ -278,6 +279,20 @@ def build(
             after = "After a deadline passed"
         elif kind == InboundEventType.HUMAN_DECIDED_CASE and by_people:
             add(_decided_by_person(at, by_people.pop(0)))
+        elif kind == InternalEventType.HUMAN_DECISION_REFUSED:
+            # Say why: the step alone left the person guessing (owner, 2026-11-25). The reason
+            # is code's own text (never outside text, I5), the same the Review screen shows.
+            why = str(getattr(payload, "detail", "") or "").strip()
+            add(
+                Step(
+                    at,
+                    Actor.PERSON,
+                    PERSON_STEP[kind],
+                    tone=Tone.ATTENTION,
+                    mark=Mark.ATTENTION,
+                    summary=f"Why: {refusal_words(why)}" if why else "",
+                )
+            )
         elif kind in PERSON_STEP:
             add(Step(at, Actor.PERSON, PERSON_STEP[kind]))
             if kind == InboundEventType.HUMAN_RETURNED_CASE:
@@ -612,6 +627,42 @@ def _decided_by_person(at: datetime, decided: Proposal) -> Step:
         if decided.action_parameters.reason_code
         else (f"proposal {decided.id}",),
     )
+
+
+def refusal_words(why: str) -> str:
+    """Code's reason for refusing a person's decision, in a reader's words where it is known."""
+    if why.endswith("is not on this case's menu"):
+        action = why.removesuffix(" is not on this case's menu").strip()
+        try:
+            chosen = ACTION[ProposalAction(action)]
+        except ValueError:
+            chosen = words(action)
+        return (
+            f'"{chosen}" was not one of the choices code allowed on this case at that moment. '
+            "A credit is allowed only for an error code has proved, for the amount code worked out."
+        )
+    if why.startswith("module_unavailable:"):
+        return f"a part of the system needed for it is switched off ({why.split(':')[1]})."
+    for code, said_plainly in REFUSED.items():
+        if code in why:
+            return f"{said_plainly} ({why})"
+    return why
+
+
+#: A policy rule's reason for refusing, in a reader's words; the code stays beside it.
+REFUSED = {
+    "credit_reason_unproven": "code has not proved the error this credit is for on this case",
+    "credit_amount_mismatch": "the amount is not the one code worked out",
+    "credit_exceeds_outstanding": "it is more than is still owed on this charge",
+    "credit_already_posted": "a credit is already posted for this charge",
+    "duplicate_credit": "the same credit was already planned",
+    "kill_switch_active": "the kill switch is on, so nothing is sent or posted",
+    "contact_limit_case": "the seller has been contacted as many times as this case allows",
+    "contact_limit_daily": "the daily contact limit is reached",
+    "reply_unresolved": "the seller's reply has not been dealt with yet",
+    "recipient_not_allowlisted": "the seller's address is not on the test allowlist",
+    "action_not_allowed": "policy does not allow this action at this point",
+}
 
 
 PERSON_STEP: dict[InboundEventType | InternalEventType, str] = {
