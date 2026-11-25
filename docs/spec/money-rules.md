@@ -37,7 +37,9 @@ def credit_amount(a: ChargeAssessment, reason: str, already_credited: Money,
     match reason:
         case "calculation_error" | "remeasurement_lower":
             correct = lowest_proven_correct_charge(a)      # min of the proven corrected charges
-            return a.charged - correct - already_credited  # what is still owed after earlier credits
+            # what is still owed after earlier overcharge credits; a duplicate refund pays back
+            # a different debit, so it is not netted here (ADR 0065)
+            return a.charged - correct - (already_credited - already_credited_duplicate)
         case "duplicate_charge":
             return a.duplicate_debit_total - already_credited_duplicate
 ```

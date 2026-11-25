@@ -4,7 +4,8 @@ The amount a seller is credited is never taken from a model, a reply or a propos
 pure function of the stored assessment and of what has already been credited on the same
 charge line, so a second dispute on the same overcharge can never pay twice:
 
-    calculation_error / remeasurement_lower:  charged - lowest proven correct - already credited
+    calculation_error / remeasurement_lower:  charged - lowest proven correct
+                                              - (already credited - credited for duplicates)
     duplicate_charge:                         duplicate debits - already credited for duplicates
 
 Only corrected charges whose reason is in `definite_errors` count as proven. A result of zero
@@ -36,7 +37,10 @@ def credit_amount(
         correct = lowest_proven_correct_charge(assessment)
         if assessment.charged is None or correct is None:
             return None
-        owed = assessment.charged.to_paise() - correct.to_paise() - already_credited.to_paise()
+        # A duplicate-debit refund pays back a different overcharge, so it is not netted here
+        # (ADR 0065): netting it underpaid the seller whenever it was credited first.
+        earlier = already_credited.to_paise() - already_credited_duplicate.to_paise()
+        owed = assessment.charged.to_paise() - correct.to_paise() - earlier
     elif reason == "duplicate_charge":
         if assessment.duplicate_debit_total is None:
             return None

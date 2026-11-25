@@ -113,6 +113,12 @@ class TestTheAmountIsDerived:
         earlier = Money.of("1000.00")
         assert credit_amount(assessment(), "calculation_error", earlier, ZERO) == Money.of("820.00")
 
+    def test_a_duplicate_refund_does_not_reduce_the_overcharge_credit(self) -> None:
+        # ADR 0065: charged 2800 twice, correct 980. Whichever credit is paid first, the seller
+        # gets 2800 (the second debit) + 1820 (the overcharge) = 4620.
+        both = Money.of("2800.00")  # the duplicate refund, already in both totals
+        assert credit_amount(assessment(), "calculation_error", both, both) == Money.of("1820.00")
+
     def test_nothing_owed_is_no_credit(self) -> None:
         assert credit_amount(assessment(), "calculation_error", Money.of("1820.00"), ZERO) is None
 

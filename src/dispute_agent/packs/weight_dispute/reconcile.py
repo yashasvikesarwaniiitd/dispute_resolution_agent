@@ -168,7 +168,10 @@ def credit_amount(
     correct = reconciliation.lowest_proven_correct_charge()
     if correct is None:
         raise _unproven(reason)
-    return difference(difference(reconciliation.charged, correct), credited)
+    # A duplicate refund is a different overcharge, so it is not netted here (ADR 0065).
+    return difference(
+        difference(reconciliation.charged, correct), difference(credited, credited_duplicate)
+    )
 
 
 def _duplicate_debit_total(ledger: Sequence[LedgerLine], claim_ref: str) -> Money:

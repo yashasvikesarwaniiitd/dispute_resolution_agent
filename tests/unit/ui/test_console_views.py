@@ -355,6 +355,18 @@ class TestTheDesignHandoff:
         assert '<span class="num-mark">\u20b9190.00</span><sup>2</sup>' in shown
         assert "\n" not in shown  # a blank line would end the HTML block in Markdown
 
+    def test_a_small_figure_never_lands_inside_an_earlier_mark(self) -> None:
+        """Six figures, then the slab count "6": it once matched the sixth mark's placeholder
+        and the preview lost a measurement."""
+        from dispute_agent.ui.review_view import marked_body
+
+        figures = ["30 cm", "22 cm", "15 cm", "1,100 g", "₹228.00", "₹114.00", "6"]
+        body = "Size 30 cm x 22 cm x 15 cm, 1,100 g. Charged ₹228.00, correct ₹114.00, 6 slabs."
+        shown = marked_body(body, tuple((f, "code") for f in figures))
+        for i, figure in enumerate(figures, 1):
+            assert f'<span class="num-mark">{figure}</span><sup>{i}</sup>' in shown
+        assert "\x00" not in shown
+
     def test_an_email_without_figures_says_so_in_a_plain_sentence(self) -> None:
         """Not a one-item list: its narrow number column squeezed the sentence to a letter a line."""
         from types import SimpleNamespace

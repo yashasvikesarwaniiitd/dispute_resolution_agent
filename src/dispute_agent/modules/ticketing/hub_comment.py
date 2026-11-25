@@ -19,6 +19,7 @@ A figure outside what a parcel can be is refused rather than trusted.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -71,6 +72,7 @@ NEGATION = re.compile(
 #: What a parcel can plausibly be. A figure outside this is a typo or worse, never a fact.
 MAX_SIDE_CM = Decimal(300)
 MAX_GRAMS = 100_000
+MM = Decimal("0.1")
 
 
 @dataclass(frozen=True)
@@ -101,9 +103,15 @@ def parse(comment: str) -> HubAnswer | None:
         weight = Decimal(found.group(4))
     except InvalidOperation:
         return None
-    grams = int(weight * 1000) if found.group(5).lower() == "kg" else int(weight)
+    # Rounded up, never down: 500.5 g truncated to 500 g lands one slab too low.
+    grams = math.ceil(weight * 1000 if found.group(5).lower() == "kg" else weight)
     if any(s <= 0 or s > MAX_SIDE_CM for s in sides) or not 0 < grams <= MAX_GRAMS:
         return None
+    # The rate card measures to the millimetre. 25.55 cm would be refused later and the
+    # error swallowed, upholding the charge, so it is not an answer here: a person reads it.
+    if any(s != s.quantize(MM) for s in sides):
+        return None
+    sides = [s.quantize(MM) if -s.as_tuple().exponent > 1 else s for s in sides]  # type: ignore[operator]  # 25.50 -> 25.5
     return HubAnswer(
         kind="remeasured",
         measured={

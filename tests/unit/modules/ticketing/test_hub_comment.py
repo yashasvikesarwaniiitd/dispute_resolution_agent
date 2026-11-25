@@ -21,6 +21,16 @@ def test_a_remeasurement_gives_decimal_sides_and_whole_grams() -> None:
     assert not any(isinstance(v, float) for v in answer.measured.values())  # I9
 
 
+def test_sides_are_read_to_the_millimetre_and_grams_round_up() -> None:
+    answer = parse("Remeasured: 25.50 x 22 x 15 cm, 500.5 g")
+    assert answer is not None
+    assert str(answer.measured["length_cm"]) == "25.5"  # the rate card refuses two places
+    assert answer.measured["dead_grams"] == 501  # truncating would drop a slab at 500 g
+    # A real hundredth of a centimetre is not something the rate card can use: a person reads it
+    # rather than the size being refused later and the charge upheld.
+    assert parse("Remeasured: 25.55 x 22 x 15 cm, 1.10 kg") is None
+
+
 @pytest.mark.parametrize(
     "text",
     [

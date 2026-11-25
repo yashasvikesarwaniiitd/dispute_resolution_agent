@@ -155,7 +155,9 @@ def marked_body(body: str, numbers: Sequence[tuple[str, str]]) -> str:
     marks: dict[str, str] = {}
     for i, (value, _source) in enumerate(numbers, 1):
         shown = escape(value)
-        token = f"\x00{i}\x00"
+        # No digits in the token: a later figure such as "6" matched inside "\x006\x00" and
+        # broke an earlier mark. Private-use characters never appear in a body.
+        token = f"\x00{chr(0xE000 + i)}\x00"
         if shown in text:
             text = text.replace(shown, token, 1)
             marks[token] = f'<span class="num-mark">{shown}</span><sup>{i}</sup>'
