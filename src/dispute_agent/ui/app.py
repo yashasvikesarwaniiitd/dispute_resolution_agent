@@ -6,8 +6,8 @@ the loop) and the ledger (finance); and, alone on the far right, Evals (ADR 0066
 On the owner's machine it runs beside the dispute service (`make run-api`), reads the same
 stores and posts tickets to that service over loopback. Hosted, `streamlit_app.py` at the
 repository root runs the dispute service in the same process and hands `main` the function
-that posts to it; there, a password stands in front of every screen and the console does not
-open without one.
+that posts to it. The site password in front of every screen (`_through_the_gate`) is off
+for now: hosted, every visitor is let in and reviews as a listed approver.
 """
 
 from __future__ import annotations
@@ -39,8 +39,11 @@ def main(
     st.set_page_config(page_title="Dispute desk", page_icon=":material/balance:", layout="wide")
     st.html(stylesheet())
     st.logo(str(WORDMARK), size="large")
-    if hosted and not _through_the_gate():
-        return
+    if hosted:
+        # shortcut: the site password is off by the owner's choice (2026-11-25), so anyone with
+        # the link can raise tickets, send the test email and approve as "owner". To close it
+        # again, put back `if hosted and not _through_the_gate(): return`.
+        st.session_state["gate_passed"] = True
     if start is not None:
         try:
             start()  # the in-process dispute service, started once per process

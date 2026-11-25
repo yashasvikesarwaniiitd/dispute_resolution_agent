@@ -58,31 +58,13 @@ def _hosted() -> None:
 
 
 class TestTheHostedConsole:
-    def test_without_a_password_set_it_stays_closed(self, clean_env: Path) -> None:
+    def test_the_screens_open_without_a_password(self, clean_env: Path) -> None:
+        """The site password is off by the owner's choice (ui/app.py `main`)."""
         at = AppTest.from_function(_hosted, default_timeout=60).run()
-        assert at.error and "no password" in at.error[0].value
-        assert not at.text_input  # no form, no screens
-
-    def test_a_wrong_password_shows_no_screen(
-        self, clean_env: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("CONSOLE_PASSWORD", secrets.token_hex(8))
-        at = AppTest.from_function(_hosted, default_timeout=60).run()
-        at.text_input[0].input("not-it")
-        at.button[0].click().run()
-        assert at.error and "not correct" in at.error[0].value
-        assert not any(t.value == "Raise a ticket" for t in at.title)
-
-    def test_the_right_password_opens_the_screens(
-        self, clean_env: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        password = secrets.token_hex(8)
-        monkeypatch.setenv("CONSOLE_PASSWORD", password)
-        at = AppTest.from_function(_hosted, default_timeout=60).run()
-        at.text_input[0].input(password)
-        at.button[0].click().run()
         assert not at.exception
+        assert not any(t.label == "Site password" for t in at.text_input)
         assert any(t.value == "Raise a ticket" for t in at.title)
+        assert at.session_state["gate_passed"]  # Review offers the listed approvers
 
 
 class TestSecrets:
