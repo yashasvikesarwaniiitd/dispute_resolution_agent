@@ -34,10 +34,12 @@ from email.utils import getaddresses, parseaddr
 from typing import TYPE_CHECKING, Any
 
 import httpx
+import structlog
 
 from dispute_agent.kernel.domain.errors import (
     AmbiguousOutcome,
     AuthPortError,
+    DomainValidationError,
     ExternalNotFound,
     PermanentPortError,
     TransientPortError,
@@ -57,6 +59,8 @@ if TYPE_CHECKING:
 
     from dispute_agent.kernel.domain.external import OutboundMessage
     from dispute_agent.modules.email.gmail_api.auth import GmailAuth
+
+log = structlog.get_logger(__name__)
 
 MODULE = "email"
 ADAPTER = "gmail_api"
@@ -189,7 +193,15 @@ class GmailChannel:
                 # message the agent sends the seller also lands in this inbox; read as a
                 # reply it would answer itself (ADR 0053).
                 continue
-            found.append(self._inbound(raw, received))
+            try:
+                found.append(self._inbound(raw, received))
+            except DomainValidationError as unreadable:
+                # One message that cannot be read must never hide the rest: a bounce we could
+                # not tie to a sent email once failed every read, and a seller's reply sat
+                # unread behind it for two days (live, 2026-11-25).
+                log.warning(
+                    "inbox_message_skipped", message_id=str(item["id"]), why=str(unreadable)
+                )
         return tuple(sorted(found, key=lambda m: m.received_at))
 
     def _inbound(self, raw: dict[str, Any], received: datetime) -> InboundMessage:
@@ -201,7 +213,8 @@ class GmailChannel:
         failed: str | None = None
         if bounce:
             # Route a bounce by our own key in the returned headers, never by what it claims.
-            key = key_from_message_id(body)
+            # Gmail returns those headers in a later part (text/rfc822-headers), not the first.
+            key = key_from_message_id(_every_text(raw.get("payload") or {}))
             receipt = self.find_sent(key) if key else None
             failed = receipt.external_message_id if receipt else None
         return InboundMessage(
@@ -318,6 +331,18 @@ def _key_of(raw: dict[str, Any]) -> IdempotencyKey | None:
     if header:
         return IdempotencyKey(header.strip())
     return key_from_message_id(headers.get("message-id", ""))
+
+
+def _every_text(part: dict[str, Any]) -> str:
+    """Every decoded text or message part, joined: where a bounce keeps the failed headers."""
+    texts = []
+    mime = str(part.get("mimeType", ""))
+    data = (part.get("body") or {}).get("data")
+    if data and mime.startswith(("text/", "message/")):
+        padded = str(data) + "=" * (-len(str(data)) % 4)
+        texts.append(base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace"))
+    texts.extend(_every_text(child) for child in part.get("parts") or [])
+    return "\n".join(texts)
 
 
 def _plain_text(part: dict[str, Any]) -> str:

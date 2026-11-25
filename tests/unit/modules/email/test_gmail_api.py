@@ -336,6 +336,48 @@ class TestReplies:
         assert bounce.is_delivery_failure is True
         assert bounce.failed_message_id == sent.external_message_id
 
+    @staticmethod
+    def _as_gmail_bounce(stored: dict[str, Any], returned_headers: str) -> None:
+        """Gmail's real bounce shape (live, 2026-11-24): the first text part says "Address not
+        found"; the failed email's headers come last, in a text/rfc822-headers part."""
+
+        def part(mime: str, text: str) -> dict[str, Any]:
+            return {
+                "mimeType": mime,
+                "body": {"data": base64.urlsafe_b64encode(text.encode()).decode()},
+            }
+
+        stored["payload"] = {
+            "mimeType": "multipart/report",
+            "headers": stored["payload"]["headers"],
+            "parts": [
+                {
+                    "mimeType": "multipart/related",
+                    "parts": [part("text/plain", "** Address not found **\n\nNot delivered.")],
+                },
+                part("message/delivery-status", "Status: 5.1.2\n"),
+                part("text/rfc822-headers", returned_headers),
+            ],
+        }
+
+    def test_a_gmail_bounce_is_routed_by_the_headers_it_returns_last(self) -> None:
+        gmail = Gmail()
+        sent = gmail.channel().send(outbound(), KEY)
+        gmail.deliver("mailer-daemon@googlemail.com", "Delivery Status", "", NOW, "<b2@x>")
+        [stored] = [m for i, m in gmail.messages.items() if i.startswith("in")]
+        self._as_gmail_bounce(stored, f"Subject: x\nMessage-ID: {message_id_for(KEY)}\n")
+        [bounce] = gmail.channel().fetch_replies(NOW)
+        assert bounce.failed_message_id == sent.external_message_id
+
+    def test_a_bounce_for_no_email_of_ours_never_hides_a_reply(self) -> None:
+        """Five such bounces once failed every inbox read, and a seller's reply sat unread."""
+        gmail = Gmail()
+        gmail.deliver("mailer-daemon@googlemail.com", "Delivery Status", "", NOW, "<b3@x>")
+        self._as_gmail_bounce(gmail.messages["in1"], "Subject: x\nMessage-ID: <other@x>\n")
+        gmail.deliver(SELLER, "Re: SHP-000001", "Photo attached.", NOW, "<r9@x>")
+        replies = gmail.channel().fetch_replies(NOW)
+        assert [r.internet_message_id for r in replies] == ["<r9@x>"]
+
 
 @dataclass
 class MemoryStore:
