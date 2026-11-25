@@ -568,3 +568,54 @@ def test_an_answer_renders_its_list_and_bold_but_nothing_else() -> None:
         "<ul><li><strong>Amount:</strong> 182000 paise. [case_overview]</li>"
         "<li><strong>Rule:</strong> R13 &lt;b&gt;bold&lt;/b&gt;.</li></ul><p>The end.</p>"
     )
+
+
+def _refresh_of(data: Path, monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Every `run_every` the steps page gives the case card."""
+    import streamlit
+
+    seen: list[object] = []
+    real: Any = streamlit.fragment
+
+    def spy(func: Any = None, *, run_every: object = None, **kw: Any) -> Any:
+        seen.append(run_every)
+        return real(func, run_every=run_every, **kw)
+
+    monkeypatch.setattr(streamlit, "fragment", spy)
+    monkeypatch.chdir(data.parent)
+    at = AppTest.from_function(_trail, default_timeout=60).run()
+    assert not at.exception
+    return seen
+
+
+def test_a_closed_case_a_reply_can_reopen_keeps_refreshing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live (SHP-102026): the seller's photo came a minute after an upheld close and reopened
+    the case, but the card had stopped refreshing when it closed, so nothing seemed to happen.
+    A finally closed case (not eligible) still stops."""
+    from dispute_agent.ui.screens.trail import REFRESH_S
+    from tests.e2e.test_human_verdict import _decide, _finish, _with_a_person
+
+    world, approver = _with_a_person("kurta_box_larger")
+    _decide(world, "uphold_charge")
+    assert _finish(world, approver) is CaseState.RESOLVED_UPHELD
+    world.close()
+    upheld = tmp_path / "upheld" / "data"
+    upheld.mkdir(parents=True)
+    _copy(world.folder / "cases.sqlite3", upheld / "cases.sqlite3")
+    assert _refresh_of(upheld, monkeypatch) == [REFRESH_S]
+
+    final = open_world(
+        "not_delivered_late_scan",
+        policy=PolicyConfig(),
+        clock=FakeClock(NOW),
+        ids=FakeIdGenerator(),
+        decide=lambda _a: None,
+    )
+    final.drive(20)
+    final.close()
+    shut = tmp_path / "final" / "data"
+    shut.mkdir(parents=True)
+    _copy(final.folder / "cases.sqlite3", shut / "cases.sqlite3")
+    assert _refresh_of(shut, monkeypatch) == [None]

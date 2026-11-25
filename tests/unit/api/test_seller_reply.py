@@ -204,6 +204,29 @@ def test_reading_the_mailbox_twice_delivers_a_reply_once(app: Any) -> None:
     assert _state(app, case_id) is not CaseState.AWAITING_SELLER
 
 
+def test_a_reply_after_an_upheld_close_reopens_the_case(app: Any) -> None:
+    """Live (SHP-102026): the seller answered the explanation email with a photo a minute
+    after the case closed upheld. Inside the reopen window that reply starts a fresh round
+    (T40); it must never sit unread on a closed case."""
+    from tests.unit.api.test_reopen_dispute import _upheld
+
+    case_id = _upheld(app, _client(app))
+    app.state.application.adapters.email.deliver(
+        _message("late-1", SELLER_CONTACT, "Re: Your dispute about SHP-000001", REPLY)
+    )
+    _job(app)._last_run = None
+    app.state.application.runtime.runner.tick()
+
+    with _work(app) as work:
+        case = work.cases.get(CaseId(case_id))
+        moved = [
+            getattr(e.payload, "transition_id", None) for e in work.events.list_for_case(case.id)
+        ]
+    assert "T40" in moved
+    assert case.reopen_count == 1
+    assert case.state is not CaseState.RESOLVED_UPHELD
+
+
 def test_a_bounce_without_a_message_of_ours_is_skipped() -> None:
     bounce = _message("b-1", "mailer-daemon@googlemail.com", "Undeliverable", "bounced")
     bounce = bounce.model_copy(update={"is_delivery_failure": True})

@@ -4,7 +4,8 @@ A case list on the left (searchable, the selected case in the URL). On the right
 the case's name and facts, where it stands (headline, Why, Next, the way onward), how far
 along it is (the stepper, in words), and code's figures when the case could be disputed -
 then "What happened": a timeline by round, each step saying what happened, who did it and
-when, with ids and codes folded into Details. Open cases refresh themselves every 4 s.
+when, with ids and codes folded into Details. Open cases refresh themselves every 4 s, and so
+do closed ones a seller's reply can still reopen.
 
 All markup is built from escaped values (`theme.escape`); recorded text is shown "exactly as
 recorded" in a quote block, never rendered (I5).
@@ -31,6 +32,10 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
 
 REFRESH_S = 4
+#: Closed cases a seller's reply can reopen by itself (T39/T40; the kernel's SOFT_TERMINAL),
+#: so their card keeps refreshing too. Live: a photo came a minute after an upheld close, the
+#: case reopened, and the page never showed it because closed cards stopped refreshing.
+REOPENS_ITSELF = (CaseState.RESOLVED_UPHELD, CaseState.CLOSED_NO_RESPONSE)
 #: The mark of a phase that did not happen: an en dash, not a number (HANDOFF 3.3).
 DASH = "\u2013"
 PHASE_WORD = {
@@ -84,7 +89,8 @@ def page() -> None:
         st.info(data.NO_STORE)
         return
     with data.reader() as work:
-        everyone = tickets(work.cases.list_in_states(list(CaseState)))
+        cases = work.cases.list_in_states(list(CaseState))
+    everyone = tickets(cases)
     if not everyone:
         st.markdown(
             '<p class="muted">No cases yet. Raise a ticket on the seller screen and its steps '
@@ -141,8 +147,9 @@ def page() -> None:
     st.query_params["case"] = selected
     st.session_state["case"] = selected
     is_open = next(t.is_open for t in everyone if t.case_id == selected)
+    live = is_open or any(str(c.id) == selected and c.state in REOPENS_ITSELF for c in cases)
     with main:
-        st.fragment(_case, run_every=REFRESH_S if is_open else None)(selected, is_open)
+        st.fragment(_case, run_every=REFRESH_S if live else None)(selected, is_open)
 
 
 def _case(case_id: str, was_open: bool = False) -> None:
@@ -150,10 +157,10 @@ def _case(case_id: str, was_open: bool = False) -> None:
         case = work.cases.get(case_id)  # type: ignore[arg-type]
         trail = build(work, case, usage=data.ai_usage(case.id), policy=data.policy())
         where = journey(work, case)
-    if was_open and not trail.is_open:
-        # It closed while this card refreshed on its own. Redraw the whole page once, so the
-        # case list beside it stops showing the old status ("Checking it happened" next to
-        # "Resolved: credited", found in live QA) and the refresh stops.
+    if was_open != trail.is_open:
+        # It closed (or reopened) while this card refreshed on its own. Redraw the whole page
+        # once, so the case list beside it stops showing the old status ("Checking it
+        # happened" next to "Resolved: credited", found in live QA) and the refresh follows.
         st.rerun(scope="app")
     with st.container(key="card-case"):
         photo = photo_for(case.facts.shipment_ref)
