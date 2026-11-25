@@ -87,6 +87,29 @@ class TestPerCaseCap:
             gateway.complete(for_case())  # type: ignore[arg-type]
         assert inner.provider_calls() == 4  # two calls, each with its one retry
 
+    def test_a_reopened_case_gets_the_allowance_again(self, tmp_path: Path) -> None:
+        """ADR 0067. Live: a seller's photo reopened a case whose rounds had used every call,
+        and the new round stopped before it could propose. Only the running case's own
+        reopens count; another case's step lends it nothing."""
+        from dispute_agent.kernel.domain.model_calls import STEP_CASE
+
+        gateway, inner, _ = guarded(tmp_path, [valid_answer()] * 9, max_calls=2)
+        for _ in range(2):
+            gateway.complete(for_case())  # type: ignore[arg-type]
+        other = STEP_CASE.set((CaseId("case_other"), 5))
+        with pytest.raises(BudgetExceeded):
+            gateway.complete(for_case())  # type: ignore[arg-type]
+        STEP_CASE.reset(other)
+        reopened = STEP_CASE.set((CASE, 1))
+        try:
+            for _ in range(2):
+                gateway.complete(for_case())  # type: ignore[arg-type]
+            with pytest.raises(BudgetExceeded):
+                gateway.complete(for_case())  # type: ignore[arg-type]
+        finally:
+            STEP_CASE.reset(reopened)
+        assert inner.provider_calls() == 4
+
 
 class TestSpendCap:
     def test_spend_at_the_cap_refuses_the_next_call(self, tmp_path: Path) -> None:

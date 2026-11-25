@@ -119,7 +119,7 @@ REASON: dict[ReviewCode, str] = {
     ReviewCode.KILL_SWITCH_ACTIVE: "Outbound actions are paused",
     ReviewCode.ELIGIBILITY_UNKNOWN: "The shipment's status could not be read",
     ReviewCode.SELLER_WITHDRAWAL_CLAIMED: "The seller wrote that they withdraw",
-    ReviewCode.LLM_BUDGET_EXCEEDED: "The AI spend cap was reached",
+    ReviewCode.LLM_BUDGET_EXCEEDED: "This round used all its AI calls",
     ReviewCode.CREDIT_CAP_REACHED: "The credit cap was reached",
     ReviewCode.APPROVAL_REJECTED_LIMIT: "A reviewer rejected it twice",
     ReviewCode.CREDIT_REJECTED: "A reviewer rejected the credit",

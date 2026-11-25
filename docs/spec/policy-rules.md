@@ -239,7 +239,7 @@ Checked before every model call by `BudgetedModelGateway`, a kernel decorator ar
 
 | Id | Rule | Fires when | Result | Config |
 |----|------|------------|--------|--------|
-| M01 | calls per case | `calls_for_case >= llm.max_calls_per_case` | `llm_budget_exceeded` | `llm.max_calls_per_case` (6) |
+| M01 | calls per case | `calls_for_case >= llm.max_calls_per_case × (1 + reopen_count)` (ADR 0067) | `llm_budget_exceeded` | `llm.max_calls_per_case` (6) |
 | M02 | output tokens | `req.max_output_tokens > llm.max_output_tokens` | `DomainValidationError` at build time (a bug, not a budget) | `llm.max_output_tokens` (1200) |
 | M03 | primary spend cap | primary route and `spent_usd(primary) + estimate > llm_primary.spend_cap_usd` | `credit_cap_reached` (no failover, D17) | `llm_primary.spend_cap_usd` (150) |
 | M04 | credit window | primary route, `today > llm_primary.credit_expires_on` and not `allow_paid_usage` | raises `TransientPortError(reason=credit_window_ended)` so F01 can route to the secondary; with no secondary available the case escalates `credit_window_ended` | `llm_primary.credit_expires_on`, `allow_paid_usage` (false) |

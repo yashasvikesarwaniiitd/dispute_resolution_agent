@@ -37,6 +37,7 @@ from dispute_agent.kernel.domain.enums import (
     Trigger,
 )
 from dispute_agent.kernel.domain.errors import ModuleUnavailable
+from dispute_agent.kernel.domain.model_calls import STEP_CASE
 from dispute_agent.kernel.domain.models import Cause, ReviewReason
 
 if TYPE_CHECKING:
@@ -189,12 +190,16 @@ class Orchestrator:
 
     def _run_traced(self, step: Step, case: Case, now: datetime) -> StepOutcome:
         """One span per step, carrying ids and states only (observability.md section 3)."""
-        if self._tracer is None:
-            return step.run(case, now)
-        with self._tracer.span(
-            f"step.{step.name}", case_id=str(case.id), state_from=case.state.value
-        ):
-            return step.run(case, now)
+        running = STEP_CASE.set((case.id, case.reopen_count))  # the call allowance (ADR 0067)
+        try:
+            if self._tracer is None:
+                return step.run(case, now)
+            with self._tracer.span(
+                f"step.{step.name}", case_id=str(case.id), state_from=case.state.value
+            ):
+                return step.run(case, now)
+        finally:
+            STEP_CASE.reset(running)
 
     def step_for(self, state: CaseState) -> Step | None:
         """Which step runs in this state, from the table's `steps` block."""

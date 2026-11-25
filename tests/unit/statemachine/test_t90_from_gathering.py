@@ -165,3 +165,25 @@ class TestWhyNoEvidenceScenarioReachesIt:
         "Phase 2 (card P2-04); ADR 0026 records why it is not written yet"
     )
     def test_scenario_kill_switch_while_gathering(self) -> None: ...
+
+
+def test_a_step_runs_with_its_case_s_reopens_on_record() -> None:
+    """ADR 0067: the model guard reads which case is running and how often it was reopened,
+    to give each reopen a fresh call allowance. Set for the step, cleared after it."""
+    from dispute_agent.kernel.domain.model_calls import STEP_CASE
+
+    seen: list[object] = []
+
+    class Looks:
+        name = "gather_evidence"
+
+        def run(self, case: Case, now: datetime) -> StepOutcome:
+            seen.append(STEP_CASE.get())
+            raise ModuleUnavailable("evidence")
+
+    reopened = gathering().model_copy(update={"reopen_count": 2})
+    Orchestrator(MACHINE, {"gather_evidence": Looks()}, FakeClock(NOW), FakeIdGenerator()).advance(
+        reopened, INPUT
+    )
+    assert seen == [(reopened.id, 2)]
+    assert STEP_CASE.get() is None

@@ -564,7 +564,7 @@ Controls need eight states: default, hover, focus-visible, active, disabled, loa
 | kill switch active | "Outbound actions are paused" |
 | eligibility unknown | "The shipment's status could not be read" |
 | seller withdrawal claimed | "The seller wrote that they withdraw" |
-| LLM budget exceeded | "The AI spend cap was reached" |
+| LLM budget exceeded | "This round used all its AI calls" |
 
 ---
 

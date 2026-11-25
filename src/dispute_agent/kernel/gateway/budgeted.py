@@ -5,7 +5,8 @@
 
 **Before a call** (policy-rules.md section 6):
 
-- M01 calls per case - reached: stop (`llm_budget_exceeded`). Never fails over.
+- M01 calls per case, renewed each time the case is reopened (ADR 0067) - reached: stop
+  (`llm_budget_exceeded`). Never fails over.
 - M03 primary spend cap - reached: stop (`credit_cap_reached`). Never fails over: a cap is a
   limit the owner set on purpose, and spending on another provider would defeat it (D17).
 - M04 credit window ended and paid usage off: the primary is *unavailable* - the owner
@@ -42,7 +43,7 @@ from dispute_agent.kernel.domain.errors import (
     ModuleUnavailable,
     TransientPortError,
 )
-from dispute_agent.kernel.domain.model_calls import CallStatus, ModelCallRecord
+from dispute_agent.kernel.domain.model_calls import STEP_CASE, CallStatus, ModelCallRecord
 from dispute_agent.kernel.domain.reasoning import ModelUsage
 
 if TYPE_CHECKING:
@@ -73,9 +74,7 @@ class BudgetedModelGateway:
 
     def complete(self, req: ModelRequest) -> ModelResponse:
         # M01, before anything else: it binds every route.
-        if req.case_id is not None and (
-            self.ledger.calls_for_case(req.case_id) >= self.limits.max_calls_per_case
-        ):
+        if self._case_out_of_calls(req):
             self._record(req, self.route, "budget", _NO_USAGE, error_code="max_calls_per_case")
             raise BudgetExceeded("llm_budget_exceeded")
 
@@ -98,15 +97,22 @@ class BudgetedModelGateway:
                 raise
             return self._fail_over(req, unavailable.code)
 
+    def _case_out_of_calls(self, req: ModelRequest) -> bool:
+        """M01: `max_calls_per_case` for the case's first round and again for each reopen."""
+        if req.case_id is None:
+            return False
+        running = STEP_CASE.get()
+        reopens = running[1] if running is not None and running[0] == req.case_id else 0
+        allowed = self.limits.max_calls_per_case * (1 + reopens)
+        return self.ledger.calls_for_case(req.case_id) >= allowed
+
     # -- routes ----------------------------------------------------------------------------------
 
     def _fail_over(self, req: ModelRequest, reason: str) -> ModelResponse:
         assert self.secondary is not None
         # M01 again: the failed primary attempt reached a provider and was counted, so the
         # case may now be at its limit. Failover is a second call, never a free one (review, 7).
-        if req.case_id is not None and (
-            self.ledger.calls_for_case(req.case_id) >= self.limits.max_calls_per_case
-        ):
+        if self._case_out_of_calls(req):
             self._record(
                 req, self.secondary_route, "budget", _NO_USAGE, error_code="max_calls_per_case"
             )

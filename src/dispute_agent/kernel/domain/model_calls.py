@@ -7,6 +7,7 @@ the type rather than a rule a writer has to remember.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
@@ -19,6 +20,13 @@ from dispute_agent.kernel.domain.values import require_aware
 _FROZEN = ConfigDict(frozen=True, extra="forbid", strict=True)
 
 CallStatus = Literal["ok", "invalid_output", "error", "blocked", "budget"]
+
+#: The case whose step is running and how often it has been reopened, set by the orchestrator
+#: around each step (ADR 0067). Each reopen gives the case a fresh `max_calls_per_case`: a
+#: seller's late photo once reopened a case whose earlier rounds had used every call, and the
+#: new round stopped before it could propose anything. A ContextVar because every model call
+#: of a case is made inside one of its steps, many requests deep, and is per thread.
+STEP_CASE: ContextVar[tuple[CaseId, int] | None] = ContextVar("step_case", default=None)
 
 
 class ModelCallRecord(BaseModel):
@@ -48,4 +56,4 @@ class ModelCallRecord(BaseModel):
         return require_aware(value, "created_at")
 
 
-__all__ = ["CallStatus", "ModelCallRecord"]
+__all__ = ["STEP_CASE", "CallStatus", "ModelCallRecord"]
