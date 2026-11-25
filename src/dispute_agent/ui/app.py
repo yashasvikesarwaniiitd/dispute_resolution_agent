@@ -1,7 +1,7 @@
 """The operations console (ADR 0044): `make run-console`, or hosted (ADR 0045).
 
 Four screens in a top bar: raise a ticket (seller), the agent's steps, review (the human in
-the loop) and the ledger (finance).
+the loop) and the ledger (finance); and, alone on the far right, Evals (ADR 0066).
 
 On the owner's machine it runs beside the dispute service (`make run-api`), reads the same
 stores and posts tickets to that service over loopback. Hosted, `streamlit_app.py` at the
@@ -20,7 +20,7 @@ import streamlit as st
 from dispute_agent.infra.settings import Settings
 from dispute_agent.kernel.domain.errors import ConfigError
 from dispute_agent.ui.gate import opens
-from dispute_agent.ui.screens import finance, reviewer, seller, trail
+from dispute_agent.ui.screens import evals, finance, reviewer, seller, trail
 from dispute_agent.ui.theme import stylesheet
 
 WORDMARK = Path(__file__).parent / "assets" / "wordmark.svg"
@@ -70,6 +70,8 @@ def main(
         "ledger": st.Page(
             finance.page, title="Ledger", icon=":material/account_balance:", url_path="ledger"
         ),
+        # Last, so the stylesheet can set it apart on the far right of the bar.
+        "evals": st.Page(evals.page, title="Evals", icon=":material/insights:", url_path="evals"),
     }
     st.session_state["pages"] = pages
     st.navigation(list(pages.values()), position="top").run()

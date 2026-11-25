@@ -23,6 +23,14 @@ import yaml
 from fastapi import FastAPI
 
 from dispute_agent.api import build_router
+from dispute_agent.api.online_judge import CAP_USD as ONLINE_CAP_USD
+from dispute_agent.api.online_judge import FILE as ONLINE_FILE
+from dispute_agent.api.online_judge import (
+    JUDGE_LOG,
+    JudgedReasoner,
+    OnlineEvals,
+    OnlineJudgeJob,
+)
 from dispute_agent.api.runtime import Runtime
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.ids import UlidIdGenerator
@@ -785,7 +793,11 @@ def _build_runtime(
         ids=ids,
         ports=ports,
         sources=lambda: {"evidence": adapters.evidence},
-        reasoner=_runtime_reasoner(config_dir, settings, clock, ids, adapters, registry)
+        reasoner=_online_judged(
+            _runtime_reasoner(config_dir, settings, clock, ids, adapters, registry),
+            registry,
+            database.parent / ONLINE_FILE,
+        )
         if modules.get("reasoning")
         else None,
         ledger=adapters.ledger if modules.get("ledger") else None,
@@ -818,6 +830,18 @@ def _build_runtime(
             )
         )
     runner = Runner(engine, line, observer=adapters.outcomes, jobs=jobs)
+    if isinstance(line.reasoner, JudgedReasoner):
+        runner.jobs.append(
+            OnlineJudgeJob(
+                line.reasoner.store,
+                lambda: build_decision_judge(
+                    settings,
+                    route=registry.adapter_name("model_gateway"),
+                    cap_usd=ONLINE_CAP_USD,
+                    log_path=database.parent / JUDGE_LOG,
+                ),
+            )
+        )
     if modules.get("ticketing") and registry.adapter_name("ticketing") != "disabled":
         # Card P3-07: the hub answers on the agent's own Jira issue; the job reads it into
         # the case, and the evidence source hands it to that case's next round.
@@ -903,6 +927,16 @@ PRICING = PROJECT_ROOT / "config" / "pricing.yaml"
 MODEL_CALL_LOG = PROJECT_ROOT / "data" / "model_calls.sqlite3"
 #: Names the signed-in account and tenant; no token (tokens are in the encrypted cache).
 FOUNDRY_AUTH_RECORD = PROJECT_ROOT / "data" / "foundry_auth_record.json"
+
+
+def _online_judged(reasoner: Reasoner, registry: Registry, store: Path) -> Reasoner:
+    """The AI investigator, recording its decisions for online evaluation (ADR 0066) while the
+    Evals screen's switch is on. The rules reasoner has nothing to judge, so it is left alone."""
+    if registry.adapter_name("reasoning") != "llm":
+        return reasoner
+    from dispute_agent.modules.reasoning.llm.judge import evidence_lines
+
+    return JudgedReasoner(reasoner, OnlineEvals(store), evidence_lines)
 
 
 def _runtime_reasoner(
@@ -1262,9 +1296,9 @@ def build_decision_judge(
 ) -> Any:
     """The decision judge (ADR 0064) on `route`, behind the spending guard, with its own log.
 
-    The judge's prompt is a draft until calibrated against the owner's labels, so it is
-    loaded with allow_inactive - and it only ever runs from the evaluation script. Its calls
-    carry no case id, so the per-case call limit does not apply; the cap does.
+    Its prompt is loaded with allow_inactive: it runs from the evaluation script, and on live
+    decisions only while the Evals screen's online switch is on (ADR 0066). Its calls carry no
+    case id, so the per-case call limit does not apply; the cap does.
     """
     from dispute_agent.infra.clock import SystemClock
     from dispute_agent.infra.ids import UlidIdGenerator

@@ -14,20 +14,25 @@ claims a finance approval), so it reaches the prompt only as untrusted text.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from dispute_agent.kernel.domain.enums import Provenance
 from dispute_agent.kernel.domain.errors import InvalidModelOutput
 from dispute_agent.kernel.domain.reasoning import ModelRequest
 from dispute_agent.kernel.domain.values import UntrustedText
+from dispute_agent.modules.reasoning.llm.briefing_view import STATEMENT_ID, build_view
 from dispute_agent.modules.reasoning.llm.calls import ask_checked
+from dispute_agent.modules.reasoning.templates import neutralise
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from dispute_agent.kernel.domain.json_values import JsonValue
+    from dispute_agent.kernel.domain.reasoning import CaseBriefing
     from dispute_agent.kernel.ports import ModelGateway, PromptRegistry
 
 PROMPT = "decision_judge"
@@ -98,6 +103,48 @@ class DecisionJudge:
         )
 
 
+#: Each evidence value in full up to this length: what the agent sees when it opens an item.
+MAX_VALUE_CHARS = 2500
+
+
+def evidence_lines(briefing: CaseBriefing) -> list[str]:
+    """The evidence a live decision had, as lines for the judge (ADR 0066).
+
+    Full values, not the briefing's trimmed view: the agent can open any item, so its
+    explanation may rest on the whole of it. Outside-party words are neutralised and labelled
+    as such; they reach the judge as evidence of what was said, never as instructions.
+    """
+    a = build_view(briefing).b["assessment_view"]
+    lines = [
+        f"code's assessment: charged {a['charged']}, recalculated {a['recalculated']}, "
+        f"on the hub's re-measurement {a['recalculated_remeasured']}, "
+        f"proven errors {', '.join(a['definite_errors']) or 'none'}",
+        *(f"fact {f['fact_id']} - {f['label']}: {f['value']}" for f in a["facts"]),
+    ]
+    if briefing.facts.statement is not None:
+        lines.append(
+            f"{STATEMENT_ID} (seller's words): {neutralise(briefing.facts.statement.text)}"
+        )
+    for item in briefing.evidence.items:
+        value = json.dumps(item.result.value, sort_keys=True, default=str)[:MAX_VALUE_CHARS]
+        who = "seller's words" if item.provenance is Provenance.SELLER else item.result.source
+        shown = neutralise(value) if item.provenance is Provenance.SELLER else value
+        lines.append(f"{item.id} ({who}, {item.result.status.value}): {shown}")
+        lines.extend(
+            f"{item.id}.{n} (outside party's words): {neutralise(t.text[:MAX_VALUE_CHARS])}"
+            for n, t in enumerate(item.result.untrusted)
+        )
+    c = briefing.contact
+    lines.append(
+        f"contact: reply in this round {c.reply_in_round}, clarifications sent "
+        f"{c.clarifications_sent}, remeasurement outstanding {c.remeasurement_outstanding}"
+    )
+    flags = [f for sr in briefing.screen_results for f in sr.flags]
+    lines.append(f"screening flags: {', '.join(flags) or 'none'}")
+    lines.append(f"allowed actions: {', '.join(a.value for a in briefing.allowed_actions)}")
+    return lines
+
+
 def check_judgement(output: Mapping[str, JsonValue]) -> None:
     """Refuse an answer that is not a judgement, so the one retry can correct it."""
     try:
@@ -107,4 +154,4 @@ def check_judgement(output: Mapping[str, JsonValue]) -> None:
         raise InvalidModelOutput(f"not a valid judgement at {fields}") from None
 
 
-__all__ = ["PROMPT", "Claim", "DecisionJudge", "Judgement", "check_judgement"]
+__all__ = ["PROMPT", "Claim", "DecisionJudge", "Judgement", "check_judgement", "evidence_lines"]

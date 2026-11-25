@@ -206,7 +206,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 
 ## The operations console
 
-Four screens over the running system (`make run-console`, beside `make run-api`), styled with the Hallmark design skill's Coral theme (ADR 0044):
+Four working screens over the running system (`make run-console`, beside `make run-api`), styled with the Hallmark design skill's Coral theme (ADR 0044), and Evals on the far right of the bar (ADR 0066):
 
 | Screen | Who | What it does |
 |---|---|---|
@@ -214,8 +214,9 @@ Four screens over the running system (`make run-console`, beside `make run-api`)
 | **Agent steps** | Anyone | Opens with where the case is and what happens next, and a five-phase progress bar. Then the case round by round, each step saying who did it (code, AI, rules, a person, the seller, the hub) in one line: the evidence found and missing, code's recalculation, the AI's proposal, policy's verdict, approvals, actions and the read-back that proved them. Details and reasoning fold away. It refreshes live while the case is open. |
 | **Review** | The human in the loop | Shows the AI's recommendation beside exactly what will happen on approval, with every number's source. Approve or reject. For cases handed to a person: take over, return to the agent with a note, or confirm a seller's withdrawal (ADR 0046). |
 | **Ledger** | Finance | Lists a seller's charges and credits. Each credit is traced to its case, who approved it, and whether it was proved by reading it back. |
+| **Evals** | The owner | Decision Quality only. Offline: the stored runs on the 18 approved decision points (the AI, the rules baseline, and the judge against the owner's labels). Online: a switch that has the calibrated judge check each new AI decision on a live case, capped at USD 0.50; off, nothing is judged or spent. The judge's answer never changes a case. |
 
-The console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
+Apart from the Evals switch, the console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
 
 It can also be **hosted live** on Streamlit Community Cloud, sending real email and opening real Jira issues behind one password (ADR 0045, `docs/DEPLOY_STREAMLIT.md`).
 
@@ -355,7 +356,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (65 decision records) |
+| Why each decision was made | `docs/adr/` (66 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

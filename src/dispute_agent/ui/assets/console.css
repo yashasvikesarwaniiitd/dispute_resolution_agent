@@ -69,6 +69,8 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-foc
 .stApp [data-testid="stTopNavLink"] [data-testid="stMarkdownContainer"] p { line-height: 1.2; margin: 0; }
 .stApp [data-testid="stTopNavLink"][aria-current="page"], .stApp [data-testid="stTopNavLink"].active {
   background: var(--color-paper-3); color: var(--color-ink); font-weight: 600; }
+/* Evals stands apart on the far right of the bar, away from the four working screens (ADR 0066). */
+.stApp [data-testid="stTopNav"] > div:has(a[href$="/evals"]) { margin-left: auto; }
 
 /* Controls: 40px, ink board primary, cotton secondary, a real disabled state. */
 button[data-testid^="stBaseButton"] { min-height: var(--control-h); border-radius: var(--radius-control);
