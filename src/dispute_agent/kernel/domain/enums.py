@@ -51,6 +51,14 @@ RESOLVED_STATES: frozenset[CaseState] = frozenset(
     {CaseState.RESOLVED_CREDITED, CaseState.RESOLVED_UPHELD}
 )
 
+# Soft-terminal: closed, but the agent may reopen it by itself inside the reopen window, when
+# the seller replies or raises it again (transitions.yaml `reopen: agent_within_window` and
+# `groups.soft_terminal`; drift-tested in test_enums.py). Every other closed state needs a
+# person to reopen it: a credited dispute reopening itself is how a shipment gets paid twice.
+SOFT_TERMINAL_STATES: frozenset[CaseState] = frozenset(
+    {CaseState.RESOLVED_UPHELD, CaseState.CLOSED_NO_RESPONSE}
+)
+
 
 class StateCategory(StrEnum):
     AUTO = "AUTO"
@@ -80,14 +88,6 @@ STATE_CATEGORY: dict[CaseState, StateCategory] = {
     CaseState.REJECTED_INELIGIBLE: StateCategory.TERMINAL,
     CaseState.HANDED_TO_HUMAN: StateCategory.TERMINAL,
 }
-
-
-class ReopenRule(StrEnum):
-    """Terminal states only."""
-
-    HUMAN = "HUMAN"
-    AGENT_WITHIN_WINDOW = "AGENT_WITHIN_WINDOW"
-    NEVER = "NEVER"
 
 
 class InboundEventType(StrEnum):

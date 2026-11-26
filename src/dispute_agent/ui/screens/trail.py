@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import streamlit as st
 
-from dispute_agent.kernel.domain.enums import CaseState
+from dispute_agent.kernel.domain.enums import SOFT_TERMINAL_STATES, CaseState
 from dispute_agent.ui import data, picker
 from dispute_agent.ui.journey import Journey, Mark, journey
 from dispute_agent.ui.labels import Tone, clock, local, when
@@ -32,10 +32,6 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
 
 REFRESH_S = 4
-#: Closed cases a seller's reply can reopen by itself (T39/T40; the kernel's SOFT_TERMINAL),
-#: so their card keeps refreshing too. Live: a photo came a minute after an upheld close, the
-#: case reopened, and the page never showed it because closed cards stopped refreshing.
-REOPENS_ITSELF = (CaseState.RESOLVED_UPHELD, CaseState.CLOSED_NO_RESPONSE)
 #: The mark of a phase that did not happen: an en dash, not a number (HANDOFF 3.3).
 DASH = "\u2013"
 PHASE_WORD = {
@@ -147,7 +143,10 @@ def page() -> None:
     st.query_params["case"] = selected
     st.session_state["case"] = selected
     is_open = next(t.is_open for t in everyone if t.case_id == selected)
-    live = is_open or any(str(c.id) == selected and c.state in REOPENS_ITSELF for c in cases)
+    # A soft-terminal card keeps refreshing too: a seller's reply can reopen it by itself.
+    # Live: a photo came a minute after an upheld close, the case reopened, and the page never
+    # showed it because closed cards stopped refreshing.
+    live = is_open or any(str(c.id) == selected and c.state in SOFT_TERMINAL_STATES for c in cases)
     with main:
         st.fragment(_case, run_every=REFRESH_S if live else None)(selected, is_open)
 

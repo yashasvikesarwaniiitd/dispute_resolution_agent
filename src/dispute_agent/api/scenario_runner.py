@@ -429,7 +429,12 @@ def _dispute(played: Played, step: Step) -> None:
             old = work.cases.get(world.case_id)
             facts = old.facts.model_copy(update={"raised_at": world.clock.now()})
             case, causation = _open_case(
-                work, facts, f"{world.name}-again", world.clock.now(), world.line.ids
+                work,
+                facts,
+                f"{world.name}-again",
+                world.clock.now(),
+                world.line.ids,
+                world.line.policy.timers.reopen_window_days,
             )
         world.case_id, world.causation = case.id, causation
         world.path = [case.state]

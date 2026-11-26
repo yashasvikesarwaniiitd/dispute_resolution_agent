@@ -15,6 +15,7 @@ import yaml
 
 from dispute_agent.kernel.domain.enums import (
     RESOLVED_STATES,
+    SOFT_TERMINAL_STATES,
     STATE_CATEGORY,
     TERMINAL_STATES,
     CautionRank,
@@ -65,6 +66,18 @@ def test_state_category_matches_transitions_yaml() -> None:
 def test_resolved_states_match_transitions_yaml() -> None:
     expected = {name for name, body in TRANSITIONS["states"].items() if body.get("resolved")}
     assert {s.value for s in RESOLVED_STATES} == expected
+
+
+def test_soft_terminal_states_match_transitions_yaml() -> None:
+    """The spec says it twice - each state's `reopen` and `groups.soft_terminal` - and the
+    agent, intake and the Agent steps page all read this one set."""
+    by_rule = {
+        name
+        for name, body in TRANSITIONS["states"].items()
+        if body.get("reopen") == "agent_within_window"
+    }
+    assert by_rule == set(TRANSITIONS["groups"]["soft_terminal"])
+    assert {s.value for s in SOFT_TERMINAL_STATES} == by_rule
 
 
 def test_verdict_kind_is_ordered_by_caution() -> None:

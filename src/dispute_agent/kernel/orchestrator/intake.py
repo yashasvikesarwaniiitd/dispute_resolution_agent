@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from dispute_agent.kernel.domain.case import normalise_recipients
 from dispute_agent.kernel.domain.enums import (
+    SOFT_TERMINAL_STATES,
     ActorKind,
     CaseState,
     InboundEventType,
@@ -43,9 +44,11 @@ if TYPE_CHECKING:
 
 SYSTEM = Actor(kind=ActorKind.SYSTEM, id="system")
 
-#: Soft-terminal states can be reopened by the agent inside the window (transitions.yaml
-#: `groups`); hard-terminal ones need a person.
-SOFT_TERMINAL = (CaseState.RESOLVED_UPHELD, CaseState.CLOSED_NO_RESPONSE)
+
+def within_reopen_window(case: Case, now: datetime, window: timedelta) -> bool:
+    """Closed less than `window` ago (transitions.yaml guard `within_reopen_window`). Intake
+    and the dispatcher's guards both ask this, so the two can never disagree on the date."""
+    return case.closed_at is not None and now < case.closed_at + window
 
 
 @dataclass(frozen=True)
@@ -160,13 +163,11 @@ class Intake:
         A hard-terminal case is never reopened by the agent: a credited dispute reopening
         itself is how one shipment gets paid twice.
         """
-        if latest.closed_at is None:
-            return False
-        if latest.state not in SOFT_TERMINAL:
-            return False
-        if latest.superseded_by_case_id is not None:
-            return False
-        return now < latest.closed_at + self._reopen_window
+        return (
+            latest.state in SOFT_TERMINAL_STATES
+            and latest.superseded_by_case_id is None
+            and within_reopen_window(latest, now, self._reopen_window)
+        )
 
 
 def _input_cause(event_id: EventId) -> Cause:
@@ -176,10 +177,10 @@ def _input_cause(event_id: EventId) -> Cause:
 
 
 __all__ = [
-    "SOFT_TERMINAL",
     "Intake",
     "IntakeResult",
     "RecipientNotAllowedError",
     "check_recipient",
     "normalise_recipients",
+    "within_reopen_window",
 ]

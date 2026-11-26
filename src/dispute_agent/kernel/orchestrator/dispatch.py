@@ -24,6 +24,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Protocol
 
 from dispute_agent.kernel.domain.enums import (
+    SOFT_TERMINAL_STATES,
     TERMINAL_STATES,
     ActionStatus,
     ActorKind,
@@ -55,6 +56,7 @@ from dispute_agent.kernel.domain.inbound import (
 )
 from dispute_agent.kernel.domain.mailbox import same_mailbox
 from dispute_agent.kernel.domain.models import Cause, ReviewReason
+from dispute_agent.kernel.orchestrator.intake import within_reopen_window
 from dispute_agent.kernel.orchestrator.orchestrator import AUTO_STATES
 
 if TYPE_CHECKING:
@@ -70,8 +72,8 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.ports import Clock, EventLog, IdGenerator
     from dispute_agent.kernel.statemachine.machine import StateMachine
 
-#: Cases a late reply or finding may still be routed to (T39-T44 decide what happens).
-SOFT_TERMINAL = (CaseState.CLOSED_NO_RESPONSE, CaseState.RESOLVED_UPHELD)
+#: A late reply or finding may still be routed to a soft-terminal case (SOFT_TERMINAL_STATES);
+#: T39-T44 then decide whether it reopens or goes to a person.
 OPEN = tuple(s for s in CaseState if s not in TERMINAL_STATES)
 
 
@@ -240,7 +242,7 @@ class Dispatcher:
 
         # An open case first; a late reply to a soft-closed case is routed to it so the reopen
         # rules (T39-T44) can decide - never dropped, never guessed between two cases.
-        for states, how in ((OPEN, "contact_and_shipment"), (SOFT_TERMINAL, "late_reply")):
+        for states, how in ((OPEN, "contact_and_shipment"), (SOFT_TERMINAL_STATES, "late_reply")):
             found = matching(states)
             if len(found) == 1:
                 return found[0], how
@@ -452,7 +454,7 @@ class Dispatcher:
             guards["pending_source_timer"] = source is IntentSource.TIMER
             guards["pending_source_follow_up"] = source is IntentSource.FOLLOW_UP
         window = timedelta(days=self.config.timers.reopen_window_days)
-        within = case.closed_at is not None and now < case.closed_at + window
+        within = within_reopen_window(case, now, window)
         cap_ok = case.reopen_count < self.config.cases.max_agent_reopens
         not_superseded = case.superseded_by_case_id is None
         guards |= {

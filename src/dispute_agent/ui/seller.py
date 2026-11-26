@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from dispute_agent.kernel.domain.enums import CaseState
+from dispute_agent.kernel.domain.enums import TERMINAL_STATES
 from dispute_agent.kernel.domain.values import Money
 from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD, FIXTURES, fixture
@@ -29,18 +29,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from dispute_agent.kernel.domain.models import Case
-
-#: Closed states: a new ticket for the same shipment is a new dispute, not a duplicate.
-CLOSED = frozenset(
-    {
-        CaseState.RESOLVED_CREDITED,
-        CaseState.RESOLVED_UPHELD,
-        CaseState.WITHDRAWN,
-        CaseState.CLOSED_NO_RESPONSE,
-        CaseState.REJECTED_INELIGIBLE,
-        CaseState.HANDED_TO_HUMAN,
-    }
-)
 
 
 #: Shipment statuses as a seller reads them; RTO is the courier term for "returned".
@@ -287,7 +275,7 @@ def ticket(case: Case) -> Ticket:
         opened_at=case.opened_at,
         updated_at=case.updated_at,
         review_reason=None if reason is None else str(reason.code.value),
-        is_open=case.state not in CLOSED,
+        is_open=case.state not in TERMINAL_STATES,
     )
 
 
@@ -362,7 +350,6 @@ def raise_ticket(
 
 
 __all__ = [
-    "CLOSED",
     "Raised",
     "Shipment",
     "Ticket",

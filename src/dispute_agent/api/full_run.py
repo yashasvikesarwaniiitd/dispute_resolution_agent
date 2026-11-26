@@ -268,7 +268,9 @@ def open_world(
     )
     try:
         with SqliteUnitOfWork(engine, clock=clock) as work:
-            case, causation = _open_case(work, facts, name, clock.now(), ids, contact)
+            case, causation = _open_case(
+                work, facts, name, clock.now(), ids, policy.timers.reopen_window_days, contact
+            )
     except Exception:
         engine.dispose()
         raise
@@ -444,6 +446,7 @@ def _open_case(
     name: str,
     now: Any,
     ids: IdGenerator,
+    reopen_window_days: int,
     contact: str = SELLER_CONTACT,
 ) -> tuple[Case, EventId]:
     inbound = InboundEvent(
@@ -457,7 +460,7 @@ def _open_case(
     SqliteInboxStore(work.connection).accept(inbound, now)
     input_id = EventId(ids.new_id("evt"))
     opened = Intake(
-        allowed_recipients=(contact,), reopen_window=timedelta(days=7)
+        allowed_recipients=(contact,), reopen_window=timedelta(days=reopen_window_days)
     ).open_or_get_case(
         work.cases,
         inbound,

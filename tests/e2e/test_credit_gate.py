@@ -73,7 +73,9 @@ def world(tmp_path: Path) -> Any:
         raised_at=NOW,
     )
     with SqliteUnitOfWork(engine, clock=clock) as work:
-        case, _ = _open_case(work, facts, "credit_gate", NOW, ids)
+        case, _ = _open_case(
+            work, facts, "credit_gate", NOW, ids, PolicyConfig().timers.reopen_window_days
+        )
     return engine, clock, ids, case
 
 
