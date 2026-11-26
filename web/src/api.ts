@@ -1,7 +1,10 @@
 // The one way the web app talks to the dispute service (/api/ws). Credentials live in this
 // tab's sessionStorage only: closing the tab signs out.
 
-const BASE = `${import.meta.env.BASE_URL.replace(/\/app\/$/, "/")}api/ws`;
+// The page is /desk/ (or / under `npm run dev`); the API sits beside it at ../api/ws. Relative,
+// because Streamlit Cloud serves the whole site under a /~/+/ prefix.
+const base = (): string =>
+  new URL("../api/ws", new URL(".", window.location.href)).pathname.replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(
@@ -75,7 +78,7 @@ export function describeFailure(status: number, body: unknown): string {
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let answer: Response;
   try {
-    answer = await fetch(`${BASE}${path}`, {
+    answer = await fetch(`${base()}${path}`, {
       method,
       headers: headers(body !== undefined),
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -93,5 +96,5 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   get: <T>(path: string) => call<T>("GET", path),
   post: <T>(path: string, body: unknown) => call<T>("POST", path, body),
-  photo: (ref: string) => `${BASE}/photos/${encodeURIComponent(ref)}`,
+  photo: (ref: string) => `${base()}/photos/${encodeURIComponent(ref)}`,
 };

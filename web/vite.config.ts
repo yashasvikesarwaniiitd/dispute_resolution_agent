@@ -1,10 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Served by the dispute service at /app (src/dispute_agent/app.py, _serve_web). In development
-// `npm run dev` proxies the API to the service on loopback (`make run-api`).
+// Served at /desk/ beside the API at /api/ws: by web_app.py locally (`make run-web`) and by
+// streamlit_app.py on Streamlit Cloud, where everything sits under a /~/+/ prefix. So every
+// path is relative. In development `npm run dev` proxies the API to `make run-web`.
 export default defineConfig({
-  base: "/app/",
+  base: "./",
   plugins: [react()],
   server: {
     host: "127.0.0.1",

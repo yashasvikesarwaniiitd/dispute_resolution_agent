@@ -1,13 +1,13 @@
-"""The operations console (ADR 0044): `make run-console`, or hosted (ADR 0045).
+"""The operations console (ADR 0044): `make run-console`.
 
 Four screens in a top bar: raise a ticket (seller), the agent's steps, review (the human in
 the loop) and the ledger (finance); and, alone on the far right, Evals (ADR 0066).
 
 On the owner's machine it runs beside the dispute service (`make run-api`), reads the same
-stores and posts tickets to that service over loopback. Hosted, `streamlit_app.py` at the
-repository root runs the dispute service in the same process and hands `main` the function
-that posts to it. The site password in front of every screen (`_through_the_gate`) is off
-for now: hosted, every visitor is let in and reviews as a listed approver.
+stores and posts tickets to that service over loopback. The hosted site serves the Dispute
+Desk instead (ADR 0068, `streamlit_app.py`); `main(hosted=True, ...)` still supports running
+this console in-process. The site password in front of every screen (`_through_the_gate`) is
+off for now: hosted, every visitor is let in and reviews as a listed approver.
 """
 
 from __future__ import annotations

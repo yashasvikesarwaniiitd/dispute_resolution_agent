@@ -1,7 +1,7 @@
 """The Dispute Desk web workspace's entry point (ADR 0068): `make run-web`.
 
 One process holds the dispute service (the same FastAPI app `make run-api` serves, with its
-background runner), the workspace API at `/api/ws`, and the built web app at `/app`. One
+background runner), the workspace API at `/api/ws`, and the built web app at `/desk`. One
 process, so exactly one runner owns the case store - never run this beside `make run-api`.
 
 Lives at the repository root, like `streamlit_app.py`, because it composes the app with the
@@ -52,9 +52,9 @@ def create(
             )
         )
     if (DIST / "index.html").is_file():  # the API works without it; `make web` builds it
-        app.mount("/app", StaticFiles(directory=DIST, html=True), name="web")
+        app.mount("/desk", StaticFiles(directory=DIST, html=True), name="web")
         app.add_api_route(
-            "/", lambda: RedirectResponse("/app/"), include_in_schema=False, methods=["GET"]
+            "/", lambda: RedirectResponse("/desk/"), include_in_schema=False, methods=["GET"]
         )
     return app
 

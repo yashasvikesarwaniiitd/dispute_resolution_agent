@@ -222,7 +222,7 @@ It can also be **hosted live** on Streamlit Community Cloud, sending real email 
 
 ### Dispute Desk: the web workspace (new)
 
-The v2 design built as designed (ADR 0068): one desktop workspace instead of five screens. `make web` builds it; `make run-web` then runs the dispute service with it at http://127.0.0.1:8000/app/ (instead of `make run-api`, never beside it).
+The v2 design built as designed (ADR 0068): one desktop workspace instead of five screens. `make web` builds it; `make run-web` then runs the dispute service with it at http://127.0.0.1:8000/desk/ (instead of `make run-api`, never beside it).
 
 - **Work:** a views rail (All needing me, Proven credits, Emails to approve, Handed to me, Seller replied, Could not verify, Done today; and what the agent has), a case list ordered by urgency, and a case view that changes with the work. A credit shows "Billed − Correct charge − Already credited = Credit" from code's own figures; an email shows the exact text with code's figures marked; a handover shows code's decision menu, with "Credit the seller" greyed out unless code proved an error.
 - **Tabs per case:** Overview, Evidence (the parcel footprint drawn to scale, the bill, seller history, the photo), Full record (every step by round, filterable), Ask (the read-only case assistant), Shipment & seller.
@@ -230,7 +230,7 @@ The v2 design built as designed (ADR 0068): one desktop workspace instead of fiv
 - **Seller view, Ledger, Evals, Team, Patterns.** Team and Patterns show only what the case store records and say "Not built yet" for the rest.
 - **Same rules, one engine.** It reads the console's own view models and decides through the same review console and case desk; a listed approver and the review token (or the site password) are needed for every decision.
 
-Not hosted yet: Streamlit Community Cloud cannot serve it, so the hosted demo stays the Streamlit console.
+Hosted: the live site opens on it. `streamlit_app.py` is an `st.App` (Streamlit 1.66) that serves the desk and its API beside Streamlit; the web app is committed built, since the host has no Node. After a push, reboot the app (`docs/DEPLOY_STREAMLIT.md`).
 
 ---
 
@@ -293,7 +293,7 @@ make run-api        # the web API and the background runner (offline: stand-ins,
 make run-approvals  # the review console, where a person approves credits and messages
 make run-console    # the four-screen operations console (seller, agent steps, review, ledger)
 make web            # build the Dispute Desk web workspace (needs Node.js)
-make run-web        # the service plus the web workspace at /app/ (instead of run-api)
+make run-web        # the service plus the web workspace at /desk/ (instead of run-api)
 make explain ARGS="<case_id> <question>"   # ask the read-only Case Explainer (Haiku; a fraction of a cent)
 ```
 

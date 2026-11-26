@@ -12,6 +12,8 @@ __pycache__/
 .claude/agent-memory-local/
 codebase-map.html
 dist/
+# The built web app is committed: Streamlit Cloud serves it and has no Node (ADR 0068).
+!web/dist/
 data/
 
 # Owner-only module switches (real channels on one machine; CI keeps the fakes)

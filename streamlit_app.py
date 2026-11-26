@@ -1,107 +1,104 @@
-"""The hosted operations console: Streamlit Community Cloud's entry point (ADR 0045).
+"""Streamlit Community Cloud's entry point: the Dispute Desk (ADR 0045, ADR 0068).
 
-One process holds both halves. The dispute service - the same FastAPI app `make run-api`
-serves, with its background runner - is built once per loaded copy of the code and driven
-through its own route in memory (`POST /events`), so a ticket takes exactly the path it takes
-locally: intake, the allowlist (I11), dedupe, the runner. The console's four screens sit on
-top.
+`streamlit run streamlit_app.py` finds `app` below - an `st.App` (Streamlit 1.66) - and serves
+it with uvicorn: Streamlit itself, plus two routes of our own beside it:
 
-**Why "per loaded copy of the code".** When any file under the app's folder changes - and a
-push to GitHub changes them in place on Streamlit Cloud - Streamlit unloads every watched
-module and imports fresh copies on the next run. A service kept from before would still hold
-the old classes, and the domain models are strict, so the old intake refused facts built from
-the new `CaseFacts` (a pydantic ValidationError on raising a ticket, seen live on 2026-11-08).
-`Services` notices the new copy, stops the old service (its runner thread with it, so two
-runners never share the store) and starts a new one, which recovers from the store as a
-restart would.
+    /api/ws   the workspace API (src/dispute_agent/ui/web) over the dispute service
+    /desk/    the built web app (web/dist, committed: the host has no Node to build it)
 
-Configuration comes from the host's secret store, which Streamlit also exposes as
-environment variables: MODULES_FILE=modules.hosted.yaml (real Gmail and Jira), the account
-settings and CONSOLE_PASSWORD (the gate; without it nothing opens, and past it the Review
-screen offers the listed approvers instead of the token, ADR 0047). No secret lives in the repository. The
-case store and the simulated ledger are created on first start and are lost when the host
-restarts the app; real email and Jira are not.
+The Streamlit page, `desk_page.py`, fills the window with /desk/, so the site opens on the
+Dispute Desk. Every path in the web app is relative, because the host serves the whole site
+under a /~/+/ prefix.
 
-Lives at the repository root, like the scripts, because it composes the app: nothing inside
+The dispute service - the same FastAPI app `make run-api` serves, with its background runner -
+is built once when the server starts (`lifespan`) and stops with it: one process, one runner.
+Configuration comes from the host's secret store, which Streamlit also exposes as environment
+variables: MODULES_FILE=modules.hosted.yaml (real Gmail and Jira) and the account settings.
+No secret lives in the repository. The case store and the simulated ledger are created on
+first start and are lost when the host restarts the app; real email and Jira are not.
+
+**After a push, reboot the app** (Manage app, the menu, Reboot app). Streamlit reloads changed
+modules in place, and a service kept across that once held the old domain classes while new
+code built new ones (a pydantic ValidationError on raising a ticket, seen live on 2026-11-08).
+The service here is built once from the code loaded at start, so the file watcher is off and
+a reboot is what loads new code.
+
+Lives at the repository root because it composes the app with the console: nothing inside
 `dispute_agent` imports `dispute_agent.app` (tests/architecture/test_composition_root.py).
 """
 
 from __future__ import annotations
 
-import importlib
-import threading
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+from fastapi import FastAPI
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
+from streamlit import config
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncIterator
+
+ROOT = Path(__file__).resolve().parent
+DIST = ROOT / "web" / "dist"
+
+#: The workspace API. Its routes are added when the service starts; routing is per request.
+DESK_API = FastAPI(
+    title="Dispute Desk workspace API", docs_url=None, redoc_url=None, openapi_url=None
+)
+
+# One copy of the code per process: no in-place reload after a push (see the module notes).
+config.set_option("server.fileWatcherType", "none")
 
 
-class Services:
-    """One running dispute service for the copy of the code that is loaded now."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()  # several sessions can rerun at once
-        self._code: object | None = None
-        self._client: Any = None
-
-    def get(self, code: object, start: Callable[[], Any]) -> Any:
-        """The service for `code` (a module object: a reload makes a new one)."""
-        with self._lock:
-            if self._client is None or self._code is not code:
-                if self._client is not None:
-                    self._client.__exit__(None, None, None)  # stops the old runner first
-                    self._client = None
-                self._client = start()
-                self._code = code
-            return self._client
-
-
-@st.cache_resource
-def _services() -> Services:
-    """Kept across reruns and across Streamlit's module reloads: this file's own source is
-    the cache key, and it does not change when the package's files do."""
-    return Services()
-
-
-def _start() -> Any:
-    """Migrate the case store, build the app, start its runner."""
+def start() -> FastAPI:
+    """Migrate the case store, build the dispute service, and give the desk its API."""
     from alembic import command
     from alembic.config import Config
-    from fastapi.testclient import TestClient
+    from web_app import poster
 
-    from dispute_agent.app import create_app
-
-    command.upgrade(Config("alembic.ini"), "head")
-    client = TestClient(create_app())
-    client.__enter__()  # runs the lifespan: recovery, then a runner tick every few seconds
-    return client
-
-
-def _service() -> Any:
-    # The module the service's classes come from; a reload replaces it with a new object.
-    code = importlib.import_module("dispute_agent.kernel.domain.case")
-    with st.spinner("Starting the dispute service"):
-        return _services().get(code, _start)
-
-
-def _post(body: dict[str, str]) -> tuple[int, dict[str, Any]]:
-    answer = _service().post("/events", json=body)
-    parsed = answer.json() if answer.content else {}
-    return answer.status_code, parsed if isinstance(parsed, dict) else {}
-
-
-def explain(case_id: str, question: str) -> Any:
-    """The Review screen's assistant (ADR 0058): the read-only explainer, pinned to one case."""
-    from dispute_agent.app import build_case_explainer
+    from dispute_agent.app import build_case_explainer, create_app
     from dispute_agent.infra.settings import Settings
     from dispute_agent.ui.data import CASES
+    from dispute_agent.ui.web.router import build_workspace_router
 
-    return build_case_explainer(Settings(), CASES, only_case=case_id).ask(question)
+    migrations = Config(str(ROOT / "alembic.ini"))
+    migrations.set_main_option("script_location", str(ROOT / "migrations"))
+    command.upgrade(migrations, "head")
+    service = create_app()
+    DESK_API.include_router(
+        build_workspace_router(
+            poster(service.state.application.runtime),
+            explain=lambda case_id, question: build_case_explainer(
+                Settings(), CASES, only_case=case_id
+            ).ask(question),
+            prefix="",
+            # shortcut: the site password is off by the owner's choice (2026-11-25), as on the
+            # Streamlit console before it: anyone with the link can approve as a listed
+            # approver. To close it, pass open_site=False and set CONSOLE_PASSWORD.
+            open_site=True,
+        )
+    )
+    return service
 
 
-if __name__ == "__main__":  # Streamlit runs this file as __main__; a test may import it
-    from dispute_agent.ui.app import main
+@asynccontextmanager
+async def lifespan(_app: Any) -> AsyncIterator[None]:
+    import anyio
 
-    main(hosted=True, post=_post, start=_service, explain=explain)
+    service = await anyio.to_thread.run_sync(start)
+    async with service.router.lifespan_context(service):  # recovery, then the runner's ticks
+        yield
+
+
+app = st.App(
+    "desk_page.py",
+    routes=[
+        Mount("/api/ws", app=DESK_API),
+        Mount("/desk", app=StaticFiles(directory=DIST, html=True)),
+    ],
+    lifespan=lifespan,
+)

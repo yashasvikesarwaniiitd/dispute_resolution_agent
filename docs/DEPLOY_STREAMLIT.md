@@ -1,8 +1,10 @@
 # Deploying the live console to Streamlit Community Cloud
 
-ADR 0045. The hosted console sends **real email** through your Gmail and opens **real Jira issues**, behind one password. These steps take about ten minutes. Every value in them stays in Streamlit's secret store, never in the repository.
+ADR 0045, ADR 0068. **The site opens on the Dispute Desk** (the v2 web workspace): `streamlit_app.py` is an `st.App` that serves Streamlit plus the workspace API at `/api/ws` and the built web app at `/desk/`, and the Streamlit page frames the desk. The four-screen Streamlit console still runs locally (`make run-console`).
 
-> **The password is currently off** (owner's choice, 2026-11-25, commit `68de0e5`). Every visitor is let in and reviews as a listed approver, so anyone with the link can raise tickets, approve credits and emails as "owner", trigger the test email and spend the AI budget. To close the site again, put back `if hosted and not _through_the_gate(): return` in `main` in `src/dispute_agent/ui/app.py` (its `shortcut:` comment says where) and restore the three password tests in `tests/unit/ui/test_hosted.py` from that commit's parent. The steps below still describe the site with the password on.
+The hosted site sends **real email** through your Gmail and opens **real Jira issues**, behind one password. These steps take about ten minutes. Every value in them stays in Streamlit's secret store, never in the repository.
+
+> **The password is currently off** (owner's choice, 2026-11-25). Every visitor is let in and reviews as a listed approver, so anyone with the link can raise tickets, approve credits and emails as "owner", trigger the test email and spend the AI budget. To close the site again, pass `open_site=False` in `streamlit_app.py` (its `shortcut:` comment says where) and keep `CONSOLE_PASSWORD` in the Secrets: the desk then asks for the password first. The steps below still describe the site with the password on.
 
 ## Before you start
 
@@ -76,6 +78,7 @@ Each reply is one Haiku call (about US$0.0004), logged and counted against the H
 ## Good to know
 
 - **Data resets** when Streamlit restarts the app: cases and the simulated ledger start fresh. Emails sent and Jira issues opened are real and stay.
-- **A push updates the running app in place.** Streamlit reloads the code without restarting; the hosted entry notices and restarts the dispute service from the new code (`streamlit_app.py`, `Services`). If a page ever shows an error right after a push, open Manage app, ⋮, Reboot app.
+- **After a push, reboot the app** (Manage app, ⋮, Reboot app). The dispute service is built once when the server starts and Streamlit's in-place reload is off, so old and new code never mix (a pydantic error on raising a ticket was seen live when they did, 2026-11-08). Until the reboot the site keeps running the previous code.
+- **The web app is committed built** (`web/dist`): the host has no Node. After changing `web/src`, run `make web` and commit `web/dist` with it.
 - **The AI is the rules engine** here. The Foundry sign-in is tied to your machine.
 - **To retire the app:** delete it in Streamlit. Then revoke the Gmail access at myaccount.google.com/permissions and the Jira token at id.atlassian.com/manage-profile/security/api-tokens.

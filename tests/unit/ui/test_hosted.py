@@ -124,7 +124,8 @@ class TestConfiguration:
 
     def test_the_hosted_entry_composes_outside_the_package(self) -> None:
         entry = (ROOT / "streamlit_app.py").read_text(encoding="utf-8")
-        assert "main(hosted=True" in entry and "create_app" in entry
+        assert "st.App(" in entry and "create_app" in entry and '"desk_page.py"' in entry
+        assert (ROOT / "desk_page.py").is_file()
         needs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
         assert needs.strip().endswith(".")
         # ADR 0058: the Review screen's assistant runs hosted, so its libraries travel too.
@@ -218,12 +219,10 @@ class TestTheSecretsBlock:
         assert Settings(_env_file=env).langfuse_host == LANGFUSE_EU
 
 
-class TestTheServiceAcrossReloads:
-    """Streamlit unloads every watched module when a file changes - a push to GitHub does
-    that on Streamlit Cloud - and imports fresh copies. A service kept from before would hold
-    the old classes, and the strict domain models then refuse objects made from the new ones
-    (a pydantic ValidationError on raising a ticket, seen live on 2026-11-08). So the hosted
-    entry keeps one service per loaded copy of the code, and stops the old one first."""
+class TestTheHostedSite:
+    """The hosted site is the Dispute Desk (ADR 0068): `streamlit run streamlit_app.py` serves
+    an st.App - Streamlit, plus the workspace API at /api/ws and the built web app at /desk -
+    and the Streamlit page frames the desk."""
 
     def _entry(self) -> Any:
         import importlib.util
@@ -231,27 +230,26 @@ class TestTheServiceAcrossReloads:
         spec = importlib.util.spec_from_file_location("hosted_entry", ROOT / "streamlit_app.py")
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)  # must not start the console when imported
+        spec.loader.exec_module(module)  # must not start the service when imported
         return module
 
-    def test_one_service_per_copy_of_the_code_and_the_old_one_stopped(self) -> None:
+    def test_streamlit_run_serves_it_as_an_app_with_our_routes(self) -> None:
+        from streamlit.web.server.app_discovery import discover_asgi_app
+
+        found = discover_asgi_app(ROOT / "streamlit_app.py")
+        assert found.is_asgi_app and found.app_name == "app"
         entry = self._entry()
-        started: list[Any] = []
+        assert [r.path for r in entry.app._user_routes] == ["/api/ws", "/desk"]
 
-        class Client:
-            def __init__(self) -> None:
-                self.stopped = False
-                started.append(self)
+    def test_importing_the_entry_starts_nothing(self) -> None:
+        entry = self._entry()
+        assert entry.DESK_API.routes == []  # the API arrives with the service, at start
 
-            def __exit__(self, *_: object) -> None:
-                self.stopped = True
-
-        services = entry.Services()
-        before, after = object(), object()  # two loaded copies of the code
-        first = services.get(before, Client)
-        assert services.get(before, Client) is first and len(started) == 1  # kept
-        second = services.get(after, Client)  # the code was reloaded
-        assert second is not first and first.stopped and not second.stopped
+    def test_the_built_web_app_is_committed_with_relative_paths(self) -> None:
+        """The host has no Node to build it, and serves the site under a /~/+/ prefix."""
+        page = (ROOT / "web" / "dist" / "index.html").read_text(encoding="utf-8")
+        assert 'src="./assets/' in page and 'href="./assets/' in page
+        assert 'src="/' not in page and 'href="/' not in page
 
 
 class TestLangfuseRegion:

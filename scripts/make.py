@@ -95,7 +95,7 @@ def run_api() -> int:
 
 
 def run_web() -> int:
-    """The Dispute Desk web workspace (ADR 0068) at http://127.0.0.1:8000/app/: the dispute
+    """The Dispute Desk web workspace (ADR 0068) at http://127.0.0.1:8000/desk/: the dispute
     service, its runner and the workspace in one process. Instead of `run-api`, never beside it
     (one runner per store). Build the pages first with `make web`."""
     return uv("uvicorn", "web_app:create", "--factory", "--host", "127.0.0.1")
@@ -109,7 +109,7 @@ def run_console() -> int:
 
 def web() -> int:
     """Build the Dispute Desk web app (ADR 0068) into web/dist: install, type-check, test,
-    build. `make run-web` then serves it at http://127.0.0.1:8000/app/."""
+    build. `make run-web` then serves it at http://127.0.0.1:8000/desk/."""
     import shutil
 
     npm = shutil.which("npm")

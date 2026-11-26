@@ -109,16 +109,31 @@ class Question(BaseModel):
 def build_workspace_router(
     post: Callable[[dict[str, str]], tuple[int, dict[str, Any]]],
     explain: Callable[[str, str], Any] | None = None,
+    *,
+    prefix: str = "/api/ws",
+    open_site: bool = False,
 ) -> APIRouter:
     """`post` raises a dispute the way `POST /events` does; `explain` is the read-only case
-    explainer (ADR 0058), or None when this site has none."""
+    explainer (ADR 0058), or None when this site has none. `prefix` is "" when the router is
+    mounted under /api/ws by the hosted entry.
+
+    `open_site` is the hosted console's choice, carried over: no site password, and a listed
+    approver decides without the review token, exactly as the Streamlit console has been since
+    2026-11-25 (ui/app.py). shortcut: anyone with the link can approve as a listed approver on
+    synthetic data; pass open_site=False (and set CONSOLE_PASSWORD) to close it again.
+    """
 
     def gate(x_console_password: str | None = Header(default=None)) -> None:
-        expected = Settings().console_password
+        expected = None if open_site else Settings().console_password
         if expected is not None and not opens(x_console_password, expected.get_secret_value()):
             raise HTTPException(status_code=401, detail="The site password is needed.")
 
-    router = APIRouter(prefix="/api/ws", dependencies=[Depends(gate)])
+    def decider(name: str, token: str | None) -> Actor:
+        if open_site:
+            return _listed(name)
+        return _reviewer(name, token)
+
+    router = APIRouter(prefix=prefix, dependencies=[Depends(gate)])
 
     @router.get("/session")
     def session() -> dict[str, Any]:
@@ -127,7 +142,7 @@ def build_workspace_router(
             "approvers": data.approvers(),
             "kill_switch": settings.kill_switch,
             # Behind a site password the password is the credential; otherwise the token.
-            "needs_token": settings.console_password is None,
+            "needs_token": not open_site and settings.console_password is None,
             "ask": _ask_unavailable(explain) is None,
             "ask_unavailable": _ask_unavailable(explain),
             "sellers": personas(),
@@ -155,7 +170,7 @@ def build_workspace_router(
     def decide_approval(
         approval_id: str, body: Decision, x_review_token: str | None = Header(default=None)
     ) -> dict[str, Any]:
-        reviewer = _reviewer(body.reviewer, x_review_token)
+        reviewer = decider(body.reviewer, x_review_token)
         if body.decision == "approve" and Settings().kill_switch:
             raise HTTPException(
                 status_code=409, detail="The kill switch is on: approvals are paused."
@@ -191,7 +206,7 @@ def build_workspace_router(
     def decide_case(
         case_id: str, body: CaseDecision, x_review_token: str | None = Header(default=None)
     ) -> dict[str, Any]:
-        reviewer = _reviewer(body.reviewer, x_review_token)
+        reviewer = decider(body.reviewer, x_review_token)
         with data.writer() as uow:
             try:
                 found = uow.cases.get(CaseId(case_id))
@@ -449,6 +464,16 @@ def build_workspace_router(
 
 def _at(summaries: list[dict[str, Any]], index: int | None) -> dict[str, Any] | None:
     return summaries[index] if index is not None else None
+
+
+def _listed(name: str) -> Actor:
+    """A listed approver on a site whose gate already decided who may be here (ADR 0047)."""
+    if name not in data.approvers():
+        raise HTTPException(status_code=403, detail="Only a listed approver can decide.")
+    try:
+        return reviewer_named(name)
+    except DomainValidationError as refused:
+        raise HTTPException(status_code=403, detail=str(refused)) from refused
 
 
 def _reviewer(name: str, token: str | None) -> Actor:
