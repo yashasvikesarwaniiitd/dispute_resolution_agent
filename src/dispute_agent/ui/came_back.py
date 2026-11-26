@@ -76,7 +76,7 @@ def seller_reply(item: EvidenceItem) -> tuple[str, tuple[str, ...]]:
     The reading is the reply reader's structured output: an intent and, per item we asked
     for, whether it arrived. It informs the next step; it never sets a figure (I9).
     """
-    words = tuple(new_text(u.text) for u in item.result.untrusted)
+    words = tuple(w for w in (new_text(u.text) for u in item.result.untrusted) if w)
     value = item.result.value or {}
     intent = value.get("intent")
     if item.result.status.value != "FOUND" or not isinstance(intent, str):
@@ -92,6 +92,8 @@ def seller_reply(item: EvidenceItem) -> tuple[str, tuple[str, ...]]:
         read += " " + "; ".join(items) + "."
     if value.get("manipulation_flags"):
         read += " It flagged something that may be trying to steer the agent."
+    if not words:
+        read += " The seller wrote no message of their own, only what was attached."
     return read, words
 
 

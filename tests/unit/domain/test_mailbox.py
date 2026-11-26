@@ -75,8 +75,44 @@ def test_the_seller_s_own_words_are_kept(body: str) -> None:
     assert new_text(body) == body.strip()
 
 
-def test_a_quote_with_nothing_above_it_is_kept_whole() -> None:
-    assert new_text("> just a quote") == "> just a quote"
+#: A Gmail reply where the seller typed nothing and only attached a photo: all quote, all ours.
+PHOTO_ONLY = (
+    "On Fri, Nov 27, 2026 at 4:07 AM <desk@gmail.com> wrote:\r\n\r\n> Hello,\r\n>\r\n"
+    "> You disputed the charge of ₹190.00 on shipment SHP-102026.\r\n"
+    "> What our hub measured: 34 cm x 22 cm x 15 cm, 70 g\r\n"
+)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        PHOTO_ONLY,
+        "> just a quote",
+        "-----Original Message-----\nFrom: Desk <desk@example.com>\nSent: today\nHello seller",
+        "From: Dispute desk <desk@example.com>\nSent: Sunday\n\nYou disputed the charge.",
+    ],
+)
+def test_a_reply_that_is_only_our_quoted_email_has_no_words_of_the_seller(body: str) -> None:
+    """Live, SHP-102026 (2026-11-27): a photo-only reply showed our own email as the seller's."""
+    assert new_text(body) == ""
+
+
+def test_an_inline_answer_between_the_quoted_lines_is_kept() -> None:
+    body = (
+        "On Fri, Nov 27, 2026 at 4:07 AM Desk <\ndesk@gmail.com> wrote:\n"
+        "> What you declared: 19 x 11 x 2 cm\n"
+        "That is the box without its padding.\n"
+        "> What our hub measured: 34 x 22 x 15 cm\n"
+        "The padded box is 21 x 13 x 4 cm.\n"
+    )
+    assert new_text(body) == (
+        "That is the box without its padding.\nThe padded box is 21 x 13 x 4 cm."
+    )
+
+
+def test_a_photo_only_reply_reaches_the_reader_with_no_text() -> None:
+    only = reply_only(UntrustedText.create(PHOTO_ONLY, "seller_email", "m1"))
+    assert only.text == "" and only.origin == "seller_email" and only.source_ref == "m1"
 
 
 def test_reply_only_keeps_an_unquoted_body_as_it_was() -> None:

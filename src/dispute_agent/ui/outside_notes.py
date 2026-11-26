@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from dispute_agent.kernel.domain.mailbox import new_text
 from dispute_agent.modules.input_screen.rules_based import RulesBasedInputScreen
 from dispute_agent.ui.theme import escape
 
@@ -61,15 +62,18 @@ def notes(work: SqliteUnitOfWork, case_id: str) -> list[Note]:
     bundle = work.evidence.bundle(case.id, case.gather_round)
     for item in bundle.items:
         for text in item.result.untrusted:
-            if not text.text.strip() or text.text in seen:
+            # A seller's email shows only their own words: the quote below them is our email.
+            # Applied here too, so a reply stored before that was cut at intake reads right.
+            words = new_text(text.text) if text.origin == "seller_email" else text.text.strip()
+            if not words or words in seen:
                 continue
-            seen.add(text.text)
+            seen.add(words)
             found.append(
                 Note(
                     source=SOURCE.get(text.origin, text.origin.replace("_", " ").capitalize()),
                     reference=text.source_ref,
-                    text=text.text,
-                    flags=tuple(sorted(RulesBasedInputScreen.flags_for(text.text))),
+                    text=words,
+                    flags=tuple(sorted(RulesBasedInputScreen.flags_for(words))),
                 )
             )
     return found

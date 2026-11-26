@@ -60,12 +60,35 @@ def _quote_start(lines: list[str]) -> int | None:
 
 
 def new_text(body: str) -> str:
-    """The reply above the quoted email it answers; the whole body when nothing is quoted,
-    or when the quote is all there is."""
+    """The seller's own words in a reply: the whole body when nothing is quoted, else what
+    they wrote above the quoted email - or, when the reply starts with the quote, the lines
+    they wrote between its quoted lines (an inline answer).
+
+    "" when they wrote nothing of their own. A reply that only attaches a photo is all quote,
+    and that quote is our own email: shown as the seller's words, it read as their message
+    and reached the reply reader as if they had written it (live, SHP-102026, 2026-11-27).
+    """
     lines = body.replace("\r\n", "\n").split("\n")
     start = _quote_start(lines)
-    kept = "\n".join(lines[:start]).strip() if start is not None else ""
-    return kept or body.strip()
+    if start is None:
+        return body.strip()
+    kept = "\n".join(lines[:start]).strip()
+    return kept or _inline(lines[start:])
+
+
+def _inline(quoted: list[str]) -> str:
+    """A seller's words written between the quoted lines of a reply that starts with the quote.
+
+    Only for ">" quoting (Gmail and most clients). Outlook's header block quotes the original
+    message without marking its lines, so everything below it is ours and nothing is kept.
+    """
+    first = quoted[0]
+    if _ON.match(first):  # "On <date>, <name> wrote:", over up to three lines
+        end = next(i for i, line in enumerate(quoted[:_WRAPPED]) if _WROTE.search(line))
+        quoted = quoted[end + 1 :]
+    elif not first.lstrip().startswith(">"):
+        return ""
+    return "\n".join(line for line in quoted if not line.lstrip().startswith(">")).strip()
 
 
 def reply_only(body: UntrustedText) -> UntrustedText:
