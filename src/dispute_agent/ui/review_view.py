@@ -106,8 +106,12 @@ def if_approve_credit(
     duplicate: str | None,
     already: str,
     remeasured: str | None = None,
+    equation: Sequence[tuple[str, str]] | None = None,
 ) -> str:
     """The right half for a credit: the exact amount, how code set it, and its figures.
+
+    `equation` is code's terms for the amount (design v2, "What you are approving"), given
+    only when they reconcile to it; without it the amount stands alone.
 
     `remeasured` is the charge on the hub's re-measurement, for a remeasurement credit. Its
     figures then name the first recalculation for what it is, and leave out its overcharge:
@@ -136,16 +140,39 @@ def if_approve_credit(
             for label, value in figures
             if label.lower() != "overcharge"
         ]
+    if equation:
+        amount = _equation_html(equation, f"Credit · {reason_words}", item.credit_amount or "")
+        posted = f"<p>This credit is posted to the ledger for {escape(reason_words)}.</p>"
+    else:
+        amount = f'<p>A credit of</p><p class="figure-lg">{escape(item.credit_amount)}</p>'
+        posted = f"<p>is posted to the ledger for {escape(reason_words)}.</p>"
     return (
         "<h3>If you approve</h3>"
-        f'<p>A credit of</p><p class="figure-lg">{escape(item.credit_amount)}</p>'
-        f"<p>is posted to the ledger for {escape(reason_words)}.</p>"
-        f'<p class="muted">Code set the amount: {escape(how)}. The {escape(proposer)} chose to '
+        + amount
+        + posted
+        + f'<p class="muted">Code set the amount: {escape(how)}. The {escape(proposer)} chose to '
         "propose a credit; it did not choose the amount.</p>"
         "<h4>Code's figures behind it</h4>"
         + pairs(rows, numeric=True)
         + tail
         + pairs(figures, numeric=True)
+    )
+
+
+def _equation_html(terms: Sequence[tuple[str, str]], label: str, credit: str) -> str:
+    """first - second - ... = credit, each term code's figure under its name."""
+
+    def term(name: str, value: str, css: str = "eq-term") -> str:
+        return (
+            f'<div class="{css}"><p class="eq-label">{escape(name)}</p>'
+            f'<p class="eq-value">{escape(value)}</p></div>'
+        )
+
+    ops = '<span class="eq-op" aria-hidden="true">&minus;</span>'.join(term(n, v) for n, v in terms)
+    return (
+        f'<div class="eq" role="group" aria-label="What you are approving">{ops}'
+        '<span class="eq-op" aria-hidden="true">=</span>'
+        f"{term(label, credit, 'eq-term eq-credit')}</div>"
     )
 
 

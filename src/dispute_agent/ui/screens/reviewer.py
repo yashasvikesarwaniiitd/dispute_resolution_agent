@@ -22,11 +22,9 @@ import streamlit as st
 
 from dispute_agent.infra.clock import SystemClock
 from dispute_agent.infra.settings import Settings
-from dispute_agent.kernel.domain.actions import CreditPayload
-from dispute_agent.kernel.domain.enums import ActionStatus, ActorKind
+from dispute_agent.kernel.domain.enums import ActorKind
 from dispute_agent.kernel.domain.errors import AuthPortError, ConfigError, DomainValidationError
 from dispute_agent.kernel.domain.models import Actor
-from dispute_agent.kernel.policy.numbers import render_fact
 from dispute_agent.modules.approvals.streamlit_ui.console import (
     ReviewConsole,
     reviewer_named,
@@ -42,8 +40,10 @@ from dispute_agent.ui.labels import reason as reason_words
 from dispute_agent.ui.outside_notes import notes, notes_html
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.review import (
+    Basis,
     Card,
     Unknown,
+    credit_basis,
     not_yet_applied,
     queue,
     unknown_actions,
@@ -91,7 +91,7 @@ def page() -> None:
             acted_at=st.session_state.get(ACTED_AT, {}),
             now=time.time(),
         )
-        extra = {c.item.approval.id: _credit_basis(work, c) for c in cards if c.item.is_credit}
+        extra = {c.item.approval.id: credit_basis(work, c) for c in cards if c.item.is_credit}
 
     st.markdown(
         f'<p class="count">{escape(_count(cards, len(people)))}</p>', unsafe_allow_html=True
@@ -126,7 +126,7 @@ def page() -> None:
                     _card(
                         card,
                         reviewer,
-                        extra.get(card.item.approval.id, (None, money(Decimal(0)), None)),
+                        extra.get(card.item.approval.id, (None, money(Decimal(0)), None, None)),
                     )
     with handed:
         for said in st.session_state.get(DESK_LINES, []):
@@ -265,37 +265,6 @@ def _count(cards: list[Card], people: int) -> str:
     return waiting + handed
 
 
-def _credit_basis(work: object, card: Card) -> tuple[str | None, str, str | None]:
-    """The duplicate debit a duplicate-charge credit returns, what is already credited, and
-    the charge on the hub's re-measurement for a remeasurement credit."""
-    case_id = card.item.approval.request.case_id
-    latest = work.assessments.latest(case_id)  # type: ignore[attr-defined]
-    dup = latest.duplicate_debit_total if latest is not None else None
-    already = Decimal(0)
-    for action in work.actions.for_case(case_id):  # type: ignore[attr-defined]
-        if action.status is not ActionStatus.VERIFIED:
-            continue
-        try:
-            payload = work.intents.get(action.intent_id).payload  # type: ignore[attr-defined]
-        except Exception:  # a plan that cannot be read adds nothing it cannot prove
-            continue
-        if isinstance(payload, CreditPayload):
-            already += payload.amount.amount
-    duplicate = (
-        render_fact(dup)
-        if dup is not None and card.item.credit_reason == "duplicate_charge"
-        else None
-    )
-    remeasured = (
-        render_fact(latest.recalculated_remeasured)
-        if latest is not None
-        and latest.recalculated_remeasured is not None
-        and card.item.credit_reason == "remeasurement_lower"
-        else None
-    )
-    return duplicate, money(already), remeasured
-
-
 def _header(kind: str, ticket: Ticket, since: str, case_id: str) -> None:
     left, right = st.columns([3, 1], vertical_alignment="center")
     left.markdown(
@@ -328,7 +297,7 @@ def _names(ticket: Any) -> dict[str, str]:
         return evidence_names(work, work.cases.get(ticket.case_id))
 
 
-def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]) -> None:
+def _card(card: Card, reviewer: Actor, basis: Basis) -> None:
     item, ticket = card.item, card.case
     aid = item.approval.id
     request = item.approval.request
@@ -360,6 +329,7 @@ def _card(card: Card, reviewer: Actor, basis: tuple[str | None, str, str | None]
                         duplicate=basis[0],
                         already=basis[1],
                         remeasured=basis[2],
+                        equation=basis[3],
                     ),
                     unsafe_allow_html=True,
                 )

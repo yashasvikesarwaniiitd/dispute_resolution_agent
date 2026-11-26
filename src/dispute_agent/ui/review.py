@@ -9,10 +9,15 @@ and the case it belongs to - next to exactly what will happen if they say yes.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from dispute_agent.kernel.domain.actions import CreditPayload
 from dispute_agent.kernel.domain.enums import ActionStatus, ActionType, CaseState
+from dispute_agent.kernel.domain.values import Money
+from dispute_agent.kernel.policy.credit import credit_amount, lowest_proven_correct_charge
 from dispute_agent.kernel.policy.numbers import render_fact
+from dispute_agent.ui.labels import money
 from dispute_agent.ui.seller import Ticket, ticket
 from dispute_agent.ui.trail import Recommendation, recommendation
 from dispute_agent.ui.trail_words import action_words
@@ -21,6 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from dispute_agent.infra.sqlite.unit_of_work import SqliteUnitOfWork
+    from dispute_agent.kernel.domain.evidence import ChargeAssessment
     from dispute_agent.kernel.domain.ids import ActionId, CaseId
     from dispute_agent.modules.approvals.streamlit_ui.console import PendingItem, ReviewConsole
 
@@ -126,10 +132,75 @@ def unknown_actions(work: SqliteUnitOfWork, case_id: CaseId) -> list[Unknown]:
 
 __all__ = [
     "HOLD_S",
+    "Basis",
     "Card",
     "Unknown",
+    "credit_basis",
+    "equation",
     "not_yet_applied",
     "queue",
     "unknown_actions",
     "with_a_person",
 ]
+
+
+#: (duplicate debit, already credited, charge on the re-measurement, approval equation)
+Basis = tuple[str | None, str, str | None, list[tuple[str, str]] | None]
+
+
+def credit_basis(work: object, card: Card) -> Basis:
+    """The duplicate debit a duplicate-charge credit returns, what is already credited, the
+    charge on the hub's re-measurement for a remeasurement credit, and the approval equation."""
+    case_id = card.item.approval.request.case_id
+    latest = work.assessments.latest(case_id)  # type: ignore[attr-defined]
+    dup = latest.duplicate_debit_total if latest is not None else None
+    already = already_dup = Decimal(0)
+    for action in work.actions.for_case(case_id):  # type: ignore[attr-defined]
+        if action.status is not ActionStatus.VERIFIED:
+            continue
+        try:
+            payload = work.intents.get(action.intent_id).payload  # type: ignore[attr-defined]
+        except Exception:  # a plan that cannot be read adds nothing it cannot prove
+            continue
+        if isinstance(payload, CreditPayload):
+            already += payload.amount.amount
+            if payload.reason_code == "duplicate_charge":
+                already_dup += payload.amount.amount
+    duplicate = (
+        render_fact(dup)
+        if dup is not None and card.item.credit_reason == "duplicate_charge"
+        else None
+    )
+    remeasured = (
+        render_fact(latest.recalculated_remeasured)
+        if latest is not None
+        and latest.recalculated_remeasured is not None
+        and card.item.credit_reason == "remeasurement_lower"
+        else None
+    )
+    return duplicate, money(already), remeasured, equation(latest, card, already, already_dup)
+
+
+def equation(
+    latest: ChargeAssessment | None, card: Card, already: Decimal, already_dup: Decimal
+) -> list[tuple[str, str]] | None:
+    """Code's own terms for the credit (kernel/policy/credit.py), or None when they do not give
+    exactly the amount the approval is bound to - then the card shows its figures alone."""
+    reason = card.item.credit_reason
+    if latest is None or reason is None:
+        return None
+    owed = credit_amount(latest, reason, Money.of(already), Money.of(already_dup))
+    if owed is None or render_fact(owed) != card.item.credit_amount:
+        return None
+    if reason == "duplicate_charge":
+        terms = [
+            ("Duplicate debit", latest.duplicate_debit_total),
+            ("Already refunded for duplicates", Money.of(already_dup)),
+        ]
+    else:  # a duplicate refund pays back a different overcharge, so it is not netted (ADR 0065)
+        terms = [
+            ("Billed", latest.charged),
+            ("Correct charge", lowest_proven_correct_charge(latest)),
+            ("Already credited", Money.of(already - already_dup)),
+        ]
+    return [(label, render_fact(value)) for label, value in terms]

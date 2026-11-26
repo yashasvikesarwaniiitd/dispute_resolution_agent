@@ -4,7 +4,7 @@
 
 PY := uv run python scripts/make.py
 
-.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login explain demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team eval-image
+.PHONY: setup verify test test-integration lint typecheck arch scenarios run-api run-approvals email-login gmail-login explain demo eval agents-sync foundry-check foundry-login foundry-spend llm-check try-agent red-team eval-image web run-web
 
 setup:
 	$(PY) setup
@@ -38,6 +38,12 @@ run-approvals:
 
 run-console:
 	$(PY) run-console
+
+web:
+	$(PY) web
+
+run-web:
+	$(PY) run-web
 
 email-login:
 	$(PY) email-login

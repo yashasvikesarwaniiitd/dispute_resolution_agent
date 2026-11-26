@@ -206,7 +206,7 @@ Each tool was picked for a job, and the safety rules apply to all of them.
 
 ## The operations console
 
-Four working screens over the running system (`make run-console`, beside `make run-api`), styled with the Hallmark design skill's Coral theme (ADR 0044), and Evals on the far right of the bar (ADR 0066):
+Four working screens over the running system (`make run-console`, beside `make run-api`), styled to the Dispute Desk v2 design (ADR 0044), and Evals on the far right of the bar (ADR 0066):
 
 | Screen | Who | What it does |
 |---|---|---|
@@ -219,6 +219,18 @@ Four working screens over the running system (`make run-console`, beside `make r
 Apart from the Evals switch, the console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
 
 It can also be **hosted live** on Streamlit Community Cloud, sending real email and opening real Jira issues (ADR 0045, `docs/DEPLOY_STREAMLIT.md`). It is built to sit behind one password; the password is switched off for now, and that file says how to switch it back on.
+
+### Dispute Desk: the web workspace (new)
+
+The v2 design built as designed (ADR 0068): one desktop workspace instead of five screens. `make web` builds it; `make run-web` then runs the dispute service with it at http://127.0.0.1:8000/app/ (instead of `make run-api`, never beside it).
+
+- **Work:** a views rail (All needing me, Proven credits, Emails to approve, Handed to me, Seller replied, Could not verify, Done today; and what the agent has), a case list ordered by urgency, and a case view that changes with the work. A credit shows "Billed − Correct charge − Already credited = Credit" from code's own figures; an email shows the exact text with code's figures marked; a handover shows code's decision menu, with "Credit the seller" greyed out unless code proved an error.
+- **Tabs per case:** Overview, Evidence (the parcel footprint drawn to scale, the bill, seller history, the photo), Full record (every step by round, filterable), Ask (the read-only case assistant), Shipment & seller.
+- **Keyboard:** J / K move, A approves, R rejects (or puts the cursor in the note). Drafts survive switching cases.
+- **Seller view, Ledger, Evals, Team, Patterns.** Team and Patterns show only what the case store records and say "Not built yet" for the rest.
+- **Same rules, one engine.** It reads the console's own view models and decides through the same review console and case desk; a listed approver and the review token (or the site password) are needed for every decision.
+
+Not hosted yet: Streamlit Community Cloud cannot serve it, so the hosted demo stays the Streamlit console.
 
 ---
 
@@ -280,6 +292,8 @@ make demo ARGS="--offline calc_error_wrong_slab"   # one dispute end to end, pri
 make run-api        # the web API and the background runner (offline: stand-ins, synthetic data)
 make run-approvals  # the review console, where a person approves credits and messages
 make run-console    # the four-screen operations console (seller, agent steps, review, ledger)
+make web            # build the Dispute Desk web workspace (needs Node.js)
+make run-web        # the service plus the web workspace at /app/ (instead of run-api)
 make explain ARGS="<case_id> <question>"   # ask the read-only Case Explainer (Haiku; a fraction of a cent)
 ```
 
@@ -356,7 +370,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (67 decision records) |
+| Why each decision was made | `docs/adr/` (68 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |

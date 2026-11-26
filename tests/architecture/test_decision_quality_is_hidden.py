@@ -16,6 +16,8 @@ ALLOWED = {
     SRC / "api" / "decision_quality.py",
     # The Evals screen shows the stored results (ADR 0066). It is not on the agent's path.
     SRC / "ui" / "screens" / "evals.py",
+    # The web app's Evals page, the same stored results through /api/ws/evals (ADR 0068).
+    SRC / "ui" / "web" / "router.py",
 }
 NAMES = ("decision_quality", "golden_v1")
 

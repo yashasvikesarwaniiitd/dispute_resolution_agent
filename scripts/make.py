@@ -94,10 +94,34 @@ def run_api() -> int:
     )
 
 
+def run_web() -> int:
+    """The Dispute Desk web workspace (ADR 0068) at http://127.0.0.1:8000/app/: the dispute
+    service, its runner and the workspace in one process. Instead of `run-api`, never beside it
+    (one runner per store). Build the pages first with `make web`."""
+    return uv("uvicorn", "web_app:create", "--factory", "--host", "127.0.0.1")
+
+
 def run_console() -> int:
     """The operations console (ADR 0044): seller tickets, agent steps, review, ledger.
     Run beside `make run-api`; it reads the same stores and posts tickets to that service."""
     return uv("streamlit", "run", "console_app.py", "--server.address", "127.0.0.1")
+
+
+def web() -> int:
+    """Build the Dispute Desk web app (ADR 0068) into web/dist: install, type-check, test,
+    build. `make run-web` then serves it at http://127.0.0.1:8000/app/."""
+    import shutil
+
+    npm = shutil.which("npm")
+    if npm is None:
+        print("web: npm is not installed (Node.js 20 or later).", file=sys.stderr)
+        return 1
+    for argv in (("ci",), ("run", "check"), ("run", "build")):
+        print(f"$ npm {' '.join(argv)}", flush=True)
+        code = subprocess.call([npm, *argv], cwd=f"{ROOT}/web")
+        if code:
+            return code
+    return 0
 
 
 def hosted_secrets() -> int:
@@ -217,6 +241,8 @@ TARGETS = {
     "explain": explain,
     "run-approvals": run_approvals,
     "run-console": run_console,
+    "web": web,
+    "run-web": run_web,
     "gmail-export": gmail_export,
     "hosted-secrets": hosted_secrets,
     "demo": demo,

@@ -21,8 +21,9 @@ if TYPE_CHECKING:
 
     from dispute_agent.ui.labels import Tone
 
-#: The credited colour. One value: the CSS token and the ledger's credit cells both read it.
-PAID = "#ba4a34"
+#: The credited colour: the design's "proven by code" green. One value: the CSS token and the
+#: ledger's credit cells both read it.
+PAID = "#17734a"
 CSS_FILE = Path(__file__).parent / "assets" / "console.css"
 
 #: Who did a step, as a reader names them, and the pill style for each (HANDOFF 3.2).

@@ -36,7 +36,7 @@ def main(
     start: Callable[[], object] | None = None,
     explain: Callable[[str, str], Any] | None = None,
 ) -> None:
-    st.set_page_config(page_title="Dispute desk", page_icon=":material/balance:", layout="wide")
+    st.set_page_config(page_title="Dispute Desk", page_icon=":material/balance:", layout="wide")
     st.html(stylesheet())
     st.logo(str(WORDMARK), size="large")
     if hosted:
@@ -58,23 +58,16 @@ def main(
         "seller": st.Page(
             seller.page,
             title="Raise a ticket",
-            icon=":material/receipt_long:",
             # The default page is served at the root ("/"); Streamlit does not route its
             # url_path. The name stays: without it the top navigation does not draw there.
             url_path="seller",
             default=True,
         ),
-        "trail": st.Page(
-            trail.page, title="Agent steps", icon=":material/route:", url_path="steps"
-        ),
-        "review": st.Page(
-            reviewer.page, title="Review", icon=":material/fact_check:", url_path="review"
-        ),
-        "ledger": st.Page(
-            finance.page, title="Ledger", icon=":material/account_balance:", url_path="ledger"
-        ),
+        "trail": st.Page(trail.page, title="Agent steps", url_path="steps"),
+        "review": st.Page(reviewer.page, title="Review", url_path="review"),
+        "ledger": st.Page(finance.page, title="Ledger", url_path="ledger"),
         # Last, so the stylesheet can set it apart on the far right of the bar.
-        "evals": st.Page(evals.page, title="Evals", icon=":material/insights:", url_path="evals"),
+        "evals": st.Page(evals.page, title="Evals", url_path="evals"),
     }
     st.session_state["pages"] = pages
     st.navigation(list(pages.values()), position="top").run()
@@ -87,7 +80,7 @@ def _through_the_gate() -> bool:
     # A centred column, then one card (design handoff, Screen 0).
     _, middle, _ = st.columns([1, 1.6, 1])
     with middle:
-        st.title("Dispute desk")
+        st.title("Dispute Desk")
         if expected is None:  # no form: the console stays closed and says why
             st.error(
                 "This hosted console has no password set (CONSOLE_PASSWORD), so it stays "

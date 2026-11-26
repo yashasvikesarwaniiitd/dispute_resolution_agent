@@ -1,25 +1,25 @@
-# The operations console's theme (ADR 0044): Hallmark's Coral material, app-screen scope.
-# Warm grey paper, near-black ink, ink-board primary controls. Coral is not a theme colour:
-# it is spent only on the settled (credited) state and focus, in src/dispute_agent/ui/theme.py.
-# Values are Coral's OKLCH tokens converted to sRGB hex.
+# The operations console's theme (ADR 0044): the Dispute Desk v2 design handoff, section 6.
+# Warm grey paper, near-black ink, ink primary controls, white sheets with fine borders.
+# Meaning colours (green = proven by code, violet = AI, blue = you, teal = hub, amber = caution,
+# red = failed) are not theme colours: they live in src/dispute_agent/ui/assets/console.css.
 
 [theme]
 base = "light"
-primaryColor = "#1f1917"
-backgroundColor = "#f8f4f1"
-secondaryBackgroundColor = "#f1ece8"
-textColor = "#1d1614"
-linkColor = "#bb3d31"
-borderColor = "#d9d3cf"
+primaryColor = "#17191e"
+backgroundColor = "#f6f5f1"
+secondaryBackgroundColor = "#f1efea"
+textColor = "#17191e"
+linkColor = "#2d55c8"
+borderColor = "#d9d6ce"
 showWidgetBorder = true
 baseRadius = "8px"
-buttonRadius = "6px"
-# Inter for text and figures alike (its tabular digits line amounts up without a code font);
-# IBM Plex Mono only for text shown exactly as recorded.
-font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
-headingFont = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
-codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap, monospace"
-baseFontSize = 16
+buttonRadius = "8px"
+# Geist for text; Source Sans 3 (tabular digits) for amounts, ids and text shown as recorded.
+# The design uses no monospace: recorded text is set in the numbers font.
+font = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap, sans-serif"
+codeFont = "Source Sans 3:https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap, sans-serif"
+baseFontSize = 14
 showSidebarBorder = true
 
 [client]
