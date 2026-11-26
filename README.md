@@ -4,7 +4,7 @@ An AI agent that takes a dispute from **"I disagree with this charge"** to a **c
 
 It is built as a **general engine with domain packs**. The first pack, **shipping weight disputes**, runs end to end.
 
-**Live demo: [disputeresolutionagent.streamlit.app](https://disputeresolutionagent.streamlit.app/)** (password on request: it sends real email to a test address and opens real Jira issues in a test project).
+**Live demo: [disputeresolutionagent.streamlit.app](https://disputeresolutionagent.streamlit.app/)** (open, no password for now: it sends real email to a test address and opens real Jira issues in a test project, and its AI investigator runs on Claude Haiku within a spending cap).
 
 > An independent portfolio project on **synthetic data**. Not connected to, or affiliated with, any company's systems. Rates and limits are illustrative.
 
@@ -124,7 +124,7 @@ No nagging: at most **3 messages per case** and **1 per day**, and one clarifyin
 | Interpret a customer's reply | Follow instructions hidden in a customer's text |
 | Suggest possible causes of a repeated problem | Accuse anyone, or credit or penalise anyone because of a pattern |
 
-If the AI is off or unavailable, a **rules-only** decision-maker resolves the clear cases and hands the rest to a person. The project runs this way by default, at no cost. When the AI is on, it goes through one guarded route (Microsoft Foundry, gpt-5-mini, with Claude Haiku as a backup) with spending caps per case and in total. Total AI spend during development was about **USD 0.66** against a **USD 150** cap.
+If the AI is off or unavailable, a **rules-only** decision-maker resolves the clear cases and hands the rest to a person. A local copy runs this way by default, at no cost. The hosted demo runs the AI investigator on **Claude Haiku** (ADR 0059) through one guarded route, with spending caps per case and in total; Microsoft Foundry (gpt-5-mini) was the first route and is still used by the live evaluation scripts and the photo check. Total AI spend during development was about **USD 0.66** against a **USD 150** cap.
 
 ---
 
@@ -218,7 +218,7 @@ Four working screens over the running system (`make run-console`, beside `make r
 
 Apart from the Evals switch, the console writes nothing of its own. A ticket goes through the API and a decision through the review console's own rules, and the AI's words are always shown as plain text.
 
-It can also be **hosted live** on Streamlit Community Cloud, sending real email and opening real Jira issues behind one password (ADR 0045, `docs/DEPLOY_STREAMLIT.md`).
+It can also be **hosted live** on Streamlit Community Cloud, sending real email and opening real Jira issues (ADR 0045, `docs/DEPLOY_STREAMLIT.md`). It is built to sit behind one password; the password is switched off for now, and that file says how to switch it back on.
 
 ---
 
@@ -230,7 +230,7 @@ It can also be **hosted live** on Streamlit Community Cloud, sending real email 
 | Ledger (where credits are posted) | **Simulated**, as an independent store that can fail in realistic ways. |
 | Jira | **Real**: tested live against the owner's test project. A stand-in is used by default. |
 | Email | **Real Gmail**: tested live through the owner's test Gmail, sending only to the owner's own test address. A stand-in is used by default. An Outlook connector is also built, not yet live. |
-| AI | **Real** when switched on (Microsoft Foundry); off by default. The Case Explainer uses Claude Haiku directly, read-only. |
+| AI | **Real** on the hosted demo: Claude Haiku decides the next step, capped (ADR 0059). Off by default locally. Microsoft Foundry for the live evaluation scripts and the photo check. The Case Explainer uses Claude Haiku directly, read-only. |
 | Monitoring | Traces reach Azure Application Insights with **no message content**. |
 
 ---
@@ -239,8 +239,8 @@ It can also be **hosted live** on Streamlit Community Cloud, sending real email 
 
 | Check | Result |
 |---|---|
-| Automated tests | About 3,900 pass on every change, on the owner's machine and on GitHub (`make verify`: lint, strict types, architecture rules, then the tests). |
-| Scenario suite (`make eval`) | **57 of 57** scenarios pass. Across them: zero unapproved credits, zero duplicate emails, tickets or credits, zero unconfirmed outcomes counted as done, and no prompt injection succeeded in the 4 injection scenarios. |
+| Automated tests | About 4,300 pass on every change, on the owner's machine and on GitHub (`make verify`: lint, strict types, architecture rules, then the tests). |
+| Scenario suite (`make eval`) | **65 of 65** scenarios pass, with all 12 gates (2026-11-27). Across them: zero unapproved credits, zero duplicate emails, tickets or credits, zero unconfirmed outcomes counted as done, and no prompt injection succeeded in the 4 injection scenarios. |
 | Release gates | All 12 recorded gates pass (`config/release_gates.yaml`). |
 | AI choosing the right first step (live) | gpt-5-mini: 62% of 45 (2026-11-04), then 24% of 45 on an identical rerun (2026-11-05); rules only: 48% of 45. Both runs are below the 90 percent bar. **Caution:** the 45 scenarios rest on 13 distinct disputes, so these scores swing widely. Treat them as unsettled, not as a measured level. |
 | LangGraph two-pass investigator vs single call | Recorded suite: both 57 of 57. Live: 58% of 45 vs 24% of 45 on the same day, which is **inconclusive** for the same reason. It stays off by default (`docs/evals/2026-11-05-langgraph-vs-single.md`). |
@@ -266,7 +266,7 @@ Building it this way caught real bugs before any user could. For example, the ru
 - **No productivity claim.** Nothing here measures real operator time.
 - **Patterns are hypotheses.** They only add caution, and only a structured finding from the right team confirms or dismisses one. The thresholds were set for synthetic data, not tuned on real disputes.
 - **Sign-ins expire.** With a personal Google app in testing, the Gmail sign-in must be renewed every 7 days. Until then, cases go to a person instead of emails going out.
-- **A demo deployment, not a service.** The console is hosted on Streamlit Community Cloud behind one password, on synthetic data, sending only to a test address (ADR 0045). It is a single small instance, not a scaled service.
+- **A demo deployment, not a service.** The console is hosted on Streamlit Community Cloud (its password is off for now), on synthetic data, sending only to a test address (ADR 0045). It is a single small instance, not a scaled service.
 
 ---
 
@@ -275,7 +275,7 @@ Building it this way caught real bugs before any user could. For example, the ru
 ```bash
 make setup          # install (uses uv)
 make verify         # every check and test
-make eval           # the 57 scenarios, the gates, and a report in data/eval/
+make eval           # the 65 scenarios, the gates, and a report in data/eval/
 make demo ARGS="--offline calc_error_wrong_slab"   # one dispute end to end, printed as a timeline
 make run-api        # the web API and the background runner (offline: stand-ins, synthetic data)
 make run-approvals  # the review console, where a person approves credits and messages

@@ -10,7 +10,7 @@ Authority order when documents disagree (`CLAUDE.md` section 18): `docs/spec/` b
 |----------|-----------------|------------|
 | `kernel-interfaces.md` | Every port, domain model, enum and context shape. Sections 13-15 are the Stage A2, A3 and A4 amendments. The authoritative data model. | I1, I5, I8, I9 |
 | `schema.sql` | The database: tables, CHECK constraints, partial unique indexes, triggers, schema checks S1-S27. | I3, I4, I8 |
-| `transitions.yaml` | States, groups, timer kinds, triggers, guards, steps, 49 transitions, the event acceptance matrix, checks C1-C16. | I8, I4 |
+| `transitions.yaml` | States, groups, timer kinds, triggers, guards, steps, 51 transitions, the event acceptance matrix, checks C1-C16. | I8, I4 |
 | `events-catalog.md` | Every event type and its payload. | I8 |
 | `orchestrator.md` | The step loop, one committed transition per step, module availability and fallbacks. | I4, I6 |
 | `executor.md` | Outbox, idempotency keys, read-back verification, the kill switch inside. | I2, I3, I10 |
@@ -59,7 +59,7 @@ Authority order when documents disagree (`CLAUDE.md` section 18): `docs/spec/` b
 
 | File | What it does |
 |------|--------------|
-| `scripts/check_scenarios.py` | Walks every scenario path against `transitions.yaml`, checks invariant coverage and the fields the gates read. Exits non-zero; wired into `make verify` from Phase 0. |
+| `scripts/check_scenarios.py` | Walks every scenario path against `transitions.yaml`, checks invariant coverage and the fields the gates read. Exits non-zero. Runs as `make scenarios` and on every push in CI (`.github/workflows/verify.yml`); `make verify` does not run it. |
 
 ## Invariant coverage
 

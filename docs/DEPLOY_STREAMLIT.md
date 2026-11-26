@@ -2,6 +2,8 @@
 
 ADR 0045. The hosted console sends **real email** through your Gmail and opens **real Jira issues**, behind one password. These steps take about ten minutes. Every value in them stays in Streamlit's secret store, never in the repository.
 
+> **The password is currently off** (owner's choice, 2026-11-25, commit `68de0e5`). Every visitor is let in and reviews as a listed approver, so anyone with the link can raise tickets, approve credits and emails as "owner", trigger the test email and spend the AI budget. To close the site again, put back `if hosted and not _through_the_gate(): return` in `main` in `src/dispute_agent/ui/app.py` (its `shortcut:` comment says where) and restore the three password tests in `tests/unit/ui/test_hosted.py` from that commit's parent. The steps below still describe the site with the password on.
+
 ## Before you start
 
 - Gmail and Jira work locally. Check with `make demo ARGS="calc_error_high_value"`.

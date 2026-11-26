@@ -1,6 +1,14 @@
 # Handoff
 
-Read this first in every session. It is the single source for current state, decisions already made, and the next action. Last updated: 2026-11-04.
+Read this first in every session. It is the single source for current state, decisions already made, and the next action. Last updated: 2026-11-27 (section 0); sections 1 onward were last revised on 2026-11-04 and the decision log (D-numbers) is kept as history.
+
+## 0. Current state (2026-11-27)
+
+- **Live demo:** Streamlit Community Cloud, from `main`. It sends real email to the owner's test Gmail address and opens real Jira issues in a test project. The AI investigator runs on **Claude Haiku** (`anthropic_direct`, ADR 0059); the running app accepts no other model route. Microsoft Foundry (`gpt-5-mini`) is used only by the live eval scripts and the photo check, which the hosted site replays from recorded verdicts. Locally the defaults are unchanged: AI off, the rules engine decides.
+- **The site password is off** (owner's choice, 2026-11-25, commit `68de0e5`): anyone with the link can raise tickets, approve as "owner", trigger the test email and spend the AI budget. How to switch it back on: `docs/DEPLOY_STREAMLIT.md`.
+- **Checks:** `make verify` passes (4,313 tests on 2026-11-26). Decision Quality (ADR 0064): Haiku 16 of 18 acceptable, rules 17 of 18 with 1 prohibited, the judge agrees with the owner 25 of 28 times and caught 7 of 7 critical flaws. Online evaluation (ADR 0066) is built and off; it has never run on a live case.
+- **Shipped 25-26 Nov:** an unreadable bounce no longer blocks every seller reply (`8bab2b5`); a reply within 7 days reopens an upheld or no-response case and the Agent steps page shows it (`7425932`); each reopen gives the case a fresh AI call allowance (ADR 0067); the reopen rules live in one place (`6865a73`, `GLOSSARY.md`).
+- **Next, in order:** give the AI investigator the same per-case call limit as the reply reader (it gets 6, the reader 10); make "already credited" on the approval card match code's netting; the planned "add a shipment" flow; the "database is locked" risk before a multi-person demo; switch the password back on before sharing the link widely.
 
 ## 1. Status
 
