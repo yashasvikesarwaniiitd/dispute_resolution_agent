@@ -56,6 +56,8 @@ class StubMessages:
             self.last = step
         else:
             step = self.last
+        if isinstance(step, BaseException):
+            raise step
         if isinstance(step, str) and step in (
             "rate_limit",
             "auth",

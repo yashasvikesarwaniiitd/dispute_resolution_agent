@@ -117,7 +117,14 @@ class Settings(BaseSettings):
     reply_reader: Literal["anthropic_direct"] | None = None
     #: `single` (one model call per round), `graph` (two passes on LangGraph, ADR 0041) or
     #: `agent` (chooses its own read-only lookups, up to four turns, ADR 0042).
-    reasoning_engine: Literal["single", "graph", "agent"] = "agent"  # ADR 0059
+    #: ADR 0059; "investigator" (the agent chooses investigation tools) and "enriched" (code runs
+    #: the look-ups, one call) are ADR 0072's, and need its inactive prompt v4.
+    reasoning_engine: Literal[
+        "single", "graph", "agent", "agent_v5", "investigator", "enriched", "plain"
+    ] = "agent"
+    #: "approved": the three approved demo sellers only (the frozen regression environment);
+    #: "full": with the generated sellers (ADR 0072).
+    seller_catalogue: Literal["full", "approved"] = "full"
 
     @field_validator(
         "azure_credit_expires_on",

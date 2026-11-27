@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import importlib.util
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -45,8 +46,17 @@ from dispute_agent.modules.approvals.streamlit_ui.console import (
     reviewer_named,
     sign_in,
 )
+from dispute_agent.modules.evidence.synthetic_shipments.added import (
+    AddedShipments,
+    NewShipment,
+    ShipmentRejectedError,
+    check,
+    dimensions,
+)
+from dispute_agent.modules.evidence.synthetic_shipments.fixtures import CARD
 from dispute_agent.packs.weight_dispute.requested_items import EVIDENCE_ITEMS
 from dispute_agent.ui import data
+from dispute_agent.ui.add_shipment import save
 from dispute_agent.ui.desk import CaseDesk
 from dispute_agent.ui.finance import rows, totals
 from dispute_agent.ui.gate import opens
@@ -100,6 +110,32 @@ class Raise(BaseModel):
     seller_id: str
     shipment_ref: str
     note: str = Field(default="", max_length=NOTE_CHARS)
+
+
+class AddShipment(BaseModel):
+    """A synthetic shipment for one demo seller (ADR 0072): their product, packaging, a
+    quantity, a hub and scanner the network has, the day it was measured, sizes and weights."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sku_id: str
+    packaging_id: str
+    quantity: int = Field(default=1, ge=1, le=50)
+    hub_id: str
+    scanner_id: str
+    measured_on: date
+    zone: str
+    status: str = "DELIVERED"
+    declared: tuple[float, float, float]
+    declared_grams: int
+    measured: tuple[float, float, float]
+    measured_grams: int
+    charged_rupees: float | None = None
+    charged_twice: bool = False
+
+
+#: Shipments per page on the seller view (ADR 0072).
+PAGE_SIZE = 25
 
 
 class Question(BaseModel):
@@ -166,7 +202,9 @@ def build_workspace_router(
                 found = uow.cases.get(CaseId(case_id))
             except NotFound as missing:
                 raise HTTPException(status_code=404, detail="No such case.") from missing
-            return case_detail(uow, found, datetime.now(UTC))
+            detail = case_detail(uow, found, datetime.now(UTC))
+        detail["investigation"] = data.investigation(case_id)
+        return detail
 
     @router.post("/approvals/{approval_id}")
     def decide_approval(
@@ -222,11 +260,15 @@ def build_workspace_router(
         return {"case_id": case_id, "recorded": body.choice}
 
     @router.get("/sellers/{seller_id}")
-    def seller(seller_id: str) -> dict[str, Any]:
+    def seller(seller_id: str, q: str = "", show: str = "all", page: int = 1) -> dict[str, Any]:
         persona = next((p for p in personas() if p["seller_id"] == seller_id), None)
         if persona is None:
             raise HTTPException(status_code=404, detail="No such demo seller.")
-        shipments = [s for s in seller_shipments(seller_id) if s.disputed]
+        every = seller_shipments(seller_id, data.SHIPMENTS)
+        listed = _filtered(every, q, show)
+        pages = max(1, -(-len(listed) // PAGE_SIZE))
+        page = min(max(page, 1), pages)
+        shipments = listed[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
         mine: list[dict[str, Any]] = []
         if data.has_store():
             with data.reader() as uow:
@@ -254,7 +296,57 @@ def build_workspace_router(
             else f"This demo seller has no test address: add the +{persona['contact_tag']} "
             "address to TEST_SELLER_EMAIL.",
             "shipments": [shipment_view(s) for s in shipments],
+            "page": page,
+            "pages": pages,
+            "matched": len(listed),
+            "counts": {
+                "all": len(every),
+                "disputes": sum(1 for s in every if s.disputed or s.added),
+                "history": sum(1 for s in every if not (s.disputed or s.added)),
+            },
+            "add_options": add_options(seller_id),
             "tickets": mine,
+        }
+
+    @router.post("/sellers/{seller_id}/shipments")
+    def add_shipment(seller_id: str, body: AddShipment) -> dict[str, Any]:
+        if next((p for p in personas() if p["seller_id"] == seller_id), None) is None:
+            raise HTTPException(status_code=404, detail="No such demo seller.")
+        if body.measured_on > datetime.now(UTC).date():
+            raise HTTPException(
+                status_code=422, detail="The measured date cannot be in the future."
+            )
+        store = AddedShipments(data.SHIPMENTS)
+        try:
+            new = NewShipment(
+                ref=store.next_ref(),
+                zone=body.zone,
+                status=body.status,
+                declared=dimensions(*body.declared),
+                declared_grams=body.declared_grams,
+                measured=dimensions(*body.measured),
+                measured_grams=body.measured_grams,
+                charged_paise=None
+                if body.charged_rupees is None
+                else int((Decimal(str(body.charged_rupees)) * 100).quantize(Decimal(1))),
+                charged_twice=body.charged_twice,
+                packaging=_kind(seller_id, body.packaging_id),
+                seller_id=seller_id,
+                sku_id=body.sku_id,
+                packaging_id=body.packaging_id,
+                quantity=body.quantity,
+                hub_id=body.hub_id,
+                scanner_id=body.scanner_id,
+                measured_at=datetime.combine(body.measured_on, time(11), tzinfo=UTC),
+            )
+            check(new)
+            ref = save(store, data.LEDGER, new, None, datetime.now(UTC))
+        except ShipmentRejectedError as bad:
+            raise HTTPException(status_code=422, detail=str(bad)) from bad
+        return {
+            "ok": True,
+            "ref": ref,
+            "message": f"{ref} added. You can raise a dispute on it now.",
         }
 
     @router.post("/sellers/raise")
@@ -263,10 +355,20 @@ def build_workspace_router(
         if persona is None:
             raise HTTPException(status_code=404, detail="No such demo seller.")
         shipment = next(
-            (s for s in seller_shipments(body.seller_id) if s.ref == body.shipment_ref), None
+            (
+                s
+                for s in seller_shipments(body.seller_id, data.SHIPMENTS)
+                if s.ref == body.shipment_ref
+            ),
+            None,
         )
         if shipment is None:
             raise HTTPException(status_code=404, detail="Not one of this seller's shipments.")
+        if not (shipment.disputed or shipment.added):
+            # Past shipments are the agent's history, not something to dispute (ADR 0060).
+            raise HTTPException(
+                status_code=422, detail="Only a disputed or added shipment can be raised."
+            )
         contact = contact_for(persona["contact_tag"], Settings().test_seller_email)
         now = datetime.now(UTC)
         raised = raise_ticket(post, shipment, contact, now, f"ws-{uuid.uuid4().hex}", body.note)
@@ -462,6 +564,65 @@ def build_workspace_router(
         return {"answer": answer.text, "sources": sources(answer.tools_used)}
 
     return router
+
+
+def _filtered(every: list[Any], q: str, show: str) -> list[Any]:
+    """Search (shipment or product) and filter; disputes and added shipments first, then newest."""
+    needle = q.strip().lower()
+    kept = [
+        s
+        for s in every
+        if (show != "disputes" or s.disputed or s.added)
+        and (show != "history" or not (s.disputed or s.added))
+        and (not needle or needle in s.ref.lower() or needle in s.sku_id.lower())
+    ]
+    open_first = [s for s in kept if s.disputed or s.added]
+    rest = [s for s in kept if not (s.disputed or s.added)]
+    return open_first + rest  # seller_shipments is already newest first
+
+
+def _kind(seller_id: str, packaging_id: str) -> str:
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
+
+    seller = catalogue().seller(seller_id)
+    boxes = {p.packaging_id: p.kind for p in seller.packaging} if seller else {}
+    return boxes.get(packaging_id, "box")
+
+
+def add_options(seller_id: str) -> dict[str, Any]:
+    """What the add-shipment form offers: this seller's products and packagings, and the hubs
+    and scanners the network has. Names and nominal sizes only, never another seller's rows."""
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
+
+    seller = catalogue().seller(seller_id)
+    if seller is None:
+        return {}
+    hubs: dict[str, set[str]] = {}
+    for other in catalogue().sellers:
+        for row in other.shipments:
+            hubs.setdefault(row.hub_id, set()).add(row.scanner_id)
+    return {
+        "products": [
+            {
+                "sku_id": p.sku_id,
+                "name": p.name,
+                "packaging_id": p.packaging_id,
+                "item_grams": p.item_grams,
+            }
+            for p in seller.products
+        ],
+        "packagings": [
+            {
+                "packaging_id": b.packaging_id,
+                "kind": b.kind,
+                "cm": [float(b.length_cm), float(b.width_cm), float(b.height_cm)],
+                "tare_grams": b.tare_grams,
+            }
+            for b in seller.packaging
+        ],
+        "hubs": [{"hub_id": h, "scanners": sorted(s)} for h, s in sorted(hubs.items())],
+        "zones": list(CARD.zone_names()),
+    }
 
 
 def _at(summaries: list[dict[str, Any]], index: int | None) -> dict[str, Any] | None:

@@ -144,6 +144,9 @@ class ModelGateway(Protocol):     # the only path to any model (I14)
     def complete(self, req: ModelRequest) -> ModelResponse: ...   # messages + optional JSON schema; returns parsed output, token usage, latency
 class InputScreen(Protocol):      # advisory only (I15)
     def screen(self, text: UntrustedText, kind: ScreenKind) -> ScreenResult: ...  # flags can only add caution
+class InvestigationTool(Protocol): # read-only look-up for one case (ADR 0071)
+    spec: ToolSpec
+    def run(self, ctx: ToolContext, args: Mapping[str, Any]) -> ToolOutput: ...
 ```
 
 Every module port also has a `Disabled` implementation that raises `ModuleUnavailable(module_name)`. The orchestrator turns that into `NEEDS_HUMAN_REVIEW` with reason `module_unavailable:<name>` (I6).

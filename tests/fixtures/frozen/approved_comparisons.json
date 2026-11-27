@@ -1,0 +1,3130 @@
+{
+ "SHP-101001": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1423",
+   "sides_cm": [
+    "40",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8940"
+  },
+  "excluded": {
+   "measured_later": 11
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101002": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1431",
+   "sides_cm": [
+    "39.8",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8895"
+  },
+  "excluded": {
+   "measured_later": 10
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101001"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101003": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1431",
+   "sides_cm": [
+    "40",
+    "14.8",
+    "14.7"
+   ],
+   "volume_cm3": "8702"
+  },
+  "excluded": {
+   "measured_later": 9
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101004": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1034",
+   "sides_cm": [
+    "22.3",
+    "11.8",
+    "11.7"
+   ],
+   "volume_cm3": "3079"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101005": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "973",
+   "sides_cm": [
+    "30.1",
+    "20.2",
+    "10"
+   ],
+   "volume_cm3": "6080"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101006": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1408",
+   "sides_cm": [
+    "39.8",
+    "15.1",
+    "14.9"
+   ],
+   "volume_cm3": "8955"
+  },
+  "excluded": {
+   "measured_later": 8
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101007": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1419",
+   "sides_cm": [
+    "39.8",
+    "15.1",
+    "15"
+   ],
+   "volume_cm3": "9015"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101008": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1360",
+   "sides_cm": [
+    "24.9",
+    "23.9",
+    "22"
+   ],
+   "volume_cm3": "13092"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101009": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1430",
+   "sides_cm": [
+    "40",
+    "15.1",
+    "14.9"
+   ],
+   "volume_cm3": "9000"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1408",
+    "1431"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9015"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "1.01"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "1423",
+   "sides_cm": [
+    "39.8",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8895"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101010": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1046",
+   "sides_cm": [
+    "21.9",
+    "12.2",
+    "11.8"
+   ],
+   "volume_cm3": "3153"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101004"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101011": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "947",
+   "sides_cm": [
+    "30.2",
+    "20.3",
+    "10.1"
+   ],
+   "volume_cm3": "6192"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101005"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101012": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1427",
+   "sides_cm": [
+    "39.8",
+    "14.9",
+    "14.9"
+   ],
+   "volume_cm3": "8836"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1408",
+    "1431"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9015"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "0.99"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "1426.5",
+   "sides_cm": [
+    "39.9",
+    "15.05",
+    "14.9"
+   ],
+   "volume_cm3": "8947"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101013": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1375",
+   "sides_cm": [
+    "24.9",
+    "24.2",
+    "21.9"
+   ],
+   "volume_cm3": "13197"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101008"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101014": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1434",
+   "sides_cm": [
+    "40.3",
+    "15.2",
+    "14.7"
+   ],
+   "volume_cm3": "9005"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1408",
+    "1431"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9015"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "1.01"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009",
+   "SHP-101012"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "1427",
+   "sides_cm": [
+    "39.8",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8895"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101015": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "957",
+   "sides_cm": [
+    "30.2",
+    "19.8",
+    "10.1"
+   ],
+   "volume_cm3": "6039"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101005",
+   "SHP-101011"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101016": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1425",
+   "sides_cm": [
+    "39.7",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8873"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1408",
+    "1434"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9015"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "0.99"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009",
+   "SHP-101012",
+   "SHP-101014"
+  ],
+  "references": 8,
+  "typical": {
+   "grams": "1428.5",
+   "sides_cm": [
+    "39.9",
+    "15.05",
+    "14.9"
+   ],
+   "volume_cm3": "8947"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101017": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1405",
+   "sides_cm": [
+    "40.2",
+    "15.3",
+    "14.8"
+   ],
+   "volume_cm3": "9103"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1408",
+    "1434"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9015"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.98",
+   "volume": "1.02"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009",
+   "SHP-101012",
+   "SHP-101014",
+   "SHP-101016"
+  ],
+  "references": 9,
+  "typical": {
+   "grams": "1427",
+   "sides_cm": [
+    "39.8",
+    "15",
+    "14.9"
+   ],
+   "volume_cm3": "8895"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101018": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "961",
+   "sides_cm": [
+    "29.9",
+    "20",
+    "9.7"
+   ],
+   "volume_cm3": "5801"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101005",
+   "SHP-101011",
+   "SHP-101015"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101019": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "964",
+   "sides_cm": [
+    "30.2",
+    "20.2",
+    "10"
+   ],
+   "volume_cm3": "6100"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101005",
+   "SHP-101011",
+   "SHP-101015",
+   "SHP-101018"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101020": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1040",
+   "sides_cm": [
+    "21.7",
+    "12",
+    "11.8"
+   ],
+   "volume_cm3": "3073"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101021": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1047",
+   "sides_cm": [
+    "21.8",
+    "11.9",
+    "11.7"
+   ],
+   "volume_cm3": "3035"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010",
+   "SHP-101020"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101022": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1046",
+   "sides_cm": [
+    "22",
+    "12.3",
+    "12.3"
+   ],
+   "volume_cm3": "3328"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010",
+   "SHP-101020",
+   "SHP-101021"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101023": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1055",
+   "sides_cm": [
+    "22.2",
+    "12.2",
+    "12.1"
+   ],
+   "volume_cm3": "3277"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1034",
+    "1047"
+   ],
+   "volume_cm3": [
+    "3035",
+    "3328"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.01",
+   "volume": "1.06"
+  },
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010",
+   "SHP-101020",
+   "SHP-101021",
+   "SHP-101022"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "1046",
+   "sides_cm": [
+    "21.9",
+    "12",
+    "11.8"
+   ],
+   "volume_cm3": "3101"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101024": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1051",
+   "sides_cm": [
+    "22",
+    "12",
+    "11.8"
+   ],
+   "volume_cm3": "3115"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1034",
+    "1055"
+   ],
+   "volume_cm3": [
+    "3035",
+    "3328"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "1"
+  },
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010",
+   "SHP-101020",
+   "SHP-101021",
+   "SHP-101022",
+   "SHP-101023"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "1046",
+   "sides_cm": [
+    "21.95",
+    "12.1",
+    "11.8"
+   ],
+   "volume_cm3": "3134"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101025": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1425",
+   "sides_cm": [
+    "39.9",
+    "15",
+    "15"
+   ],
+   "volume_cm3": "8978"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1405",
+    "1434"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9103"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "1"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009",
+   "SHP-101012",
+   "SHP-101014",
+   "SHP-101016",
+   "SHP-101017"
+  ],
+  "references": 10,
+  "typical": {
+   "grams": "1426",
+   "sides_cm": [
+    "39.9",
+    "15.05",
+    "14.9"
+   ],
+   "volume_cm3": "8947"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101026": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1418",
+   "sides_cm": [
+    "40.2",
+    "15.1",
+    "15"
+   ],
+   "volume_cm3": "9105"
+  },
+  "excluded": {
+   "disputed": 1
+  },
+  "flags": {
+   "declared_below_history": true,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1405",
+    "1434"
+   ],
+   "volume_cm3": [
+    "8702",
+    "9103"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.99",
+   "volume": "1.02"
+  },
+  "reference_refs": [
+   "SHP-101001",
+   "SHP-101002",
+   "SHP-101003",
+   "SHP-101006",
+   "SHP-101007",
+   "SHP-101009",
+   "SHP-101012",
+   "SHP-101014",
+   "SHP-101016",
+   "SHP-101017"
+  ],
+  "references": 10,
+  "typical": {
+   "grams": "1426",
+   "sides_cm": [
+    "39.9",
+    "15.05",
+    "14.9"
+   ],
+   "volume_cm3": "8947"
+  },
+  "verdict": "normal"
+ },
+ "SHP-101027": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1373",
+   "sides_cm": [
+    "25",
+    "23.5",
+    "22"
+   ],
+   "volume_cm3": "12925"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-101008",
+   "SHP-101013"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-101028": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "1052",
+   "sides_cm": [
+    "22.3",
+    "12.3",
+    "11.7"
+   ],
+   "volume_cm3": "3209"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "1034",
+    "1055"
+   ],
+   "volume_cm3": [
+    "3035",
+    "3328"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.01",
+   "volume": "1.03"
+  },
+  "reference_refs": [
+   "SHP-101004",
+   "SHP-101010",
+   "SHP-101020",
+   "SHP-101021",
+   "SHP-101022",
+   "SHP-101023",
+   "SHP-101024"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "1046",
+   "sides_cm": [
+    "22",
+    "12",
+    "11.8"
+   ],
+   "volume_cm3": "3115"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102001": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "62",
+   "sides_cm": [
+    "20.7",
+    "13",
+    "1.1"
+   ],
+   "volume_cm3": "296"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102002": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "79",
+   "sides_cm": [
+    "19.1",
+    "10.7",
+    "2.1"
+   ],
+   "volume_cm3": "429"
+  },
+  "excluded": {
+   "measured_later": 13
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102003": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "67",
+   "sides_cm": [
+    "21.1",
+    "13.1",
+    "0.8"
+   ],
+   "volume_cm3": "221"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102001"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102004": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "69",
+   "sides_cm": [
+    "19.2",
+    "10.9",
+    "1.9"
+   ],
+   "volume_cm3": "398"
+  },
+  "excluded": {
+   "measured_later": 12
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102002"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102005": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "253",
+   "sides_cm": [
+    "19.9",
+    "15",
+    "5.2"
+   ],
+   "volume_cm3": "1552"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102006": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "62",
+   "sides_cm": [
+    "18.7",
+    "11",
+    "2.2"
+   ],
+   "volume_cm3": "453"
+  },
+  "excluded": {
+   "measured_later": 11
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102007": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "66",
+   "sides_cm": [
+    "19.2",
+    "11.3",
+    "2.1"
+   ],
+   "volume_cm3": "456"
+  },
+  "excluded": {
+   "measured_later": 10
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102008": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "72",
+   "sides_cm": [
+    "18.7",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "411"
+  },
+  "excluded": {
+   "measured_later": 9
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102009": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "299",
+   "sides_cm": [
+    "19.9",
+    "15.1",
+    "5.1"
+   ],
+   "volume_cm3": "1532"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102010": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "239",
+   "sides_cm": [
+    "20.2",
+    "15.3",
+    "4.8"
+   ],
+   "volume_cm3": "1483"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102005"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102011": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "83",
+   "sides_cm": [
+    "18.9",
+    "10.8",
+    "1.8"
+   ],
+   "volume_cm3": "367"
+  },
+  "excluded": {
+   "measured_later": 8
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "62",
+    "79"
+   ],
+   "volume_cm3": [
+    "398",
+    "456"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.2",
+   "volume": "0.86"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "69",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2.1"
+   ],
+   "volume_cm3": "441"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102012": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "311",
+   "sides_cm": [
+    "19.9",
+    "15.3",
+    "5.2"
+   ],
+   "volume_cm3": "1583"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102009"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102013": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "64",
+   "sides_cm": [
+    "19.2",
+    "11",
+    "2.2"
+   ],
+   "volume_cm3": "465"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "62",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "456"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.91",
+   "volume": "1.11"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "70.5",
+   "sides_cm": [
+    "19",
+    "10.95",
+    "2.05"
+   ],
+   "volume_cm3": "427"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102014": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "67",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "420"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "62",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "465"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.97",
+   "volume": "0.98"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "69",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2.1"
+   ],
+   "volume_cm3": "441"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102015": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "78",
+   "sides_cm": [
+    "21.1",
+    "13.3",
+    "0.8"
+   ],
+   "volume_cm3": "225"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102016": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "68",
+   "sides_cm": [
+    "20.9",
+    "12.7",
+    "1"
+   ],
+   "volume_cm3": "265"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003",
+   "SHP-102015"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102017": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "56",
+   "sides_cm": [
+    "21.2",
+    "13",
+    "1.3"
+   ],
+   "volume_cm3": "358"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003",
+   "SHP-102015",
+   "SHP-102016"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102018": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "75",
+   "sides_cm": [
+    "19.1",
+    "10.9",
+    "1.9"
+   ],
+   "volume_cm3": "396"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "62",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "465"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.1",
+   "volume": "0.93"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014"
+  ],
+  "references": 8,
+  "typical": {
+   "grams": "68",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2.05"
+   ],
+   "volume_cm3": "431"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102019": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "56",
+   "sides_cm": [
+    "21.3",
+    "13",
+    "1.3"
+   ],
+   "volume_cm3": "360"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "56",
+    "78"
+   ],
+   "volume_cm3": [
+    "221",
+    "358"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.84",
+   "volume": "1.36"
+  },
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003",
+   "SHP-102015",
+   "SHP-102016",
+   "SHP-102017"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "67",
+   "sides_cm": [
+    "21.1",
+    "13",
+    "1"
+   ],
+   "volume_cm3": "274"
+  },
+  "verdict": "anomalous"
+ },
+ "SHP-102020": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "58",
+   "sides_cm": [
+    "19.3",
+    "10.9",
+    "1.8"
+   ],
+   "volume_cm3": "379"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "62",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "465"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.84",
+   "volume": "0.9"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014",
+   "SHP-102018"
+  ],
+  "references": 9,
+  "typical": {
+   "grams": "69",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "420"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102021": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "80",
+   "sides_cm": [
+    "19.2",
+    "11",
+    "1.9"
+   ],
+   "volume_cm3": "401"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "58",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "465"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.18",
+   "volume": "0.97"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014",
+   "SHP-102018",
+   "SHP-102020"
+  ],
+  "references": 10,
+  "typical": {
+   "grams": "68",
+   "sides_cm": [
+    "19.1",
+    "10.95",
+    "2"
+   ],
+   "volume_cm3": "418"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102022": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "61",
+   "sides_cm": [
+    "21.3",
+    "12.8",
+    "0.7"
+   ],
+   "volume_cm3": "191"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "56",
+    "78"
+   ],
+   "volume_cm3": [
+    "221",
+    "360"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.95",
+   "volume": "0.68"
+  },
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003",
+   "SHP-102015",
+   "SHP-102016",
+   "SHP-102017",
+   "SHP-102019"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "64.5",
+   "sides_cm": [
+    "21.1",
+    "13",
+    "1.05"
+   ],
+   "volume_cm3": "288"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102023": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "73",
+   "sides_cm": [
+    "18.7",
+    "11.3",
+    "2.3"
+   ],
+   "volume_cm3": "486"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "58",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "465"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.06",
+   "volume": "1.18"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014",
+   "SHP-102018",
+   "SHP-102020",
+   "SHP-102021"
+  ],
+  "references": 11,
+  "typical": {
+   "grams": "69",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "420"
+  },
+  "verdict": "normal"
+ },
+ "SHP-102024": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "316",
+   "sides_cm": [
+    "20.1",
+    "15",
+    "5"
+   ],
+   "volume_cm3": "1508"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102009",
+   "SHP-102012"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102025": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "72",
+   "sides_cm": [
+    "34",
+    "22",
+    "15"
+   ],
+   "volume_cm3": "11220"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "58",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "486"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.02",
+   "volume": "26.98"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014",
+   "SHP-102018",
+   "SHP-102020",
+   "SHP-102021",
+   "SHP-102023"
+  ],
+  "references": 12,
+  "typical": {
+   "grams": "70.5",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "420"
+  },
+  "verdict": "anomalous"
+ },
+ "SHP-102026": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "70",
+   "sides_cm": [
+    "34",
+    "22",
+    "15"
+   ],
+   "volume_cm3": "11220"
+  },
+  "excluded": {
+   "disputed": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "58",
+    "83"
+   ],
+   "volume_cm3": [
+    "367",
+    "486"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.99",
+   "volume": "26.98"
+  },
+  "reference_refs": [
+   "SHP-102002",
+   "SHP-102004",
+   "SHP-102006",
+   "SHP-102007",
+   "SHP-102008",
+   "SHP-102011",
+   "SHP-102013",
+   "SHP-102014",
+   "SHP-102018",
+   "SHP-102020",
+   "SHP-102021",
+   "SHP-102023"
+  ],
+  "references": 12,
+  "typical": {
+   "grams": "70.5",
+   "sides_cm": [
+    "19.1",
+    "11",
+    "2"
+   ],
+   "volume_cm3": "420"
+  },
+  "verdict": "anomalous"
+ },
+ "SHP-102027": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "236",
+   "sides_cm": [
+    "25.5",
+    "18.5",
+    "6"
+   ],
+   "volume_cm3": "2830"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-102005",
+   "SHP-102010"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-102028": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "67",
+   "sides_cm": [
+    "21.3",
+    "13.2",
+    "0.8"
+   ],
+   "volume_cm3": "225"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "56",
+    "78"
+   ],
+   "volume_cm3": [
+    "191",
+    "360"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.08",
+   "volume": "0.85"
+  },
+  "reference_refs": [
+   "SHP-102001",
+   "SHP-102003",
+   "SHP-102015",
+   "SHP-102016",
+   "SHP-102017",
+   "SHP-102019",
+   "SHP-102022"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "62",
+   "sides_cm": [
+    "21.1",
+    "13",
+    "1"
+   ],
+   "volume_cm3": "274"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103001": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "487",
+   "sides_cm": [
+    "35.8",
+    "28.2",
+    "5.2"
+   ],
+   "volume_cm3": "5250"
+  },
+  "excluded": {
+   "measured_later": 8
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103002": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "472",
+   "sides_cm": [
+    "34.5",
+    "27.5",
+    "5.4"
+   ],
+   "volume_cm3": "5123"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103001"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103003": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "283",
+   "sides_cm": [
+    "30.4",
+    "25.5",
+    "2.2"
+   ],
+   "volume_cm3": "1705"
+  },
+  "differs_by": [
+   "packaging",
+   "quantity"
+  ],
+  "excluded": {
+   "measured_later": 12
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "not_comparable"
+ },
+ "SHP-103004": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "271",
+   "sides_cm": [
+    "29",
+    "24.3",
+    "3.4"
+   ],
+   "volume_cm3": "2396"
+  },
+  "excluded": {
+   "measured_later": 11
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103003"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103005": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "266",
+   "sides_cm": [
+    "29.9",
+    "25.7",
+    "2.4"
+   ],
+   "volume_cm3": "1844"
+  },
+  "excluded": {
+   "measured_later": 10
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103006": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "256",
+   "sides_cm": [
+    "30.5",
+    "24.7",
+    "3"
+   ],
+   "volume_cm3": "2260"
+  },
+  "excluded": {
+   "measured_later": 9
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103007": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "263",
+   "sides_cm": [
+    "29.4",
+    "24.2",
+    "3.5"
+   ],
+   "volume_cm3": "2490"
+  },
+  "excluded": {
+   "measured_later": 8
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103008": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "256",
+   "sides_cm": [
+    "30.9",
+    "24.8",
+    "3.6"
+   ],
+   "volume_cm3": "2759"
+  },
+  "excluded": {
+   "measured_later": 7
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2490"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.96",
+   "volume": "1.22"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "266",
+   "sides_cm": [
+    "29.9",
+    "24.7",
+    "3"
+   ],
+   "volume_cm3": "2216"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103009": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "281",
+   "sides_cm": [
+    "30.2",
+    "24.1",
+    "3.2"
+   ],
+   "volume_cm3": "2329"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.06",
+   "volume": "1"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "264.5",
+   "sides_cm": [
+    "30.15",
+    "24.75",
+    "3.2"
+   ],
+   "volume_cm3": "2388"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103010": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "277",
+   "sides_cm": [
+    "30.6",
+    "24.5",
+    "3"
+   ],
+   "volume_cm3": "2249"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.04",
+   "volume": "0.97"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "266",
+   "sides_cm": [
+    "30.2",
+    "24.7",
+    "3.2"
+   ],
+   "volume_cm3": "2387"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103011": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "264",
+   "sides_cm": [
+    "30.5",
+    "25.9",
+    "2.5"
+   ],
+   "volume_cm3": "1975"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.98",
+   "volume": "0.86"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009",
+   "SHP-103010"
+  ],
+  "references": 8,
+  "typical": {
+   "grams": "268.5",
+   "sides_cm": [
+    "30.3",
+    "24.6",
+    "3.1"
+   ],
+   "volume_cm3": "2311"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103012": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "489",
+   "sides_cm": [
+    "34.5",
+    "28.4",
+    "5.7"
+   ],
+   "volume_cm3": "5585"
+  },
+  "excluded": {
+   "measured_later": 6
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103013": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "473",
+   "sides_cm": [
+    "35.4",
+    "28.7",
+    "5.6"
+   ],
+   "volume_cm3": "5689"
+  },
+  "excluded": {
+   "measured_later": 5
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103014": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "353",
+   "sides_cm": [
+    "30",
+    "24.6",
+    "3.5"
+   ],
+   "volume_cm3": "2583"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103015": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "270",
+   "sides_cm": [
+    "30.1",
+    "24.1",
+    "2.9"
+   ],
+   "volume_cm3": "2104"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.02",
+   "volume": "0.93"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009",
+   "SHP-103010",
+   "SHP-103011"
+  ],
+  "references": 9,
+  "typical": {
+   "grams": "266",
+   "sides_cm": [
+    "30.4",
+    "24.7",
+    "3"
+   ],
+   "volume_cm3": "2253"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103016": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "484",
+   "sides_cm": [
+    "34.7",
+    "27.7",
+    "4.6"
+   ],
+   "volume_cm3": "4421"
+  },
+  "excluded": {
+   "measured_later": 4
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012",
+   "SHP-103013"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103017": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "280",
+   "sides_cm": [
+    "30.4",
+    "25.3",
+    "3"
+   ],
+   "volume_cm3": "2307"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1.04",
+   "volume": "1.02"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009",
+   "SHP-103010",
+   "SHP-103011",
+   "SHP-103015"
+  ],
+  "references": 10,
+  "typical": {
+   "grams": "268",
+   "sides_cm": [
+    "30.3",
+    "24.6",
+    "3"
+   ],
+   "volume_cm3": "2236"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103018": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "484",
+   "sides_cm": [
+    "34.8",
+    "28.7",
+    "5.6"
+   ],
+   "volume_cm3": "5593"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "472",
+    "489"
+   ],
+   "volume_cm3": [
+    "4421",
+    "5689"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "1.07"
+  },
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012",
+   "SHP-103013",
+   "SHP-103016"
+  ],
+  "references": 5,
+  "typical": {
+   "grams": "484",
+   "sides_cm": [
+    "34.7",
+    "28.2",
+    "5.4"
+   ],
+   "volume_cm3": "5284"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103019": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "482",
+   "sides_cm": [
+    "35.1",
+    "27.6",
+    "4.3"
+   ],
+   "volume_cm3": "4166"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "472",
+    "489"
+   ],
+   "volume_cm3": [
+    "4421",
+    "5689"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "0.77"
+  },
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012",
+   "SHP-103013",
+   "SHP-103016",
+   "SHP-103018"
+  ],
+  "references": 6,
+  "typical": {
+   "grams": "484",
+   "sides_cm": [
+    "34.75",
+    "28.3",
+    "5.5"
+   ],
+   "volume_cm3": "5409"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103020": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "270",
+   "sides_cm": [
+    "30.3",
+    "25.8",
+    "2.1"
+   ],
+   "volume_cm3": "1642"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": false
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1705",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "1",
+   "volume": "0.73"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009",
+   "SHP-103010",
+   "SHP-103011",
+   "SHP-103015",
+   "SHP-103017"
+  ],
+  "references": 11,
+  "typical": {
+   "grams": "270",
+   "sides_cm": [
+    "30.4",
+    "24.7",
+    "3"
+   ],
+   "volume_cm3": "2253"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103021": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "467",
+   "sides_cm": [
+    "35.1",
+    "27.6",
+    "4.8"
+   ],
+   "volume_cm3": "4650"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "472",
+    "489"
+   ],
+   "volume_cm3": [
+    "4166",
+    "5689"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.96",
+   "volume": "0.89"
+  },
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012",
+   "SHP-103013",
+   "SHP-103016",
+   "SHP-103018",
+   "SHP-103019"
+  ],
+  "references": 7,
+  "typical": {
+   "grams": "484",
+   "sides_cm": [
+    "34.8",
+    "28.2",
+    "5.4"
+   ],
+   "volume_cm3": "5299"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103022": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "338",
+   "sides_cm": [
+    "29.7",
+    "24",
+    "3.3"
+   ],
+   "volume_cm3": "2352"
+  },
+  "excluded": {
+   "measured_later": 3
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103014"
+  ],
+  "references": 1,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103023": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "337",
+   "sides_cm": [
+    "29.5",
+    "25.1",
+    "3"
+   ],
+   "volume_cm3": "2221"
+  },
+  "excluded": {
+   "measured_later": 2
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103014",
+   "SHP-103022"
+  ],
+  "references": 2,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103024": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "328",
+   "sides_cm": [
+    "30.1",
+    "24.8",
+    "3"
+   ],
+   "volume_cm3": "2239"
+  },
+  "excluded": {
+   "measured_later": 1
+  },
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103014",
+   "SHP-103022",
+   "SHP-103023"
+  ],
+  "references": 3,
+  "verdict": "insufficient_history"
+ },
+ "SHP-103025": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "932",
+   "sides_cm": [
+    "35.1",
+    "30",
+    "12"
+   ],
+   "volume_cm3": "12636"
+  },
+  "differs_by": [
+   "packaging",
+   "quantity"
+  ],
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [],
+  "references": 0,
+  "verdict": "not_comparable"
+ },
+ "SHP-103026": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "470",
+   "sides_cm": [
+    "35",
+    "28",
+    "5"
+   ],
+   "volume_cm3": "4900"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "467",
+    "489"
+   ],
+   "volume_cm3": [
+    "4166",
+    "5689"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.97",
+   "volume": "0.94"
+  },
+  "reference_refs": [
+   "SHP-103001",
+   "SHP-103002",
+   "SHP-103012",
+   "SHP-103013",
+   "SHP-103016",
+   "SHP-103018",
+   "SHP-103019",
+   "SHP-103021"
+  ],
+  "references": 8,
+  "typical": {
+   "grams": "483",
+   "sides_cm": [
+    "34.95",
+    "27.95",
+    "5.3"
+   ],
+   "volume_cm3": "5177"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103027": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "268",
+   "sides_cm": [
+    "30.2",
+    "25.1",
+    "3.4"
+   ],
+   "volume_cm3": "2577"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "range": {
+   "grams": [
+    "256",
+    "283"
+   ],
+   "volume_cm3": [
+    "1642",
+    "2759"
+   ]
+  },
+  "ratio_to_typical": {
+   "grams": "0.99",
+   "volume": "1.14"
+  },
+  "reference_refs": [
+   "SHP-103003",
+   "SHP-103004",
+   "SHP-103005",
+   "SHP-103006",
+   "SHP-103007",
+   "SHP-103008",
+   "SHP-103009",
+   "SHP-103010",
+   "SHP-103011",
+   "SHP-103015",
+   "SHP-103017",
+   "SHP-103020"
+  ],
+  "references": 12,
+  "typical": {
+   "grams": "270",
+   "sides_cm": [
+    "30.35",
+    "24.75",
+    "3"
+   ],
+   "volume_cm3": "2253"
+  },
+  "verdict": "normal"
+ },
+ "SHP-103028": {
+  "basis": "same seller, product, packaging and quantity; trusted readings before this one",
+  "current": {
+   "grams": "335",
+   "sides_cm": [
+    "30.5",
+    "25.9",
+    "3.4"
+   ],
+   "volume_cm3": "2686"
+  },
+  "excluded": {},
+  "flags": {
+   "declared_below_history": false,
+   "packaging_consistent": true
+  },
+  "outlier_refs": [],
+  "reference_refs": [
+   "SHP-103014",
+   "SHP-103022",
+   "SHP-103023",
+   "SHP-103024"
+  ],
+  "references": 4,
+  "verdict": "insufficient_history"
+ }
+}

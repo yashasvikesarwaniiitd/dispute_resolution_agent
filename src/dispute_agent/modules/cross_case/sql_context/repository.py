@@ -149,6 +149,27 @@ class PatternRepository:
         with self._engine.connect() as conn:
             return [CaseRow(r[0], r[1], r[2], r[3], from_iso(r[4])) for r in conn.execute(query)]
 
+    def recent_outcomes(self, limit: int) -> list[tuple[CaseRow, str, str | None]]:
+        """(case, state, review_code), newest first: the past-disputes tool's view (ADR 0071)."""
+        query = (
+            select(
+                cases.c.id,
+                cases.c.shipment_ref,
+                cases.c.claim_ref,
+                cases.c.seller_ref,
+                cases.c.opened_at,
+                cases.c.state,
+                cases.c.review_code,
+            )
+            .order_by(cases.c.opened_at.desc(), cases.c.id)
+            .limit(limit)
+        )
+        with self._engine.connect() as conn:
+            return [
+                (CaseRow(r[0], r[1], r[2], r[3], from_iso(r[4])), r[5], r[6])
+                for r in conn.execute(query)
+            ]
+
     def case_row(self, case_id: str) -> CaseRow | None:
         with self._engine.connect() as conn:
             r = conn.execute(

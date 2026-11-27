@@ -67,6 +67,7 @@ def test_the_card_list_is_complete() -> None:
         "IdGenerator",
         "ImageChecker",
         "InputScreen",
+        "InvestigationTool",  # ADR 0071
         "KillSwitch",
         "Ledger",
         "MessageChannel",

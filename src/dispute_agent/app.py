@@ -61,6 +61,7 @@ if TYPE_CHECKING:
 
     from dispute_agent.api.scenario_runner import ScenarioModels
     from dispute_agent.kernel.domain.reasoning import ModelRequest
+    from dispute_agent.kernel.orchestrator.toolbox import Toolbox
     from dispute_agent.kernel.policy.config import PolicyConfig
     from dispute_agent.kernel.ports import (
         ApprovalService,
@@ -594,6 +595,10 @@ def build_application(
 
     configure_logging(app_env=env, secrets=loaded.secret_values())
 
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import set_catalogue_mode
+
+    set_catalogue_mode(loaded.seller_catalogue)
+
     registry = validate_modules(load_modules_file(directory, loaded.modules_file), app_env=env)
     clock = SystemClock()
     ids = UlidIdGenerator()
@@ -786,6 +791,17 @@ def _build_runtime(
         return CreditWritePort(adapters.ledger, case.id)
 
     modules = {m.name: m.enabled for m in registry.all()}
+    image_check = build_image_check(
+        registry, settings, policy, clock, ids, database.parent / "photos", adapters.tracer
+    )
+    tools = build_toolbox(
+        adapters,
+        engine,
+        evidence_on=modules.get("evidence", False),
+        cross_case_on=cross_case_on,
+        image_check=image_check if modules.get("image_check") else {},
+        added=database.parent / ADDED_SHIPMENTS,
+    )
     line = Line(
         pack=WeightDisputePack(),
         policy=policy,
@@ -794,7 +810,9 @@ def _build_runtime(
         ports=ports,
         sources=lambda: {"evidence": adapters.evidence},
         reasoner=_online_judged(
-            _runtime_reasoner(config_dir, settings, clock, ids, adapters, registry),
+            _runtime_reasoner(
+                config_dir, settings, clock, ids, adapters, registry, tools, cross_case_on
+            ),
             registry,
             database.parent / ONLINE_FILE,
         )
@@ -806,9 +824,7 @@ def _build_runtime(
         # HOOK A: the real provider when cross_case is on; None is exactly no patterns.
         patterns=adapters.patterns if cross_case_on else None,
         interpreter=build_reply_reader(settings, policy, clock, ids, tracer=adapters.tracer),
-        **build_image_check(
-            registry, settings, policy, clock, ids, database.parent / "photos", adapters.tracer
-        ),
+        **image_check,
     )
     jobs: list[Any] = []
     if cross_case_on:
@@ -874,7 +890,53 @@ def _build_runtime(
                 source="gmail" if email_adapter == "gmail_api" else "outlook",
             )
         )
-    return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids)
+    return Runtime(unit_of_work_factory(engine), intake, line, runner, clock, ids, tools=tools)
+
+
+def build_toolbox(
+    adapters: Adapters,
+    engine: Any,
+    *,
+    evidence_on: bool,
+    cross_case_on: bool,
+    image_check: dict[str, Any],
+    added: Path | None = None,
+) -> Toolbox:
+    """The investigation tools, one per capability, from the modules that are on (ADR 0071).
+
+    Each tool lives in the module that owns its data; this is the only place they meet, so
+    modules stay independent. A module that is off contributes no tool.
+    """
+    from dispute_agent.kernel.orchestrator.toolbox import Toolbox
+    from dispute_agent.modules.reasoning.policy_tool import PolicyLookupTool
+
+    tools: list[Any] = [PolicyLookupTool()]
+    if evidence_on:
+        from dispute_agent.modules.evidence.synthetic_shipments.records import (
+            CatalogueRecords,
+            added_records,
+        )
+        from dispute_agent.modules.evidence.synthetic_shipments.tools import (
+            PastShipmentsTool,
+            ScannerStatisticsTool,
+        )
+
+        # Console-added shipments can be "this parcel", never history (ADR 0072).
+        records = CatalogueRecords(added_records(added) if added else None)
+        tools += [PastShipmentsTool(records), ScannerStatisticsTool(records)]
+    if cross_case_on:
+        from dispute_agent.modules.cross_case.sql_context.repository import PatternRepository
+        from dispute_agent.modules.cross_case.sql_context.tools import PastDisputesTool
+
+        tools.append(PastDisputesTool(PatternRepository(engine), shipment_keys(adapters.evidence)))
+    if image_check:
+        from dispute_agent.modules.image_check.tool import ParcelImageTool
+        from dispute_agent.packs.weight_dispute.photo import size_facts
+
+        tools.append(
+            ParcelImageTool(image_check["image_checker"], image_check["photos"], size_facts)
+        )
+    return Toolbox(tools)
 
 
 def build_image_check(
@@ -946,11 +1008,20 @@ def _runtime_reasoner(
     ids: IdGenerator,
     adapters: Adapters,
     registry: Registry,
+    tools: Toolbox | None = None,
+    cross_case_on: bool = False,
 ) -> Reasoner:
     """The configured reasoner; for `llm`, the guarded model route and the AI investigator."""
     if registry.adapter_name("reasoning") != "llm":
         return adapters.reasoner
-    policy = build_model_policy(config_dir, settings)
+    from dispute_agent.infra.policy import pattern_call_limit
+
+    policy = gateway_policy(
+        build_model_policy(config_dir, settings),
+        settings.reasoning_engine,
+        cross_case_on=cross_case_on,
+        pattern_limit=pattern_call_limit(config_dir),
+    )
     gateway = build_model_gateway(
         registry.adapter_name("model_gateway"),
         settings=settings,
@@ -959,7 +1030,9 @@ def _runtime_reasoner(
         ids=ids,
         tracer=adapters.tracer,
     )
-    return build_llm_reasoner(gateway, settings=settings, policy=policy, clock=clock, ids=ids)
+    return build_llm_reasoner(
+        gateway, settings=settings, policy=policy, clock=clock, ids=ids, tools=tools
+    )
 
 
 def build_model_policy(config_dir: Path, settings: Settings) -> PolicyConfig:
@@ -1179,6 +1252,7 @@ def build_scenario_models(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
+    engine: str | None = None,
 ) -> ScenarioModels:
     """The scenario suite's model path: recorded answers behind the real spending guard.
 
@@ -1205,7 +1279,7 @@ def build_scenario_models(
         primary=primary,
         route="fake",
         ledger=open_model_call_log(log),
-        limits=engine_policy(policy).llm,
+        limits=gateway_policy(policy, engine).llm,
         money=policy.llm_primary,
         clock=clock,
         ids=ids,
@@ -1228,7 +1302,13 @@ def build_scenario_models(
 
 
 def build_haiku_eval_models(
-    settings: Settings, *, cap_usd: Decimal, log_dir: Path
+    settings: Settings,
+    *,
+    cap_usd: Decimal,
+    log_dir: Path,
+    engine: str = "agent",
+    tools: Toolbox | None = None,
+    record: Callable[[Any], None] | None = None,
 ) -> Callable[[Any, PolicyConfig, Clock, IdGenerator], ScenarioModels]:
     """Decision Quality's paid decider (ADR 0064): Claude Haiku on the active investigator
     prompt and the real reply reader, behind the spending guard.
@@ -1263,6 +1343,7 @@ def build_haiku_eval_models(
             }
         )
 
+        capped = gateway_policy(capped, engine)
         gateway = build_model_gateway(
             "anthropic_direct",
             settings=settings,
@@ -1274,12 +1355,19 @@ def build_haiku_eval_models(
             ids=UlidIdGenerator(),
             log_path=log_path,
         )
+        # The arms of ADR 0072's comparison: "agent" (today's workflow), "enriched" and
+        # "investigator" (prompt v4, inactive until this comparison clears it).
+        trial = engine in ("investigator", "enriched", "plain", "agent_v5")
         reasoner = build_llm_reasoner(
             gateway,
-            settings=settings.model_copy(update={"reasoning_engine": "agent"}),
+            settings=settings.model_copy(
+                update={"reasoning_engine": engine, "prompts_allow_inactive": trial}
+            ),
             policy=capped,
             clock=clock,
             ids=ids,
+            tools=tools,
+            record=record,
         )
         registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=False)
         return ScenarioModels(
@@ -1343,7 +1431,7 @@ def build_live_models(
     from dispute_agent.modules.reasoning.llm.interpreter import LlmReplyInterpreter
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
-    policy = engine_policy(policy, settings.reasoning_engine)
+    policy = gateway_policy(policy, settings.reasoning_engine)
     gateway = build_model_gateway(
         route, settings=settings, policy=policy, clock=clock, ids=ids, log_path=log_path
     )
@@ -1473,6 +1561,24 @@ def build_case_explainer(
     )
 
 
+def gateway_policy(
+    policy: PolicyConfig,
+    engine: str | None = None,
+    *,
+    cross_case_on: bool = False,
+    pattern_limit: int | None = None,
+) -> PolicyConfig:
+    """The one place a model gateway's per-case limits are decided (audit AUD-01): the pattern
+    budget when cross-case analysis is on, then the engine's share. Every builder - the running
+    app, the scenario suite, Decision Quality and the investigation evaluation - calls this, so a
+    limit can no longer differ between where it is tested and where it runs."""
+    if cross_case_on and pattern_limit is not None:
+        from dispute_agent.infra.policy import with_pattern_budget
+
+        policy = with_pattern_budget(policy, cross_case_on=True, limit=pattern_limit)
+    return engine_policy(policy, engine)
+
+
 def engine_policy(policy: PolicyConfig, engine: str | None = None) -> PolicyConfig:
     """The graph engine always asks twice per round, so it gets twice the configured cap
     (ADR 0041). The agentic engine keeps the configured cap: it spends turns only when it
@@ -1480,7 +1586,9 @@ def engine_policy(policy: PolicyConfig, engine: str | None = None) -> PolicyConf
     import os
 
     choice = engine or os.environ.get("REASONING_ENGINE", "single")
-    factor = {"graph": 2}.get(choice, 1)  # the agent keeps the configured cap (ADR 0042)
+    # The agent keeps the configured cap (ADR 0042). The investigator may spend up to five tool
+    # turns and a decision in one round, so it gets twice the cap, as the graph does (ADR 0072).
+    factor = {"graph": 2, "investigator": 2}.get(choice, 1)
     if factor == 1:
         return policy
     llm = policy.llm.model_copy(
@@ -1489,20 +1597,41 @@ def engine_policy(policy: PolicyConfig, engine: str | None = None) -> PolicyConf
     return policy.model_copy(update={"llm": llm})
 
 
-def _engine(reasoner: Any, engine: str | None = None) -> Any:
+def _engine(
+    reasoner: Any,
+    engine: str | None = None,
+    tools: Toolbox | None = None,
+    record: Callable[[Any], None] | None = None,
+) -> Any:
     """`graph`: the LangGraph two-pass investigator (ADR 0041). `agent`: the agentic investigator
     that chooses its own read-only lookups (ADR 0042). Anything else: the single call."""
     import os
 
     choice = engine or os.environ.get("REASONING_ENGINE", "single")
-    if choice == "agent":
-        from dispute_agent.modules.reasoning.llm.agentic import AgenticReasoner
+    if choice in ("investigator", "enriched", "plain"):
+        from dispute_agent.kernel.orchestrator.toolbox import Toolbox
+        from dispute_agent.modules.reasoning.llm.investigator import InvestigatorReasoner
+
+        return InvestigatorReasoner(
+            prompts=reasoner.prompts,
+            gateway=reasoner.gateway,
+            ids=reasoner.ids,
+            clock=reasoner.clock,
+            # "plain": prompt v4 with no tools at all - the prompt's effect alone (AUD-11).
+            toolbox=Toolbox(()) if choice == "plain" or tools is None else tools,
+            agentic=choice == "investigator",
+            record=record or investigation_log(),
+        )
+    if choice in ("agent", "agent_v5"):
+        from dispute_agent.modules.reasoning.llm.agentic import VERSION, AgenticReasoner
 
         return AgenticReasoner(
             prompts=reasoner.prompts,
             gateway=reasoner.gateway,
             ids=reasoner.ids,
             clock=reasoner.clock,
+            # v5: today's workflow with the post-audit guardrails, inactive until evaluated.
+            version="v5" if choice == "agent_v5" else VERSION,
         )
     if choice != "graph":
         return reasoner
@@ -1518,14 +1647,20 @@ def build_llm_reasoner(
     policy: PolicyConfig,
     clock: Clock,
     ids: IdGenerator,
+    tools: Toolbox | None = None,
+    record: Callable[[Any], None] | None = None,
 ) -> Reasoner:
-    from dispute_agent.modules.reasoning.llm import agentic
+    from dispute_agent.modules.reasoning.llm import agentic, investigator
     from dispute_agent.modules.reasoning.llm.reasoner import PROMPT, VERSION, LlmReasoner
     from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
 
     registry = FilePromptRegistry(PROMPTS_DIR, allow_inactive=settings.prompts_allow_inactive)
     if settings.reasoning_engine == "agent":  # the prompt the chosen engine will load
         PROMPT, VERSION = agentic.PROMPT, agentic.VERSION  # noqa: N806
+    if settings.reasoning_engine == "agent_v5":
+        PROMPT, VERSION = agentic.PROMPT, "v5"  # noqa: N806
+    if settings.reasoning_engine in ("investigator", "enriched", "plain"):
+        PROMPT, VERSION = investigator.PROMPT, investigator.VERSION  # noqa: N806
     status = str(registry.meta(PROMPT, VERSION).get("status", "inactive")).split()[0]
     if status != "active" and not settings.prompts_allow_inactive:
         # Fail at start-up, not on the first case (review, M4).
@@ -1544,4 +1679,105 @@ def build_llm_reasoner(
 
     # P7-06, always: with no patterns in the briefing this is the single pass it wraps, so
     # no route can reach a patterned case without the anchoring control (MED-1).
-    return TwoPassReasoner(_engine(reasoner, settings.reasoning_engine))
+    return TwoPassReasoner(_engine(reasoner, settings.reasoning_engine, tools, record))
+
+
+def eval_toolbox(checker: Any = None) -> Toolbox:
+    """The investigation tools for evaluation replays (ADR 0072): the catalogue, the local
+    policy index, past disputes (from the catalogue's corrected and disputed shipments), and the
+    photo check when a checker is given. The same tool classes the running app uses."""
+    from dispute_agent.kernel.orchestrator.toolbox import Toolbox
+    from dispute_agent.modules.cross_case.sql_context.repository import CaseRow
+    from dispute_agent.modules.cross_case.sql_context.tools import PastDisputesTool
+    from dispute_agent.modules.evidence.synthetic_shipments.library import SyntheticLibrarySource
+    from dispute_agent.modules.evidence.synthetic_shipments.photos import PhotoFolder
+    from dispute_agent.modules.evidence.synthetic_shipments.records import CatalogueRecords
+    from dispute_agent.modules.evidence.synthetic_shipments.tools import (
+        PastShipmentsTool,
+        ScannerStatisticsTool,
+    )
+    from dispute_agent.modules.image_check.tool import ParcelImageTool
+    from dispute_agent.modules.reasoning.policy_tool import PolicyLookupTool
+    from dispute_agent.packs.weight_dispute.photo import size_facts
+
+    records = CatalogueRecords()
+    library = SyntheticLibrarySource()
+
+    class CatalogueOutcomes:
+        """Past disputes for replays (audit AUD-25): a replay's world holds only its own case,
+        so earlier disputes come from the catalogue. Synthetic convention, documented in the
+        generator: a shipment whose measurement was "corrected" was a dispute that ended
+        credited; "disputed", one that ended upheld. Opened on its measurement date."""
+
+        def recent_outcomes(self, limit: int) -> list[Any]:
+            state = {"corrected": "RESOLVED_CREDITED", "disputed": "RESOLVED_UPHELD"}
+            rows = [
+                (CaseRow(r.ref, r.ref, r.ref, r.seller_id, r.measured_at), state[s], None)
+                for r in records.all_history()
+                if (s := r.measurement_status) in state
+            ]
+            return sorted(rows, key=lambda x: x[0].opened_at, reverse=True)[:limit]
+
+    def keys(ref: str) -> dict[str, str]:
+        found = records.record(ref)
+        if found is None:
+            return library.keys_for(ref)  # this parcel: a fixture shipment
+        return {"scanner": found.scanner_id, "hub": found.hub_id, "sku": found.sku_id}
+
+    tools: list[Any] = [
+        PastShipmentsTool(),
+        ScannerStatisticsTool(),
+        PastDisputesTool(CatalogueOutcomes(), keys),
+        PolicyLookupTool(),
+    ]
+    if checker is not None:
+        tools.append(ParcelImageTool(checker, PhotoFolder(), size_facts))
+    return Toolbox(tools)
+
+
+def build_investigation_models(
+    answer: Callable[[ModelRequest], str | dict[str, object]],
+    policy: PolicyConfig,
+    clock: Clock,
+    ids: IdGenerator,
+    *,
+    engine: str,
+    tools: Toolbox,
+    record: Callable[[Any], None],
+) -> ScenarioModels:
+    """The scenario path with the investigation engine as the reasoner (ADR 0072): the same
+    guarded fake route as build_scenario_models, so scripted evaluations run through the
+    spending guard and the call log exactly as the running app's calls do."""
+    import dataclasses
+
+    from dispute_agent.modules.reasoning.llm.investigator import InvestigatorReasoner
+    from dispute_agent.modules.reasoning.llm.two_pass import TwoPassReasoner
+    from dispute_agent.modules.reasoning.prompt_registry import FilePromptRegistry
+
+    built = build_scenario_models(answer, policy, clock, ids, engine="investigator")
+    reasoner = InvestigatorReasoner(
+        prompts=FilePromptRegistry(PROMPTS_DIR, allow_inactive=True),
+        gateway=built.gateway,
+        ids=ids,
+        clock=clock,
+        toolbox=tools,
+        agentic=engine == "investigator",
+        record=record,
+    )
+    return dataclasses.replace(built, reasoner=TwoPassReasoner(reasoner))
+
+
+#: Every investigation turn, one JSON line (ADR 0072): tokens, cache, latency, cost and tool
+#: calls per case. No outside text: tool names and arguments only.
+INVESTIGATION_LOG = PROJECT_ROOT / "data" / "investigation_turns.jsonl"
+
+
+def investigation_log(path: Path = INVESTIGATION_LOG) -> Callable[[Any], None]:
+    import dataclasses
+
+    def write(turn: Any) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as out:
+            out.write(json.dumps(dataclasses.asdict(turn), default=str) + "\n")
+
+    return write

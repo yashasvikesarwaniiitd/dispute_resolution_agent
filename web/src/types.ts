@@ -159,6 +159,17 @@ export interface Shipment {
   verdict: string;
   breakdown: { step: string; declared: string; measured: string }[];
   disputed: boolean;
+  sku_id: string;
+  measured_on: string;
+  added: boolean;
+  raisable: boolean;
+}
+
+export interface AddOptions {
+  products: { sku_id: string; name: string; packaging_id: string; item_grams: number }[];
+  packagings: { packaging_id: string; kind: string; cm: [number, number, number]; tare_grams: number }[];
+  hubs: { hub_id: string; scanners: string[] }[];
+  zones: string[];
 }
 
 export interface CaseDetail {
@@ -202,6 +213,15 @@ export interface CaseDetail {
   handover: Handover | null;
   came_back: { who: string; at: string; summary: string; words: string[] }[];
   outside: { source: string; reference: string; text: string; flags: string[] }[];
+  investigation: {
+    ref: string;
+    gather_round: number;
+    step: string;
+    arguments: string;
+    tool_ok: boolean | null;
+    reused: boolean;
+    result: string;
+  }[];
   statement: string;
   evidence: {
     declared: Dims | null;
@@ -244,6 +264,11 @@ export interface SellerPage {
   can_raise: boolean;
   cannot_raise: string | null;
   shipments: Shipment[];
+  page: number;
+  pages: number;
+  matched: number;
+  counts: { all: number; disputes: number; history: number };
+  add_options: AddOptions;
   tickets: {
     case_id: string;
     shipment_ref: string;

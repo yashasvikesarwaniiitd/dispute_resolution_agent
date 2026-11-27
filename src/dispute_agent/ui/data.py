@@ -8,6 +8,7 @@ a seller's ticket goes to the API, never into the store directly.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,8 @@ LEDGER = DATA / "ledger.sqlite3"
 MODEL_CALLS = DATA / "model_calls.sqlite3"
 #: Shipments added on the console (ADR 0056); the same file the running app's evidence reads.
 SHIPMENTS = DATA / "shipments.sqlite3"
+#: The investigation agent's turns (app.INVESTIGATION_LOG), one JSON object per line.
+INVESTIGATION = DATA / "investigation_turns.jsonl"
 
 #: What a screen says when there is no case store yet: the empty state's one action.
 NO_STORE = (
@@ -66,6 +69,26 @@ def has_store() -> bool:
 def reader() -> SqliteUnitOfWork:
     """A read unit of work that never waits on the runner (deferred engine)."""
     return SqliteUnitOfWork(create_sqlite_engine(CASES, deferred=True), clock=SystemClock())
+
+
+def investigation(case_id: str, path: Path = INVESTIGATION) -> list[dict[str, Any]]:
+    """What the investigation agent did on one case, in order (audit AUD-13): each step, the
+    reference a recommendation cites ("T1.2"), what it asked, whether it answered, and what code's
+    own data said. Outside text is never in the log, so none is shown here."""
+    # shortcut: reads the whole log per request; fine for the demo's few cases, move the turns
+    # into the case store before the log grows past a few MB.
+    if not path.is_file():
+        return []
+    keep = ("ref", "gather_round", "step", "arguments", "tool_ok", "reused", "result")
+    turns = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            turn = json.loads(line)
+        except ValueError:
+            continue  # a line cut short by a crash mid-write
+        if isinstance(turn, dict) and turn.get("case_id") == case_id:
+            turns.append({k: turn.get(k) for k in keep})
+    return turns
 
 
 def writer() -> SqliteUnitOfWork:

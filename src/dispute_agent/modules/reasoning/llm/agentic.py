@@ -38,7 +38,7 @@ from dispute_agent.kernel.domain.errors import (
 from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.reasoning import ModelRequest
 from dispute_agent.modules.reasoning.llm.briefing_view import build_view
-from dispute_agent.modules.reasoning.llm.reasoner import check, to_proposal
+from dispute_agent.modules.reasoning.llm.reasoner import allowed_items, check, to_proposal
 from dispute_agent.modules.reasoning.templates import neutralise
 
 if TYPE_CHECKING:
@@ -107,7 +107,9 @@ class AgenticReasoner:
             self.trace.append(step)
             if step == "decide" or last_turn:
                 try:
-                    check(draft, briefing, view)
+                    check(
+                        draft, briefing, view, allowed_items=allowed_items(rendered.output_schema)
+                    )
                 except InvalidModelOutput as problem:
                     if last_turn:
                         raise

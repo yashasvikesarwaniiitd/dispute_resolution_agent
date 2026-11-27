@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AddShipment } from "./AddShipment";
 import { api } from "./api";
 import { go } from "./App";
 import { pillClass, when } from "./lib";
@@ -17,11 +18,16 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string; case_id: string | null } | null>(null);
+  const [query, setQuery] = useState("");
+  const [show, setShow] = useState<"all" | "disputes" | "history">("all");
+  const [pageNo, setPageNo] = useState(1);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     if (!sellerId) return;
-    setPage(await api.get<Page>(`/sellers/${encodeURIComponent(sellerId)}`));
-  }, [sellerId]);
+    const params = new URLSearchParams({ q: query, show, page: String(pageNo) });
+    setPage(await api.get<Page>(`/sellers/${encodeURIComponent(sellerId)}?${params}`));
+  }, [sellerId, query, show, pageNo]);
 
   useEffect(() => {
     void load();
@@ -67,6 +73,9 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                 sessionStorage.setItem(PERSONA, e.target.value);
                 setChosen(null);
                 setMessage(null);
+                setQuery("");
+                setPageNo(1);
+                setAdding(false);
               }}
             >
               {session.sellers.map((s) => (
@@ -78,12 +87,70 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
             <span className="muted">· a synthetic demo seller, not a login.</span>
           </p>
         </div>
+        <div className="seller-tools">
+          <input
+            className="search-box"
+            type="search"
+            placeholder="Search shipment or product"
+            aria-label="Search shipments"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPageNo(1);
+            }}
+          />
+          <div className="segmented" role="tablist" aria-label="Show">
+            {(
+              [
+                ["all", "All", page?.counts.all],
+                ["disputes", "Disputes and added", page?.counts.disputes],
+                ["history", "Past shipments", page?.counts.history],
+              ] as const
+            ).map(([key, label, n]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={show === key}
+                className={show === key ? "on" : ""}
+                onClick={() => {
+                  setShow(key);
+                  setPageNo(1);
+                }}
+              >
+                {label} {n !== undefined && <span className="muted">{n}</span>}
+              </button>
+            ))}
+          </div>
+          <button className="btn" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+            {adding ? "Close" : "Add a shipment"}
+          </button>
+        </div>
+        {adding && page?.add_options?.products && (
+          <div className="sheet pad">
+            <AddShipment
+              sellerId={sellerId}
+              options={page.add_options}
+              onAdded={(ref, text) => {
+                setAdding(false);
+                setShow("all");
+                setQuery("");
+                setPageNo(1);
+                setChosen(ref);
+                setMessage({ ok: true, text, case_id: null });
+                say(text);
+                void load();
+              }}
+            />
+          </div>
+        )}
         <div className="grid2">
           <div className="sheet">
             <table className="t">
               <thead>
                 <tr>
                   <th>Shipment</th>
+                  <th>Product</th>
+                  <th>Measured</th>
                   <th>Status</th>
                   <th className="n">Expected</th>
                   <th className="n">Charged</th>
@@ -95,7 +162,11 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                   const t = page.tickets.find((x) => x.shipment_ref === s.ref && x.is_open) ?? page.tickets.find((x) => x.shipment_ref === s.ref);
                   return (
                     <tr key={s.ref} className="pick" aria-selected={s.ref === chosen} onClick={() => { setChosen(s.ref); setMessage(null); }}>
-                      <td className="num">{s.ref}</td>
+                      <td className="num nowrap">
+                        {s.ref} {s.added && <span className="tag">added</span>}
+                      </td>
+                      <td className="muted nowrap">{s.sku_id}</td>
+                      <td className="muted nowrap">{s.measured_on}</td>
                       <td style={s.status !== "Delivered" ? { color: "var(--failed)" } : undefined}>{s.status}</td>
                       <td className="n">{s.expected}</td>
                       <td className="n">{s.charged}</td>
@@ -104,8 +175,10 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                           <span className={`pill ${pillClass(t.tone)}`}>{t.status}</span>
                         ) : s.billing_error ? (
                           <span className="tag t-caution">Billing error</span>
-                        ) : (
+                        ) : s.raisable ? (
                           <span className="muted">Not disputed</span>
+                        ) : (
+                          <span className="muted">Past shipment</span>
                         )}
                       </td>
                     </tr>
@@ -113,8 +186,23 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                 })}
               </tbody>
             </table>
+            {page && page.matched === 0 && <p className="empty">No shipments match.</p>}
+            {page && page.pages > 1 && (
+              <div className="pager">
+                <button className="btn" disabled={page.page <= 1} onClick={() => setPageNo(page.page - 1)}>
+                  Previous
+                </button>
+                <span className="muted">
+                  Page {page.page} of {page.pages} · {page.matched} shipments
+                </span>
+                <button className="btn" disabled={page.page >= page.pages} onClick={() => setPageNo(page.page + 1)}>
+                  Next
+                </button>
+              </div>
+            )}
             <p className="source" style={{ margin: 0 }}>
               Expected: the rate card on the size you declared. Charged: what you were billed after the hub weighed the parcel.
+              Disputes and shipments you added come first; past shipments are history the agent compares against.
             </p>
           </div>
           <div className="sheet pad">
@@ -162,6 +250,10 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                   {open ? (
                     <p style={{ margin: 0 }}>
                       You already have an open ticket on this shipment: <span className={`pill ${pillClass(open.tone)}`}>{open.status}</span>
+                    </p>
+                  ) : !shipment.raisable ? (
+                    <p className="muted" style={{ margin: 0 }}>
+                      A past shipment: it stays as history the agent compares new disputes against. Add a shipment to try a new dispute.
                     </p>
                   ) : page?.can_raise ? (
                     <>

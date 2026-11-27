@@ -78,6 +78,28 @@ class IndependentView(BaseModel):
     confidence: Confidence
 
 
+#: Splits a prompt's user message into the case briefing, which stays the same for every turn
+#: of an investigation round, and the turns so far (audit AUD-16). A route with a prompt cache
+#: caches the part before it; to any other route it is one plain line.
+PROMPT_CACHE_BREAK = "[[ the case briefing ends here; the investigation so far follows ]]"
+
+
+class PriorRound(BaseModel):
+    """What an earlier round of this case decided, structured only (ADR 0072).
+
+    No rationale or finding text: those are model-written and may echo a seller's words, so
+    only the action, the confidence, the kinds of finding and the evidence they cited carry over.
+    """
+
+    model_config = _FROZEN
+
+    gather_round: Annotated[int, Field(ge=0)]
+    action: ProposalAction
+    confidence: Confidence
+    finding_kinds: tuple[FindingKind, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+
+
 class CaseBriefing(BaseModel):
     """Everything the Reasoner may see. Built by code (orchestrator/briefing.py)."""
 
@@ -94,6 +116,8 @@ class CaseBriefing(BaseModel):
     contact: ContactStatus
     pattern_context: tuple[PatternRecord, ...] = ()
     prior_rejections: tuple[str, ...] = ()
+    #: Earlier rounds' decisions on this case (ADR 0072): what was tried, and on what evidence.
+    prior_rounds: tuple[PriorRound, ...] = ()
     independent_view: IndependentView | None = None
     briefing_hash: PayloadHash
 
@@ -333,6 +357,10 @@ class ModelUsage(BaseModel):
     output_tokens: Annotated[int, Field(ge=0)]
     latency_ms: Annotated[int, Field(ge=0)]
     cost_usd: Decimal
+    #: Of `input_tokens`, those written to and read from the provider's prompt cache (ADR
+    #: 0072). `cost_usd` already prices them at the provider's cache rates.
+    cache_write_tokens: Annotated[int, Field(ge=0)] = 0
+    cache_read_tokens: Annotated[int, Field(ge=0)] = 0
 
 
 class ModelResponse(BaseModel):

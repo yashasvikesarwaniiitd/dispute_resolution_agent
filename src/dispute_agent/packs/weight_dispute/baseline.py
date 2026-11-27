@@ -30,6 +30,7 @@ orchestrator maps that to `proposal_escalated` (orchestrator.md section 3.6).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -47,10 +48,14 @@ from dispute_agent.kernel.domain.reasoning import (
     PatternInfluence,
     Proposal,
 )
-from dispute_agent.packs.weight_dispute.history import MIN_REFERENCES
+from dispute_agent.packs.weight_dispute.history import ANOMALY_FACTOR, MIN_REFERENCES
+
+#: A scanner or hub whose share of readings above 1.25x the declaration exceeds its peers'
+#: by more than this reads high (the eval's clean-scanner margin).
+SCANNER_DRIFT = Decimal("0.10")
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Sequence
+    from collections.abc import Collection, Mapping, Sequence
     from datetime import datetime
 
     from dispute_agent.kernel.domain.evidence import EvidenceItem
@@ -530,4 +535,167 @@ def _fact_ids(briefing: CaseBriefing) -> tuple[str, ...]:
     return tuple(fact.fact_id for fact in briefing.assessment.facts)
 
 
-__all__ = ["B7_ITEMS", "BaselineDecision", "baseline_proposal", "decide"]
+def uphold_basis(
+    briefing: CaseBriefing, tolerance_pct: int = 5, contradictions: Sequence[str] = ()
+) -> str | None:
+    """The verified evidence an uphold can stand on (ADR 0073), or None:
+    - the hub confirmed its measurement (B6a);
+    - the measurement is within tolerance of the declaration (B8);
+    - the seller's own reply supplies everything asked for, unflagged, and claims no size that
+      contradicts the measurement (`seller_supports`) - a reply or photo merely existing is not;
+    - the authoritative comparison is normal on at least MIN_REFERENCES trusted shipments and
+      fits the booking (B4c), and nothing contradicts it (`history_contradictions`).
+    `contradictions`: what the investigation's own tool results contradict (`tool_contradictions`).
+    With no basis, history can still carry an uphold only through a cited search of
+    MIN_REFERENCES comparable shipments (`comparable_support`) that nothing contradicts."""
+    items = briefing.evidence.items
+    if briefing.assessment.definite_errors:
+        return None
+    if _hub_answer(items) in HUB_CONFIRMS:
+        return "hub_confirmed"
+    if _oversize_beyond_tolerance(items, tolerance_pct) is False:
+        return "within_tolerance"
+    if seller_supports(briefing, tolerance_pct):
+        return "seller_evidence"
+    comparison = _comparison(items)
+    flags = comparison.get("flags") or {}
+    if (
+        comparison.get("verdict") == "normal"
+        and int(comparison.get("references") or 0) >= MIN_REFERENCES
+        and flags.get("declared_below_history") is True
+        and flags.get("packaging_consistent") is True
+        and not history_contradictions(briefing, contradictions, tolerance_pct)
+    ):
+        return "history_normal"
+    return None
+
+
+def seller_supports(briefing: CaseBriefing, tolerance_pct: int = 5) -> bool:
+    """The seller's reply in this round supports the charge as far as code can tell: it gives
+    everything the request asked for, carries no manipulation flag, and every size it claims is
+    within tolerance of the hub's measurement. Code cannot see what a photo shows: that reading
+    is the investigator's, and a person approves every uphold.
+
+    shortcut: weight claims are not parsed, so a reply claiming a weight never counts as
+    support; parse them when a structured reading of weights exists."""
+    reading = _reading(briefing)
+    if reading is None or reading.get("intent") != "provides_requested_evidence":
+        return False
+    statuses = [s.get("status") for s in reading.get("requested_items_status") or ()]
+    if not statuses or any(s != "provided" for s in statuses) or reading.get("manipulation_flags"):
+        return False
+    measured = _volume(briefing.evidence.items, MEASURED_KEY)
+    for claim in reading.get("claims") or ():
+        if claim.get("kind") == "weight":
+            return False
+        if claim.get("kind") == "dimensions":
+            claimed = _claimed_volume(str(claim.get("text", "")))
+            if claimed is None or measured is None:
+                return False
+            if claimed * (Decimal(100 + tolerance_pct) / Decimal(100)) < measured:
+                return False  # the seller says the box was smaller than the hub measured
+    return True
+
+
+def history_contradictions(
+    briefing: CaseBriefing, contradictions: Sequence[str] = (), tolerance_pct: int = 5
+) -> list[str]:
+    """What stops history from carrying an uphold: history never overrides these."""
+    items = briefing.evidence.items
+    found = list(contradictions)
+    hub = _hub_answer(items)
+    if hub is not None and hub not in HUB_CONFIRMS:
+        found.append("the hub's check is not concluded")
+    if briefing.contact.remeasurement_outstanding:
+        found.append("a remeasurement is outstanding")
+    reading = _reading(briefing)
+    if (
+        reading is not None
+        and reading.get("intent") in ("provides_requested_evidence", "partial_evidence")
+        and not seller_supports(briefing, tolerance_pct)
+    ):
+        found.append("the seller's new evidence is not resolved")
+    return found
+
+
+def tool_contradictions(tool: str, data: Mapping[str, Any]) -> list[str]:
+    """What an investigation tool's answer contradicts: a scanner or hub reading high against
+    its peers (more than SCANNER_DRIFT above them in the last 60 days), or a photo that shows
+    a smaller parcel or more than one."""
+    if tool == "get_scanner_statistics":
+        window = (data.get("windows") or {}).get("last_60_days") or {}
+        level = "hub" if data.get("level") == "hub" else "scanner"
+        this, others = (
+            ("this_hub", "other_hubs")
+            if level == "hub"
+            else ("this_scanner", "other_scanners_at_hub")
+        )
+        try:
+            mine = Decimal(str(window[this]["share_over_1_25x_declared"]))
+            theirs = Decimal(str(window[others]["share_over_1_25x_declared"]))
+        except (KeyError, TypeError, ArithmeticError, ValueError):
+            return []  # insufficient_data: no evidence either way
+        return (
+            [f"this {level} reads high against its peers"] if mine - theirs > SCANNER_DRIFT else []
+        )
+    if tool == "analyze_parcel_image":
+        if data.get("size_from_photo") == "looks_smaller_than_measured":
+            return ["the photo shows a smaller parcel"]
+        if data.get("parcel_count") == "more_than_one":
+            return ["the photo shows more than one parcel"]
+    return []
+
+
+def _reading(briefing: CaseBriefing) -> dict[str, Any] | None:
+    if not briefing.contact.reply_in_round:
+        return None
+    item = _found(briefing.evidence.items, REPLY_KEY)
+    value = item.result.value if item is not None else None
+    return dict(value) if isinstance(value, dict) else None
+
+
+def _claimed_volume(text: str) -> Decimal | None:
+    """The volume of "30 x 20 x 10 cm" as the seller's reading wrote it, or None."""
+    sides = re.findall(r"\d+(?:\.\d+)?", text)
+    if len(sides) != 3:
+        return None
+    a, b, c = (Decimal(x) for x in sides)
+    return a * b * c
+
+
+def comparable_support(search: Mapping[str, Any]) -> int:
+    """How many trusted comparable shipments a past-shipments search result shows that measure
+    like this parcel: this product, one named packaging, trusted readings only, and the parcel
+    within ANOMALY_FACTOR of their typical volume. 0 when it is not such evidence - a
+    supplementary slice of everything, or shipments that measure differently."""
+    query = search.get("query") or {}
+    stats = search.get("stats") or {}
+    other_product = any(
+        str(d).startswith("other product") for d in search.get("differs_from_authoritative") or ()
+    )
+    if (
+        other_product
+        or query.get("packaging_id") in (None, "any")
+        or query.get("trusted_only") is not True
+    ):
+        return 0
+    try:
+        ratio = Decimal(str(stats["this_parcel_volume_to_typical"]))
+    except (KeyError, ArithmeticError, ValueError):
+        return 0
+    if not Decimal(1) / ANOMALY_FACTOR <= ratio <= ANOMALY_FACTOR:
+        return 0
+    return int(stats.get("sample_size") or 0)
+
+
+__all__ = [
+    "B7_ITEMS",
+    "BaselineDecision",
+    "baseline_proposal",
+    "comparable_support",
+    "decide",
+    "history_contradictions",
+    "seller_supports",
+    "tool_contradictions",
+    "uphold_basis",
+]

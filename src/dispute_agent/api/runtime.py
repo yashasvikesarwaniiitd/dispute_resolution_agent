@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from dispute_agent.kernel.domain.models import Case
     from dispute_agent.kernel.orchestrator.dispatch import DispatchResult
     from dispute_agent.kernel.orchestrator.intake import Intake
+    from dispute_agent.kernel.orchestrator.toolbox import Toolbox
     from dispute_agent.kernel.ports import Clock, IdGenerator
 
 log = structlog.get_logger()
@@ -60,6 +61,7 @@ class Runtime:
         ids: IdGenerator,
         *,
         pack: str = "weight_dispute",
+        tools: Toolbox | None = None,
     ) -> None:
         self._uow = unit_of_work
         self._intake = intake
@@ -68,6 +70,8 @@ class Runtime:
         self._clock = clock
         self._ids = ids
         self._pack = pack
+        #: The investigation tools of the modules that are on (ADR 0071).
+        self.tools = tools
 
     def submit_dispute(self, event: InboundEvent, body: RaiseDispute) -> SubmitResult:
         """Accept, route, advance — all in one transaction (ADR 0004, ADR 0006)."""

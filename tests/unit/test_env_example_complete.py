@@ -45,6 +45,7 @@ DEFAULTED = {
     "GRAPH_TOKEN_CACHE_PATH",  # a path under the git-ignored data/ folder
     "GMAIL_TOKEN_CACHE_PATH",  # the same, for the Gmail adapter (ADR 0038)
     "REASONING_ENGINE",  # agent (default, ADR 0059), single or graph (ADR 0041)
+    "SELLER_CATALOGUE",  # full (default) or approved: the frozen regression set (ADR 0072)
     "ANTHROPIC_MODEL_HAIKU",  # a model id, published by Anthropic
     "APP_ENV",
     "KILL_SWITCH",

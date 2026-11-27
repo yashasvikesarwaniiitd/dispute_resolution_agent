@@ -19,6 +19,7 @@ import re
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
@@ -44,6 +45,7 @@ MAX_GRAMS = 100_000
 #: ₹1 to ₹1,00,000: a typed charge outside this is a slip, not a billing mistake to test.
 MIN_CHARGE_PAISE, MAX_CHARGE_PAISE = 100, 10_000_000
 MAX_NOTE = 300
+MAX_QUANTITY = 50
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 #: The hosted demo's ceiling. A form that can be submitted in a loop needs one.
 MAX_ADDED = 50
@@ -82,6 +84,16 @@ class NewShipment:
     #: What the hub wrote about the parcel photo. People's words: outside text (I5).
     photo_note: str | None = None
     packaging: str = "box"
+    #: A demo seller's identity (ADR 0072): one of their products and packagings, a quantity, a
+    #: known hub and scanner, and when it was measured. Set, the shipment belongs to that seller
+    #: and is compared with their real history; unset, it is the old stand-alone shipment.
+    seller_id: str | None = None
+    sku_id: str | None = None
+    packaging_id: str | None = None
+    quantity: int = 1
+    hub_id: str | None = None
+    scanner_id: str | None = None
+    measured_at: datetime | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -96,6 +108,13 @@ class NewShipment:
             "charged_twice": self.charged_twice,
             "photo_note": self.photo_note,
             "packaging": self.packaging,
+            "seller_id": self.seller_id,
+            "sku_id": self.sku_id,
+            "packaging_id": self.packaging_id,
+            "quantity": self.quantity,
+            "hub_id": self.hub_id,
+            "scanner_id": self.scanner_id,
+            "measured_at": self.measured_at.isoformat() if self.measured_at else None,
         }
 
     @classmethod
@@ -112,6 +131,15 @@ class NewShipment:
             charged_twice=bool(raw.get("charged_twice", False)),
             photo_note=raw.get("photo_note") or None,
             packaging=str(raw.get("packaging") or "box"),
+            seller_id=raw.get("seller_id") or None,
+            sku_id=raw.get("sku_id") or None,
+            packaging_id=raw.get("packaging_id") or None,
+            quantity=int(raw.get("quantity") or 1),
+            hub_id=raw.get("hub_id") or None,
+            scanner_id=raw.get("scanner_id") or None,
+            measured_at=datetime.fromisoformat(raw["measured_at"])
+            if raw.get("measured_at")
+            else None,
         )
 
 
@@ -168,6 +196,28 @@ def check(new: NewShipment) -> None:
         raise ShipmentRejectedError("A typed charge must be ₹1 to ₹1,00,000.")
     if new.photo_note is not None and len(new.photo_note) > MAX_NOTE:
         raise ShipmentRejectedError("The photo note must be 300 characters or fewer.")
+    if new.seller_id is not None:
+        _check_identity(new)
+
+
+def _check_identity(new: NewShipment) -> None:
+    """A demo seller's shipment uses only what that seller and the network really have."""
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
+
+    seller = catalogue().seller(new.seller_id or "")
+    if seller is None:
+        raise ShipmentRejectedError("Choose one of the demo sellers.")
+    if new.sku_id not in {p.sku_id for p in seller.products}:
+        raise ShipmentRejectedError("Choose one of this seller's products.")
+    if new.packaging_id not in {p.packaging_id for p in seller.packaging}:
+        raise ShipmentRejectedError("Choose one of this seller's packagings.")
+    if not 1 <= new.quantity <= MAX_QUANTITY:
+        raise ShipmentRejectedError(f"The quantity must be 1 to {MAX_QUANTITY}.")
+    network = {(r.hub_id, r.scanner_id) for s in catalogue().sellers for r in s.shipments}
+    if (new.hub_id, new.scanner_id) not in network:
+        raise ShipmentRejectedError("Choose a hub and one of its scanners.")
+    if new.measured_at is None:
+        raise ShipmentRejectedError("Give the date the hub measured the parcel.")
 
 
 def _sides(d: Dimensions) -> tuple[Decimal, Decimal, Decimal]:
@@ -187,14 +237,15 @@ def as_fixture(new: NewShipment) -> Fixture:
         LedgerEntry(f"TXN-{new.ref}-{n}", new.ref, claim, "DEBIT", billed)
         for n in range(1, 3 if new.charged_twice else 2)
     ]
+    identity = new.seller_id is not None
     shipment = Shipment(
         ref=new.ref,
         claim_ref=claim,
-        seller_id=SELLER,
-        # Its own SKU, so an added parcel never joins a fixture's cross-case cluster by SKU.
-        sku_id=f"SKU-{new.ref}",
-        hub_id="HUB-01",
-        scanner_id="SCN-01-1",
+        seller_id=new.seller_id or SELLER,
+        # Without a seller: its own SKU, so it never joins a fixture's cross-case cluster.
+        sku_id=new.sku_id if identity and new.sku_id else f"SKU-{new.ref}",
+        hub_id=new.hub_id if identity and new.hub_id else "HUB-01",
+        scanner_id=new.scanner_id if identity and new.scanner_id else "SCN-01-1",
         zone=new.zone,
         status=new.status,
         declared=new.declared,
@@ -206,7 +257,56 @@ def as_fixture(new: NewShipment) -> Fixture:
         correct_paise=correct_paise(new),
         ledger=tuple(debits),
     )
-    return Fixture(name=f"added:{new.ref}", shipment=shipment, image_description=new.photo_note)
+    if not identity:
+        return Fixture(name=f"added:{new.ref}", shipment=shipment, image_description=new.photo_note)
+    return Fixture(
+        name=f"added:{new.ref}",
+        shipment=shipment,
+        image_description=new.photo_note,
+        seller_contact=_contact(new.seller_id or ""),
+        quantity=new.quantity,
+        packaging_id=new.packaging_id,
+        measured_at=new.measured_at,
+        comparable_history=_comparison(new),
+    )
+
+
+def _contact(seller_id: str) -> str:
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
+    from dispute_agent.modules.evidence.synthetic_shipments.generator import TEST_DOMAIN
+
+    seller = catalogue().seller(seller_id)
+    return f"seller+{seller.seller.contact_tag if seller else 'seller'}@{TEST_DOMAIN}"
+
+
+def _comparison(new: NewShipment) -> dict[str, Any] | None:
+    """The same authoritative comparison every catalogue shipment gets, against the seller's
+    real history - computed by the unchanged `history.compare`. The added parcel is the one
+    compared, never part of the history (ADR 0072)."""
+    from dispute_agent.modules.evidence.synthetic_shipments.catalogue import _reading, catalogue
+    from dispute_agent.packs.weight_dispute.history import Reading, compare
+
+    seller = catalogue().seller(new.seller_id or "")
+    if seller is None or new.measured_at is None:
+        return None
+    box = next((p for p in seller.packaging if p.packaging_id == new.packaging_id), None)
+    current = Reading(
+        ref=new.ref,
+        seller_id=seller.seller.seller_id,
+        sku_id=new.sku_id or "",
+        packaging_id=new.packaging_id or "",
+        quantity=new.quantity,
+        measured_at=new.measured_at,
+        sides=_sides(new.measured),
+        grams=new.measured_grams,
+        measurement_status="disputed",
+    )
+    return compare(
+        current,
+        [_reading(seller, row) for row in seller.shipments],
+        declared_sides=_sides(new.declared),
+        packaging_sides=(box.length_cm, box.width_cm, box.height_cm) if box else None,
+    )
 
 
 @dataclass
@@ -256,6 +356,19 @@ class AddedShipments:
         with closing(self._db()) as db:
             row = db.execute("SELECT body FROM added_shipments WHERE ref=?", (ref,)).fetchone()
         return self._built(row[0]) if row else None
+
+    def new(self, ref: str) -> NewShipment | None:
+        """The stored form values of one shipment (its identity included), or None."""
+        if not self.path.is_file():
+            return None
+        with closing(self._db()) as db:
+            row = db.execute("SELECT body FROM added_shipments WHERE ref = ?", (ref,)).fetchone()
+        if row is None:
+            return None
+        try:
+            return NewShipment.from_json(json.loads(row[0]))
+        except (KeyError, TypeError, ValueError):
+            return None
 
     def all(self) -> list[Fixture]:
         if not self.path.is_file():

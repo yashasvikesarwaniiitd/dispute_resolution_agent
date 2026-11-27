@@ -38,6 +38,7 @@ from dispute_agent.kernel.domain.actions import (
 )
 from dispute_agent.kernel.domain.enums import (
     ActionType,
+    ApprovalDecision,
     ApprovalSubject,
     CaseState,
     Confidence,
@@ -76,6 +77,7 @@ from dispute_agent.kernel.domain.reasoning import (
     DraftContext,
     Finding,
     PatternInfluence,
+    PriorRound,
     Proposal,
     ScreenResult,
 )
@@ -460,6 +462,38 @@ class InvestigateStep:
 
     # -- building the briefing ---------------------------------------------------------------
 
+    def _reviewer_notes(self, case: Case) -> tuple[str, ...]:
+        """Why a person rejected this case's earlier proposals, newest first (ADR 0072). A
+        reviewer's words are the company's own, so they reach the reasoner as context."""
+        for_case = getattr(self.approvals, "for_case", None)
+        if for_case is None:
+            return ()
+        rejected = [
+            a
+            for a in for_case(case.id)
+            if a.decision is ApprovalDecision.REJECTED and a.note.strip()
+        ]
+        return tuple(a.note.strip() for a in reversed(rejected))[:3]
+
+    def _prior_rounds(self, case: Case) -> tuple[PriorRound, ...]:
+        """The last proposal of each earlier round, structured only (ADR 0072)."""
+        if self.proposals is None:
+            return ()
+        last: dict[int, Proposal] = {}
+        for p in self.proposals.for_case(case.id):
+            if p.reasoner != "human" and p.gather_round < case.gather_round:
+                last[p.gather_round] = p
+        return tuple(
+            PriorRound(
+                gather_round=p.gather_round,
+                action=p.action,
+                confidence=p.confidence,
+                finding_kinds=tuple(f.kind for f in p.findings),
+                evidence_refs=tuple(dict.fromkeys(r for f in p.findings for r in f.evidence_refs)),
+            )
+            for _, p in sorted(last.items())
+        )
+
     def _briefing(self, case: Case, assessment: ChargeAssessment) -> CaseBriefing:
         bundle = self.evidence.bundle(case.id, case.gather_round)
         allowed = tuple(self.pack.allowed_actions(case.state, assessment))
@@ -474,6 +508,8 @@ class InvestigateStep:
             # round. These are accurate for a first round, which is the only round this
             # step can currently be reached in.
             contact=self._contact(case, bundle),
+            prior_rejections=self._reviewer_notes(case),
+            prior_rounds=self._prior_rounds(case),
             briefing_hash=payload_hash(
                 {
                     "case": str(case.id),

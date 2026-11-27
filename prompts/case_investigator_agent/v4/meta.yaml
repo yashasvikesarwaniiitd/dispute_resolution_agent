@@ -1,0 +1,19 @@
+name: case_investigator_agent
+version: v4
+status: inactive  # drafted 2026-11-27; not wired or evaluated yet (ADR 0071). v3 stays active.
+owner: product
+purpose: Investigate a weight dispute with the investigation tools (past shipments, scanner statistics, past disputes, parcel photo, policy), then recommend exactly one next step. Read-only tools; proposal only; code computes every amount.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: read_only_steps  # tools are executed by code between turns (ADR 0042, ADR 0071); no provider tool calling
+max_output_tokens: 4000
+eval_suite: to be written with the agent-loop change (ADR 0071), then scripts/agent_check.py (live) against v3
+derived_from: case_investigator_agent/v3
+changelog:
+  - "v4: the five investigation tools of ADR 0071 replace policy_lookup; open_evidence and check_draft are dropped: code already checks every decision, and the reply reader is the one part that reads a seller's whole email (the agent uses its reading, and escalates when the reading is unclear). New sections: tools, investigation_strategy (call a tool only when it would change the decision; none when precedence already decides), what_tool_results_can_prove (no tool result is ever a reason for a credit; past outcomes are not precedent)."
+  - "v4: output key 'argument' (a string) becomes 'arguments' (an object per tool); new template blocks tools_available and steps_left; related_cases dropped (never filled; search_past_disputes replaces it). The seller's note (ADR 0070) is named as the dispute_statement block."
+  - "v4: decision guidance and the history rules are v3's, unchanged, so a v3/v4 comparison measures the tools and nothing else."
+  - "v4 (ADR 0072): investigation_strategy rewritten as principles (no situation-to-tool routes); understanding_the_dispute (record every concern, even with a proven error); a turn either calls a tool ({step, arguments, reason}) or decides with the full draft - no draft on investigation turns; budgets (5 tool calls, 1 paid check) and repeated queries are enforced in code; prior_rounds and labelled evidence items in the template. Uphold is allowed on records that explain the measurement (5+ trusted shipments in the matching packaging, normal scanner and hub) - the owner's decision before activation."
+  - "v4 (ADR 0073, after the focused paid run): each tool line shows its arguments' bounds and, for the past-shipments search, the ids this case accepts; tool results are cited as T<round>.<call>; refund requests are claims, not manipulation; requested items from the closed list only."
+  - "v4 (tool-calling audit, 2026-11-27): the enriched arm, which cannot call tools, is no longer shown them; its look-ups are its notes."

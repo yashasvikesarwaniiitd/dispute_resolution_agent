@@ -350,3 +350,22 @@ table.t tr[aria-selected="true"] td { background: var(--you-bg); }
 .skeleton { animation: kpulse 1.2s ease-in-out infinite; background: var(--line-2); border-radius: 8px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; font-size: 13px;
   padding: 10px 16px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); z-index: 50; max-width: 640px; }
+
+/* Seller view: search, filter, pages and adding a shipment (ADR 0072). */
+.seller-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.search-box { flex: 1 1 220px; height: 36px; border: 1px solid var(--control); border-radius: 8px; padding: 0 12px; background: var(--surface); font-size: 13.5px; }
+.search-box:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
+.segmented { display: inline-flex; border: 1px solid var(--control); border-radius: 8px; overflow: hidden; }
+.segmented button { border: 0; background: var(--surface); padding: 7px 12px; font-size: 13px; cursor: pointer; }
+.segmented button + button { border-left: 1px solid var(--control); }
+.segmented button.on { background: var(--ink, #17191e); color: #fff; }
+.segmented button.on .muted { color: rgba(255, 255, 255, .7); }
+.pager { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; }
+.add-shipment { display: flex; flex-direction: column; gap: 6px; }
+.add-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+.add-grid label, .add-row label, .add-sides label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--text-2); }
+.add-grid input, .add-row input { height: 34px; border: 1px solid var(--control); border-radius: 8px; padding: 0 10px; background: var(--surface); font-size: 13.5px; color: var(--text); }
+.add-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.add-sides { display: flex; gap: 10px; flex-wrap: wrap; }
+.add-sides input { width: 96px; }
+.t td.nowrap { white-space: nowrap; }

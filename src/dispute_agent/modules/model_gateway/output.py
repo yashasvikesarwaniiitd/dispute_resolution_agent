@@ -14,6 +14,7 @@ contract says to return only the object - so that is invalid, and gets its one r
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -54,6 +55,9 @@ class RawReply:
     unusable: str | None = None
     #: Provider screening notes on this call, e.g. "prompt_shield:indirect_attack" (I15).
     annotations: tuple[str, ...] = ()
+    #: Of input_tokens, written to / read from the prompt cache (ADR 0072).
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 def parse(text: str, schema: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -75,10 +79,34 @@ def parse(text: str, schema: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         raise InvalidModelOutput("the prompt's schema is itself invalid") from broken
     errors = sorted(validator.iter_errors(value), key=lambda e: list(e.absolute_path))
     if errors:
-        first = errors[0]
-        where = "/".join(str(p) for p in first.absolute_path) or "(root)"
-        raise InvalidModelOutput(f"schema: {first.validator} failed at {where}")
+        raise InvalidModelOutput("schema: " + "; ".join(_explain(e) for e in errors[:3]))
     return value
+
+
+#: A field name safe to repeat in a log or a retry: an identifier, never free text.
+_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")
+
+
+def _explain(error: Any) -> str:
+    """Where and how the answer broke the schema, in terms a retry can act on. Names fields
+    and the values the schema allows; never repeats a value the model wrote."""
+    where = "/".join(str(p) for p in error.absolute_path) or "(root)"
+    rule, expected = error.validator, error.validator_value
+    if rule == "additionalProperties" and isinstance(error.instance, dict):
+        allowed = sorted(error.schema.get("properties") or {})
+        extra = [k for k in error.instance if k not in allowed]
+        named = ", ".join(k if _NAME.match(str(k)) else "(unnamed)" for k in extra[:3])
+        return f"{where}: field not allowed: {named} (allowed: {', '.join(allowed) or 'none'})"
+    if rule == "enum":
+        return f"{where}: not an allowed value; use one of: {', '.join(map(str, expected))}"
+    if rule == "required" and isinstance(error.instance, dict):
+        missing = [k for k in expected if k not in error.instance]
+        return f"{where}: missing field: {', '.join(missing)}"
+    if rule == "type":
+        return f"{where}: must be {expected}"
+    if rule in ("maxLength", "minLength", "maxItems", "minItems", "maximum", "minimum"):
+        return f"{where}: {rule} is {expected}"
+    return f"{where}: {rule} failed"
 
 
 def complete_with_one_retry(
@@ -93,7 +121,8 @@ def complete_with_one_retry(
     last_error: InvalidModelOutput | None = None
     for _ in range(ATTEMPTS):
         try:
-            reply = call(req)
+            # The retry is told what was wrong: the same call, not an extra one (ADR 0073).
+            reply = call(req if last_error is None else _with_feedback(req, last_error))
         except KernelError as failed:
             usage = add_usage(_total(spent), failed.usage)
             if last_error is not None and isinstance(
@@ -129,6 +158,22 @@ def complete_with_one_retry(
     ) from last_error
 
 
+RETRY_NOTE = (
+    "\n\n[Your previous answer was not accepted - {reason}. Return the complete JSON object "
+    "again, corrected, and nothing else.]"
+)
+
+
+def _with_feedback(req: ModelRequest, error: InvalidModelOutput) -> ModelRequest:
+    """`req` with why its answer was refused added to the last message (a gateway that reads
+    the request it is given passes it on; one that does not retries exactly as before)."""
+    messages = list(req.prompt.messages)
+    note = RETRY_NOTE.format(reason=str(error.args[0] if error.args else "invalid")[:600])
+    messages[-1] = messages[-1].model_copy(update={"content": messages[-1].content + note})
+    prompt = req.prompt.model_copy(update={"messages": tuple(messages)})
+    return req.model_copy(update={"prompt": prompt})
+
+
 def add_usage(base: ModelUsage, extra: object | None) -> ModelUsage:
     """`base` plus `extra` when `extra` is a ModelUsage; the spend guard reads the sum."""
     if not isinstance(extra, ModelUsage):
@@ -138,6 +183,8 @@ def add_usage(base: ModelUsage, extra: object | None) -> ModelUsage:
         output_tokens=base.output_tokens + extra.output_tokens,
         latency_ms=base.latency_ms + extra.latency_ms,
         cost_usd=base.cost_usd + extra.cost_usd,
+        cache_write_tokens=base.cache_write_tokens + extra.cache_write_tokens,
+        cache_read_tokens=base.cache_read_tokens + extra.cache_read_tokens,
     )
 
 
@@ -147,6 +194,8 @@ def _total(replies: list[RawReply]) -> ModelUsage:
         output_tokens=sum(r.output_tokens for r in replies),
         latency_ms=sum(r.latency_ms for r in replies),
         cost_usd=sum((r.cost_usd for r in replies), Decimal(0)),
+        cache_write_tokens=sum(r.cache_write_tokens for r in replies),
+        cache_read_tokens=sum(r.cache_read_tokens for r in replies),
     )
 
 

@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InvestigationStep",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "arguments"
+  ],
+  "properties": {
+    "step": {
+      "type": "string",
+      "enum": [
+        "decide",
+        "search_past_shipments",
+        "get_scanner_statistics",
+        "search_past_disputes",
+        "analyze_parcel_image",
+        "lookup_policy"
+      ]
+    },
+    "arguments": {
+      "type": "object"
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "confidence",
+        "rationale",
+        "findings",
+        "action_parameters",
+        "pattern_influence",
+        "manipulation_flags"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "propose_credit",
+            "uphold_charge",
+            "request_seller_evidence",
+            "request_remeasurement",
+            "escalate_to_human",
+            "wait"
+          ]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 800
+        },
+        "findings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "statement",
+              "evidence_refs"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "verified_fact",
+                  "plausible_explanation",
+                  "missing_evidence",
+                  "conflicting_evidence"
+                ]
+              },
+              "statement": {
+                "type": "string",
+                "maxLength": 400
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "action_parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "reason_code": {
+              "type": "string"
+            },
+            "requested_items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Photo of the packed box beside a tape measure",
+                  "A photo of the packed parcel on a scale",
+                  "Packaging dimensions at dispatch",
+                  "Photo of the shipping label on the packed box",
+                  "The product invoice showing the item shipped",
+                  "Photo of the item before it was packed"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 2
+            },
+            "remeasurement_question": {
+              "type": "string",
+              "maxLength": 400
+            }
+          }
+        },
+        "pattern_influence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "considered",
+            "changed_recommendation",
+            "note"
+          ],
+          "properties": {
+            "considered": {
+              "type": "boolean"
+            },
+            "changed_recommendation": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        },
+        "manipulation_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

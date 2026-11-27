@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from dispute_agent.ui.seller import catalogue, latest_ticket_for, open_ticket_for
 
 T0 = datetime(2026, 11, 10, 9, 0, tzinfo=UTC)
@@ -100,6 +102,7 @@ def test_a_shipment_debited_twice_reads_as_a_billing_error() -> None:
     assert "nothing to dispute" not in lamp.verdict
 
 
+@pytest.mark.usefixtures("approved_catalogue")
 def test_each_demo_seller_sees_only_their_own_shipments() -> None:
     # ADR 0060: the seller page lists the selected demo seller's shipments and no one else's.
     from dispute_agent.ui.seller import personas, seller_shipments

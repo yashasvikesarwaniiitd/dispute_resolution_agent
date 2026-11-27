@@ -19,8 +19,10 @@ the SDK's own (two, with backoff), and a timeout counts as possibly billed.
 from __future__ import annotations
 
 import fnmatch
+import json
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from dispute_agent.kernel.domain.errors import (
@@ -29,6 +31,11 @@ from dispute_agent.kernel.domain.errors import (
     KernelError,
     PermanentPortError,
     TransientPortError,
+)
+from dispute_agent.kernel.domain.reasoning import PROMPT_CACHE_BREAK
+from dispute_agent.modules.model_gateway.anthropic_direct.structured import (
+    provider_schema,
+    restore,
 )
 from dispute_agent.modules.model_gateway.output import RawReply, complete_with_one_retry
 
@@ -63,6 +70,9 @@ class AnthropicDirectGateway:
     client: Any
     monotonic: Callable[[], float] = time.monotonic
     sent_log: list[dict[str, object]] = field(default_factory=list)
+    #: Schemas the API refused once: sent without a format from then on (process memory).
+    unsupported: set[str] = field(default_factory=set)
+    structured_outputs: bool = True
 
     def __post_init__(self) -> None:
         check_model(self.model)
@@ -81,6 +91,12 @@ class AnthropicDirectGateway:
         )
         return cls(model=checked, price=price, client=client)
 
+    def _native(self, schema: dict[str, Any] | None) -> tuple[dict[str, Any] | None, list[Any]]:
+        """The grammar for this schema (structured.py), or (None, []) to send it as before."""
+        if not self.structured_outputs or not schema or _key(schema) in self.unsupported:
+            return None, []
+        return provider_schema(schema)
+
     def complete(self, req: ModelRequest) -> ModelResponse:
         if req.image is not None:
             # ADR 0049: only the direct deployment route reads photos. Answering without the
@@ -88,26 +104,76 @@ class AnthropicDirectGateway:
             raise ConfigError(
                 "this model route cannot read images; the image check uses foundry_openai"
             )
-        system = "\n\n".join(m.content for m in req.prompt.messages if m.role == "system")
-        user = req.prompt.messages[-1].content
         prompt_chars = sum(len(m.content) for m in req.prompt.messages)
+        schema = dict(req.prompt.output_schema)
+        # Read from the request each attempt: a retry carries what was wrong (output.py).
         return complete_with_one_retry(
-            req, lambda r: self._call(system, user, r.max_output_tokens, prompt_chars), route=ROUTE
+            req,
+            lambda r: self._call(
+                "\n\n".join(m.content for m in r.prompt.messages if m.role == "system"),
+                r.prompt.messages[-1].content,
+                r.max_output_tokens,
+                prompt_chars,
+                schema,
+            ),
+            route=ROUTE,
         )
 
-    def _call(self, system: str, user: str, max_tokens: int, prompt_chars: int) -> RawReply:
-        sent: dict[str, object] = {"model": self.model, "max_tokens": max_tokens}
+    def _call(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int,
+        prompt_chars: int,
+        schema: dict[str, Any] | None = None,
+    ) -> RawReply:
+        native, pairs = self._native(schema)
+        # Which way the answer's format was enforced, for the run record (ADR 0073).
+        if native is not None:
+            mode = "native"
+        elif not schema or not self.structured_outputs:
+            mode = "plain"
+        elif _key(schema) in self.unsupported:
+            mode = "fallback_remembered"
+        else:
+            mode = "fallback_limits"
+        sent: dict[str, object] = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "structured": native is not None,
+            "mode": mode,
+            "schema": str((schema or {}).get("title", "")),
+        }
         self.sent_log.append(sent)
         started = self.monotonic()
+        request: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "system": _system(system),
+            "messages": [{"role": "user", "content": _user(user)}],
+        }
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
+            try:
+                if native is None:
+                    response = self.client.messages.create(**request)
+                else:
+                    response = self.client.messages.create(
+                        **request,
+                        output_config={"format": {"type": "json_schema", "schema": native}},
+                    )
+            except Exception as refused:
+                if native is None or not _schema_refused(refused):
+                    raise
+                # The API refused this schema (400, nothing billed): remember it and answer
+                # without the format, as before; parse() still checks every answer.
+                self.unsupported.add(_key(schema))
+                sent["structured"] = False
+                sent["mode"] = "fallback_refused"
+                native, pairs = None, []
+                response = self.client.messages.create(**request)
         except Exception as exc:
             mapped = map_error(exc)
+            sent["error"] = type(exc).__name__
             if mapped is None:
                 raise
             if mapped.maybe_billed:
@@ -116,29 +182,95 @@ class AnthropicDirectGateway:
             raise mapped from None
         latency_ms = int((self.monotonic() - started) * 1000)
         stop = str(getattr(response, "stop_reason", "") or "")
+        sent["latency_ms"], sent["stop"] = latency_ms, stop
         text = "".join(
             getattr(b, "text", "") for b in response.content if getattr(b, "type", "") == "text"
         )
         usage = getattr(response, "usage", None)
         reported_in: Any = getattr(usage, "input_tokens", None)
         reported_out: Any = getattr(usage, "output_tokens", None)
+        written = _count(getattr(usage, "cache_creation_input_tokens", None))
+        read = _count(getattr(usage, "cache_read_input_tokens", None))
         if isinstance(reported_in, int) and isinstance(reported_out, int):
             tokens_in, tokens_out = reported_in, reported_out
         else:
             tokens_in, tokens_out = prompt_chars // CHARS_PER_TOKEN_WORST + 1, max_tokens
+        text = restore(text, pairs)
         unusable = None
         if stop in ("refusal", "max_tokens"):
             # Anthropic structured-outputs guidance: both mean the answer is not usable.
             unusable = f"cut short ({stop})"
         return RawReply(
             text=text,
-            input_tokens=tokens_in,
+            # Every prompt token the call consumed: uncached, written and read (ADR 0072).
+            input_tokens=tokens_in + written + read,
             output_tokens=tokens_out,
             latency_ms=latency_ms,
-            cost_usd=self.price.cost(tokens_in, tokens_out),
+            cost_usd=cached_cost(self.price, tokens_in, written, read, tokens_out),
+            cache_write_tokens=written,
+            cache_read_tokens=read,
             model_id=str(getattr(response, "model", "") or self.model),
             unusable=unusable,
         )
+
+
+#: A system prompt at least this long is marked for the prompt cache. The model's minimum
+#: cacheable prefix is 512 tokens; shorter ones silently do not cache, and marking them costs
+#: nothing, but there is no point (ADR 0072).
+CACHE_MIN_CHARS = 2400
+#: The provider's cache prices, as multiples of the input price (5-minute cache).
+CACHE_WRITE_FACTOR = Decimal("1.25")
+CACHE_READ_FACTOR = Decimal("0.1")
+
+
+def _system(system: str) -> str | list[dict[str, object]]:
+    """The system prompt, marked for the prompt cache when it is long enough to be cached. It
+    is the stable part of every call (the case data is in the user message), so repeat calls
+    within five minutes - an investigation's turns, or the next case - read it from cache."""
+    if len(system) < CACHE_MIN_CHARS:
+        return system
+    return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+
+
+def _user(user: str) -> str | list[dict[str, object]]:
+    """The user message, its case briefing marked for the prompt cache when the prompt marks
+    where the briefing ends and the briefing is long enough to cache (audit AUD-16). An
+    investigation's turns then read the briefing from cache instead of paying for it again."""
+    head, marker, tail = user.partition(PROMPT_CACHE_BREAK)
+    if not marker or len(head) < CACHE_MIN_CHARS:
+        return user
+    return [
+        {"type": "text", "text": head + marker, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": tail},
+    ]
+
+
+def _key(schema: dict[str, Any] | None) -> str:
+    return json.dumps(schema, sort_keys=True, default=str)
+
+
+def _schema_refused(exc: BaseException) -> bool:
+    """A 400 about the output format: the schema, not the request, is the problem."""
+    import anthropic
+
+    if not isinstance(exc, anthropic.BadRequestError):
+        return False
+    said = str(exc).lower()
+    return any(w in said for w in ("output_config", "schema", "format", "grammar"))
+
+
+def _count(value: object) -> int:
+    return value if isinstance(value, int) and value > 0 else 0
+
+
+def cached_cost(price: Price, uncached: int, written: int, read: int, output: int) -> Decimal:
+    """What the call costs at the provider's cache rates, so the spending cap stays true."""
+    return (
+        Decimal(uncached) * price.input_per_mtok
+        + Decimal(written) * price.input_per_mtok * CACHE_WRITE_FACTOR
+        + Decimal(read) * price.input_per_mtok * CACHE_READ_FACTOR
+        + Decimal(output) * price.output_per_mtok
+    ) / Decimal(1_000_000)
 
 
 def _usage(tokens_in: int, tokens_out: int, latency_ms: int, price: Price) -> object:

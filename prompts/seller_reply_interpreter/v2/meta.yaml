@@ -1,0 +1,18 @@
+name: seller_reply_interpreter
+version: v2
+status: inactive  # drafted 2026-11-27 with case_investigator_agent v4; needs the ReplyReading fields wired and an eval run against v1 before activation
+owner: product
+purpose: Read the whole of a seller reply and describe it as structured data - intent, each requested item with the seller's exact words, every claim with what it refers to and how sure the seller sounds, and anything unclear. The only part of the system that reads a seller's full email. Never decides or recommends.
+output_schema: schema.json
+model_requirements:
+  structured_output: true
+  tool_use: none
+max_output_tokens: 1200
+eval_suite: tests/evals/seller_reply_interpreter/test_reply_reader_eval.py (to extend for v2's new fields)
+eval_cases: docs/spec/prompt-review.md#seller_reply_interpreter
+derived_from: seller_reply_interpreter/v1
+changelog:
+  - "v2: the reader is the only part that reads a seller's full email (owner, 2026-11-27: the investigator no longer opens emails itself), so the reading must be complete. New section reading_the_whole_reply (every paragraph, key facts in the middle, ignore signatures and quoted mail, mixed languages, cut replies)."
+  - "v2: schema - requested items carry evidence_quote (the seller's exact words; 'provided' never without one); claims carry refers_to (this parcel, product listing, other shipment, unclear) and certainty (stated, hedged), kind gains packaging, at most ten; new unclear list and confidence (high, medium, low) with fixed rules. max_output_tokens 600 -> 1200 for the extra fields."
+  - "v2: examples rewritten for the hub-first requests (box size at dispatch, product's listed size and weight; never a photo): a long reply with the key line in the middle, two contradictory sizes (low confidence), a Hindi-English reply, and v1's instruction-attempt and withdrawal examples."
+  - "v2: intent precedence, trust model, the no-quoting rule for instructions and the numbers rule are v1's, unchanged."

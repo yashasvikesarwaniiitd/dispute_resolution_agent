@@ -426,6 +426,10 @@ def shipment_view(s: Shipment) -> dict[str, Any]:
         "verdict": s.verdict,
         "breakdown": [{"step": step, "declared": d, "measured": m} for step, d, m in s.breakdown],
         "disputed": s.disputed,
+        "sku_id": s.sku_id,
+        "measured_on": s.measured_on,
+        "added": s.added,
+        "raisable": s.disputed or s.added,
     }
 
 

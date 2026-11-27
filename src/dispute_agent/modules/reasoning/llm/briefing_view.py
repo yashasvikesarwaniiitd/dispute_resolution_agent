@@ -117,6 +117,7 @@ def build_view(briefing: CaseBriefing) -> BriefingView:
         "independent_view": (
             briefing.independent_view.model_dump(mode="json") if briefing.independent_view else None
         ),
+        "prior_rounds": [r.model_dump(mode="json") for r in briefing.prior_rounds],
         "prior_rejections": [
             note[:MAX_REJECTION_CHARS] for note in briefing.prior_rejections[:MAX_REJECTIONS]
         ],
@@ -164,6 +165,22 @@ def _comparison_view(value: dict[str, Any]) -> dict[str, Any]:
     return view
 
 
+#: What each evidence item is, in words (ADR 0072). Before this the model saw only an id, a
+#: source and a value, and had to guess which item was which from the value's shape.
+LABELS = {
+    "shipment.status": "shipment status",
+    "shipment.declared_dims": "declared size and weight (from the booking)",
+    "shipment.measured_dims": "hub measurement of this parcel",
+    "shipment.zone": "zone and booked packaging",
+    "ledger.entries": "billing ledger entries for this claim",
+    "shipment.image_description": "photo flag",
+    "shipment.history": "this parcel's scan and tracking history",
+    "ops.finding": "the hub's answer to a remeasurement request",
+    COMPARABLE_KEY: "authoritative comparison with the seller's past shipments (code-computed)",
+    "parcel.image_check": "image check of the parcel photo",
+}
+
+
 def _trusted_item(item: EvidenceItem) -> dict[str, Any]:
     value: Any = item.result.value
     if item.result.requirement_key == COMPARABLE_KEY and isinstance(value, dict):
@@ -174,8 +191,11 @@ def _trusted_item(item: EvidenceItem) -> dict[str, Any]:
             value = {"truncated": True, "keys": sorted(value)}
         else:
             value = json.loads(rendered)
+    key = item.result.requirement_key
     return {
         "id": str(item.id),
+        "key": key,
+        "label": LABELS.get(key, key.replace("_", " ").replace(".", ": ")),
         "source": item.result.source,
         "status": item.result.status.value,
         "value": value,

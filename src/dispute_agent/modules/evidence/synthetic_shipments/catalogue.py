@@ -88,6 +88,8 @@ class Row(BaseModel):
     fixture: str | None = None
     demo_label: str | None = None
     duplicate_debit: bool = False
+    #: The seller's note on a dispute row (ADR 0070): served as the case's untrusted statement.
+    statement: str | None = None
 
 
 class SellerFile(BaseModel):
@@ -123,12 +125,32 @@ def sellers_dir() -> Path:
     return Path.cwd() / "config" / "sellers"
 
 
-@lru_cache(maxsize=1)
+#: "approved" loads only the three approved demo sellers: the frozen environment in which their
+#: comparisons, scanner statistics and regression outcomes are reproduced exactly (ADR 0072).
+#: "full" (the default) adds the generated sellers. Set once by the composition root from the
+#: SELLER_CATALOGUE setting; tests switch it with the `approved_catalogue` fixture.
+FROZEN = "approved"
+MODE = "full"
+
+
+def set_catalogue_mode(mode: str) -> None:
+    global MODE
+    MODE = mode
+
+
 def catalogue() -> Catalogue:
+    return _catalogue(MODE)
+
+
+@lru_cache(maxsize=2)
+def _catalogue(mode: str) -> Catalogue:
     directory = sellers_dir()
+    paths = sorted(directory.glob("*.yaml"))
+    if mode != FROZEN:
+        paths += sorted((directory / "generated").glob("*.yaml"))
     files = tuple(
         SellerFile.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
-        for path in sorted(directory.glob("*.yaml"))
+        for path in paths
     )
     by_ref: dict[str, Fixture] = {}
     by_name: dict[str, Fixture] = {}
@@ -166,6 +188,7 @@ def _fixtures(seller: SellerFile) -> list[Fixture]:
                 packaging_id=row.packaging_id,
                 measured_at=row.measured_at,
                 comparable_history=comparison,
+                statement=row.statement,
             )
         )
     return built

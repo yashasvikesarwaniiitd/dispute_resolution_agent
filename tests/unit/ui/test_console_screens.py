@@ -90,6 +90,7 @@ def _text(at: AppTest) -> str:
     return "\n".join(str(p) for p in parts)
 
 
+@pytest.mark.usefixtures("approved_catalogue")
 def test_the_seller_sees_their_shipments_and_their_ticket(desk: dict[str, Any]) -> None:
     at = AppTest.from_function(_seller, default_timeout=60).run()
     assert not at.exception
@@ -231,6 +232,7 @@ def test_the_ledger_totals_are_sums_of_its_rows(desk: dict[str, Any]) -> None:
     assert "No credits yet" in text
 
 
+@pytest.mark.usefixtures("approved_catalogue")
 def test_a_demo_seller_s_credit_shows_on_the_ledger(desk: dict[str, Any]) -> None:
     """Live, 2026-11-25: SHP-102026 was credited INR 152 and read back, but the Ledger offered
     only SELL-0001, so CaseKraft's charges and credit were nowhere to be seen."""

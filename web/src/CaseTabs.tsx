@@ -335,6 +335,35 @@ export function DetailsTab({ detail }: { detail: CaseDetail }) {
           </div>
         )}
       </div>
+      {detail.investigation.length > 0 && (
+        <div>
+          <p className="label">Investigation · what the AI looked up, and the reference its findings cite</p>
+          <div className="sheet">
+            <table className="t">
+              <tbody>
+                {detail.investigation.map((t, i) => (
+                  <tr key={i}>
+                    <td className="num">{t.ref || `round ${t.gather_round}`}</td>
+                    <td>
+                      {t.step}
+                      {t.arguments && t.arguments !== "{}" ? <span className="muted"> {t.arguments}</span> : null}
+                    </td>
+                    <td>{t.tool_ok === null ? "" : t.tool_ok ? (t.reused ? "answered (reused)" : "answered") : "no answer"}</td>
+                    <td>
+                      {t.result && (
+                        <details>
+                          <summary>result</summary>
+                          <pre>{t.result}</pre>
+                        </details>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       <div className="notbuilt">
         <b>Patterns:</b> repeat causes across cases (3 or more related in 14 days) are recorded on each case as caution
         only and appear in the Full record. A dedicated pattern view is not built yet.

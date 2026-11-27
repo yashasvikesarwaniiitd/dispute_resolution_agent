@@ -123,3 +123,18 @@ class TestOnACase:
         )
         case, *_ = run(engine, "scanner_fault", reasoner=_reasoner(gateway))
         assert case.state is CaseState.AWAITING_APPROVAL
+
+
+# -- post-audit corrections (AUD-08): the closed list is enforced in the schema and in code -----
+
+
+@pytest.mark.parametrize("version", ["v4", "v5"])
+def test_the_investigation_schema_allows_only_listed_items_and_at_most_two(version: str) -> None:
+    schema = json.loads(
+        (PROMPTS / "case_investigator_agent" / version / "schema.json").read_text("utf-8")
+    )
+    items = schema["properties"]["draft"]["properties"]["action_parameters"]["properties"][
+        "requested_items"
+    ]
+    assert items["items"]["enum"] == list(EVIDENCE_ITEMS) and items["maxItems"] == 2
+    assert allowed_items(schema) == frozenset(EVIDENCE_ITEMS)  # what code's check enforces

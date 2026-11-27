@@ -45,6 +45,23 @@ SHAPES: dict[str, tuple[re.Pattern[str], ...]] = {
         re.compile(r"\bmaintenance mode\b|\bdeveloper mode\b|\bjailbreak\b", _I),
         re.compile(r"\brefund\b.{0,40}\b(all|every|last \d+|\d+ shipments)\b", _I),
         re.compile(r"\b(credit|refund)\b.{0,40}\b(immediately|without review|right now)\b", _I),
+        # A claim of authority to steer the system (audit AUD-06, 2026-11-27).
+        re.compile(
+            r"\b(i am|i'm|this is)\s+(the|an|a|your)?\s*(account manager|admin(istrator)?|"
+            r"supervisor|system|developer|support agent|finance team|company)\b",
+            _I,
+        ),
+        # Telling the system its rules no longer hold, or which action to output.
+        re.compile(
+            r"\b(instructions?|rules?|polic(y|ies))\b.{0,20}"
+            r"\b(void|cancell?ed|revoked|overridden|suspended)\b",
+            _I,
+        ),
+        re.compile(
+            r"\b(output|respond with|return|choose|select)\b.{0,20}"
+            r"\b(propose_credit|uphold_charge|escalate_to_human|request_\w+)\b",
+            _I,
+        ),
     ),
     # An instruction to get round the review a person gives every credit (ADR 0061). A claim
     # that someone is owed money is NOT one of these: it is a claim, shown to the reviewer and
@@ -56,6 +73,14 @@ SHAPES: dict[str, tuple[re.Pattern[str], ...]] = {
             _I,
         ),
         re.compile(r"\b(no|without)\s+(further\s+)?(review|approval|sign[- ]?off)\b", _I),
+        # Skipping the checks themselves (audit AUD-06): "skip the checks", "ignore company
+        # policy", "without verification". A complaint never needs a check skipped.
+        re.compile(
+            r"\b(skip|bypass|ignore|override|waive)\b.{0,25}"
+            r"\b(checks?|verification|validation|company polic(y|ies)|polic(y|ies)|rules?)\b",
+            _I,
+        ),
+        re.compile(r"\bwithout\s+(any\s+)?(verification|checks?|validation)\b", _I),
         re.compile(
             r"\b(review|approval|sign[- ]?off)\b.{0,15}"
             r"\b(not\s+(needed|required|necessary)|unnecessary|waived)\b",

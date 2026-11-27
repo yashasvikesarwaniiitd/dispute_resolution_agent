@@ -1,11 +1,19 @@
-"""The seller catalogue (ADR 0060): the approved dataset, read and checked as the agent sees it."""
+"""The seller catalogue (ADR 0060): the approved dataset, read and checked as the agent sees it.
+
+Run in the frozen environment (ADR 0072): the three approved sellers alone, so every assertion
+here is the approved data's and the generated sellers can never move it.
+"""
 
 from __future__ import annotations
+
+import pytest
 
 from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue
 from dispute_agent.modules.evidence.synthetic_shipments.fixtures import FINDINGS, fixture
 from dispute_agent.packs.weight_dispute.calculator import calculate
 from dispute_agent.packs.weight_dispute.rate_card import DEFAULT_RATE_CARD
+
+pytestmark = pytest.mark.usefixtures("approved_catalogue")
 
 #: The two disputes that deliberately carry a billing error.
 BILLING_ERRORS = {"tl_dress_wrong_slab", "nc_lamp_duplicate"}

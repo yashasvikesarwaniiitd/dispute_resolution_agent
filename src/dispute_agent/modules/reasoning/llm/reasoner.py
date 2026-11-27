@@ -38,6 +38,8 @@ from dispute_agent.kernel.domain.hashing import payload_hash
 from dispute_agent.kernel.domain.ids import ProposalId
 from dispute_agent.kernel.domain.reasoning import ModelRequest, Proposal
 from dispute_agent.modules.reasoning.llm.briefing_view import BriefingView, build_view
+from dispute_agent.packs.weight_dispute.baseline import history_contradictions, uphold_basis
+from dispute_agent.packs.weight_dispute.history import MIN_REFERENCES
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -168,11 +170,13 @@ def to_proposal(
 
 
 def allowed_items(schema: Mapping[str, Any]) -> frozenset[str] | None:
-    """The closed list a prompt's schema gives `requested_items`, or None when it is open (v1)."""
+    """The closed list a prompt's schema gives `requested_items`, or None when it is open (v1).
+    An agent's schema nests the proposal under "draft" (audit AUD-08)."""
+    properties = schema.get("properties") or {}
+    if "draft" in properties:
+        properties = properties["draft"].get("properties") or {}
     try:
-        enum = schema["properties"]["action_parameters"]["properties"]["requested_items"]["items"][
-            "enum"
-        ]
+        enum = properties["action_parameters"]["properties"]["requested_items"]["items"]["enum"]
     except (KeyError, TypeError):
         return None
     return frozenset(str(item) for item in enum)
@@ -184,8 +188,12 @@ def check(
     view: BriefingView,
     *,
     allowed_items: frozenset[str] | None = None,
+    history_support: int = 0,
+    contradictions: tuple[str, ...] = (),
 ) -> None:
-    """agent-design.md section 3, checks 1-4. Raises InvalidModelOutput."""
+    """agent-design.md section 3, checks 1-4, and the uphold guardrail (ADR 0073). Raises
+    InvalidModelOutput. `history_support`: trusted comparable shipments in a past-shipments
+    search the decision cites (`comparable_support`); 0 for an engine without tools."""
     action = str(output.get("action"))
     if action not in {a.value for a in briefing.allowed_actions}:
         raise InvalidModelOutput(f"action {action!r} is not on this case's menu")
@@ -214,6 +222,25 @@ def check(
         raise InvalidModelOutput("a requested item is not on the prompt's list")
     if action == ProposalAction.REQUEST_REMEASUREMENT and not params.get("remeasurement_question"):
         raise InvalidModelOutput("request_remeasurement without a remeasurement_question")
+
+    if action == ProposalAction.UPHOLD_CHARGE and (
+        uphold_basis(briefing, contradictions=contradictions) is None
+    ):
+        # History alone is the basis here: it needs MIN_REFERENCES trusted comparable shipments
+        # and nothing contradicting them; scanner statistics and past disputes are never a basis
+        # (owner, 2026-11-27).
+        against = history_contradictions(briefing, contradictions)
+        if history_support < MIN_REFERENCES or against:
+            raise InvalidModelOutput(
+                "uphold_charge needs verified support: a hub finding confirming the measurement, a "
+                "measurement within tolerance of the declaration, a seller reply that supplies the "
+                "requested evidence without contradicting the measurement, a normal history comparison on at "
+                f"least {MIN_REFERENCES} trusted shipments, or a cited past-shipments search showing at "
+                f"least {MIN_REFERENCES} trusted shipments of this product in one packaging that "
+                "measure like this parcel, with nothing contradicting it"
+                + (f" (contradicted: {'; '.join(against)})" if against else "")
+                + ". Otherwise investigate further, ask, or escalate"
+            )
 
     influence: Any = output.get("pattern_influence") or {}
     if not briefing.pattern_context and influence.get("considered"):

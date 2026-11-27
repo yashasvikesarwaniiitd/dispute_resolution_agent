@@ -59,7 +59,8 @@ def sources(root: Path) -> list[Path]:
 class PolicyIndex:
     """Builds once per process; `search` is a pure, local keyword lookup."""
 
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(self, root: Path | None = None, *, only: tuple[str, ...] = ()) -> None:
+        """`only`: document paths under docs/ to index instead of every source (ADR 0072)."""
         from llama_index.core import Document
         from llama_index.core.node_parser import SentenceSplitter
         from llama_index.retrievers.bm25 import BM25Retriever
@@ -70,7 +71,8 @@ class PolicyIndex:
                 text=path.read_text(encoding="utf-8"),
                 metadata={"source": str(path.relative_to(base)).replace("\\", "/")},
             )
-            for path in sources(base)
+            for path in ([base / "docs" / name for name in only] if only else sources(base))
+            if path.is_file()
         ]
         splitter = SentenceSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         self._nodes = splitter.get_nodes_from_documents(documents)
@@ -109,6 +111,17 @@ class PolicyIndex:
 @lru_cache(maxsize=1)
 def default_index() -> PolicyIndex:
     return PolicyIndex()
+
+
+#: The investigation agent's policy look-up reads the business rulebook only. The decision
+#: records are engineering notes, and escalation-guide.md is the build process's guide (when the
+#: building model stops), not dispute policy (audit AUD-03).
+POLICY_ONLY = ("spec/policy-rules.md",)
+
+
+@lru_cache(maxsize=1)
+def policy_index() -> PolicyIndex:
+    return PolicyIndex(only=POLICY_ONLY)
 
 
 __all__ = ["Passage", "PolicyIndex", "default_index"]

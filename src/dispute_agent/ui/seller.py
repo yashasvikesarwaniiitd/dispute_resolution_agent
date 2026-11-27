@@ -12,6 +12,7 @@ words are untrusted input to the investigator, and adding a box is a separate de
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -67,9 +68,13 @@ class Shipment:
     breakdown: tuple[tuple[str, str, str], ...] = ()
     #: One plain sentence: does the bill match the hub's measurement, and what to dispute.
     verdict: str = ""
-    #: Seller-catalogue shipments (ADR 0060): whether it is one of the seller's disputes, the
-    #: only ones the page lists.
+    #: Seller-catalogue shipments (ADR 0060): whether it is one of the seller's disputes.
     disputed: bool = False
+    #: For search and filtering on the seller page (ADR 0072).
+    sku_id: str = ""
+    measured_on: str = ""
+    #: Added on the console: always raisable, like a dispute.
+    added: bool = False
 
 
 @dataclass(frozen=True)
@@ -140,6 +145,8 @@ def _ui_shipment(pack: WeightDisputePack, one: Any, row: Any = None) -> Shipment
         measured=_size(s.measured, s.measured_dead_grams),
         charged=render_fact(Money.from_paise(s.billed_paise)),
         disputed=bool(row is not None and row.role == "dispute"),
+        sku_id=s.sku_id if row is not None else "",
+        measured_on=row.measured_at.date().isoformat() if row is not None else "",
         **_cards(pack, s),
     )
 
@@ -152,8 +159,10 @@ def personas() -> list[dict[str, Any]]:
     return [describe(f) for f in sellers_().sellers]
 
 
-def seller_shipments(seller_id: str) -> list[Shipment]:
-    """One seller's shipments, newest first. Never another seller's (ADR 0060)."""
+def seller_shipments(seller_id: str, added: Path | None = None) -> list[Shipment]:
+    """One seller's shipments, newest first: their catalogue and any shipment added for them on
+    the console (ADR 0072). Never another seller's (ADR 0060)."""
+    from dispute_agent.modules.evidence.synthetic_shipments.added import AddedShipments
     from dispute_agent.modules.evidence.synthetic_shipments.catalogue import catalogue as sellers_
 
     found = sellers_().seller(seller_id)
@@ -161,7 +170,25 @@ def seller_shipments(seller_id: str) -> list[Shipment]:
         return []
     pack = WeightDisputePack()
     rows = sorted(found.shipments, key=lambda r: r.measured_at, reverse=True)
-    return [_ui_shipment(pack, sellers_().by_ref[r.ref], r) for r in rows]
+    shipments = [_ui_shipment(pack, sellers_().by_ref[r.ref], r) for r in rows]
+    if added is None:
+        return shipments
+    store = AddedShipments(added)
+    own = [
+        (new, built)
+        for built in store.all()
+        if (new := store.new(built.shipment.ref)) is not None and new.seller_id == seller_id
+    ]
+    extra = [
+        dataclasses.replace(
+            _ui_shipment(pack, built),
+            sku_id=new.sku_id or "",
+            measured_on=new.measured_at.date().isoformat() if new.measured_at else "",
+            added=True,
+        )
+        for new, built in own
+    ]
+    return sorted(extra, key=lambda s: s.measured_on, reverse=True) + shipments
 
 
 def contact_for(tag: str, allowlist: str | None) -> str | None:

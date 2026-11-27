@@ -23,6 +23,7 @@ from dispute_agent.kernel.ports.id_generator import IdGenerator
 from dispute_agent.kernel.ports.image_checker import ImageChecker, PhotoSource
 from dispute_agent.kernel.ports.input_screen import InputScreen
 from dispute_agent.kernel.ports.intent_store import IntentStore
+from dispute_agent.kernel.ports.investigation_tool import InvestigationTool
 from dispute_agent.kernel.ports.kill_switch import KillSwitch
 from dispute_agent.kernel.ports.ledger import Ledger
 from dispute_agent.kernel.ports.message_channel import MessageChannel
@@ -52,6 +53,7 @@ __all__ = [
     "ImageChecker",
     "InputScreen",
     "IntentStore",
+    "InvestigationTool",
     "KillSwitch",
     "Ledger",
     "MessageChannel",
