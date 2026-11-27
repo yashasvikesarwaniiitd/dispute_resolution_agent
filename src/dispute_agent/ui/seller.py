@@ -303,9 +303,17 @@ def latest_ticket_for(shipment: Shipment, mine: Iterable[Ticket]) -> Ticket | No
     return open_one or max(on_it, key=lambda t: t.updated_at, default=None)
 
 
-def dispute_body(shipment: Shipment, contact: str, now: datetime, event_id: str) -> dict[str, str]:
+#: The longest note a seller may add; the same cap as `api/events.NOTE_CHARS` (ADR 0070).
+NOTE_CHARS = 1000
+NOTE_LABEL = "Note for the agent (optional)"
+NOTE_HINT = "Anything the agent should know, e.g. the box you packed it in, or what was inside."
+
+
+def dispute_body(
+    shipment: Shipment, contact: str, now: datetime, event_id: str, note: str = ""
+) -> dict[str, str]:
     """Exactly what `POST /events` accepts (`api/events.py`, RaiseDispute)."""
-    return {
+    body = {
         # The dispute form's own source: the console is another face of the same form.
         "source": "dispute_api",
         "source_event_id": event_id,
@@ -315,6 +323,9 @@ def dispute_body(shipment: Shipment, contact: str, now: datetime, event_id: str)
         "seller_contact": contact,
         "raised_at": now.isoformat(),
     }
+    if note.strip():  # the seller's own note, sent only when they wrote one (ADR 0070)
+        body["statement"] = note.strip()
+    return body
 
 
 def raise_ticket(
@@ -323,12 +334,13 @@ def raise_ticket(
     contact: str | None,
     now: datetime,
     event_id: str,
+    note: str = "",
 ) -> Raised:
     """Post the dispute and say what happened, in words a seller understands."""
     if not contact:
         return Raised(False, "No test seller address is set (TEST_SELLER_EMAIL), so no ticket.")
     try:
-        status, answer = post(dispute_body(shipment, contact, now, event_id))
+        status, answer = post(dispute_body(shipment, contact, now, event_id, note))
     except OSError:
         return Raised(
             False,
@@ -350,6 +362,9 @@ def raise_ticket(
 
 
 __all__ = [
+    "NOTE_CHARS",
+    "NOTE_HINT",
+    "NOTE_LABEL",
     "Raised",
     "Shipment",
     "Ticket",

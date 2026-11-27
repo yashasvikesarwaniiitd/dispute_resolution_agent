@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from dispute_agent.kernel.domain.enums import ActorKind, InboundEventType
 from dispute_agent.kernel.domain.errors import DuplicateEvent
@@ -28,6 +28,9 @@ if TYPE_CHECKING:
     from dispute_agent.api.runtime import Runtime
 
 log = structlog.get_logger()
+
+#: The longest note a seller may add when raising a dispute (ADR 0070).
+NOTE_CHARS = 1000
 
 
 class RaiseDispute(BaseModel):
@@ -42,6 +45,9 @@ class RaiseDispute(BaseModel):
     seller_ref: str
     seller_contact: str
     raised_at: datetime
+    #: The seller's own note (ADR 0070). Stored on the case as untrusted text: the agent
+    #: reads it every round, and code never takes a figure or an instruction from it (I5).
+    statement: str | None = Field(default=None, max_length=NOTE_CHARS)
 
 
 class SubmitResult(BaseModel):
@@ -117,6 +123,7 @@ def input_event(case_id: str, event: InboundEvent, inbox_id: str) -> Event:
 
 
 __all__ = [
+    "NOTE_CHARS",
     "DuplicateEvent",
     "RaiseDispute",
     "SubmitResult",

@@ -33,6 +33,9 @@ from dispute_agent.ui.add_shipment import STATUS_CHOICES, preview, save
 from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import when
 from dispute_agent.ui.seller import (
+    NOTE_CHARS,
+    NOTE_HINT,
+    NOTE_LABEL,
     contact_for,
     latest_ticket_for,
     open_ticket_for,
@@ -334,22 +337,26 @@ def _bill(
             "as them. No other seller's address is used.</p>",
             unsafe_allow_html=True,
         )
-    elif st.button("Raise a dispute", type="primary", width="stretch"):
-        with st.spinner("Sending your ticket"):
-            # Hosted, the entry hands over the in-process service's route; locally it is the
-            # running API over loopback. Either way: POST /events (ADR 0045).
-            post = st.session_state.get("post") or data.poster(
-                settings.console_api_url, settings.http_timeout_s
-            )
-            raised = raise_ticket(
-                post, chosen, contact, datetime.now(UTC), f"console-{uuid.uuid4().hex}"
-            )
-        if raised.ok and raised.case_id:
-            st.session_state["case"] = raised.case_id
-            st.session_state["just_raised"] = raised.case_id
-        # Said after a rerun, so the new ticket is already in Your tickets below.
-        st.session_state["raised"] = (chosen.ref, raised)
-        st.rerun()
+    else:
+        note = st.text_area(
+            NOTE_LABEL, max_chars=NOTE_CHARS, key=f"note-{chosen.ref}", placeholder=NOTE_HINT
+        )
+        if st.button("Raise a dispute", type="primary", width="stretch"):
+            with st.spinner("Sending your ticket"):
+                # Hosted, the entry hands over the in-process service's route; locally it is
+                # the running API over loopback. Either way: POST /events (ADR 0045).
+                post = st.session_state.get("post") or data.poster(
+                    settings.console_api_url, settings.http_timeout_s
+                )
+                raised = raise_ticket(
+                    post, chosen, contact, datetime.now(UTC), f"console-{uuid.uuid4().hex}", note
+                )
+            if raised.ok and raised.case_id:
+                st.session_state["case"] = raised.case_id
+                st.session_state["just_raised"] = raised.case_id
+            # Said after a rerun, so the new ticket is already in Your tickets below.
+            st.session_state["raised"] = (chosen.ref, raised)
+            st.rerun()
     st.markdown(
         '<p class="muted">The agent checks the charge in code and a person approves any credit. '
         "You will get an email at the test seller address.</p>",

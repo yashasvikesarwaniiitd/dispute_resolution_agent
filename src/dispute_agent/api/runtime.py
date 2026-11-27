@@ -72,6 +72,9 @@ class Runtime:
     def submit_dispute(self, event: InboundEvent, body: RaiseDispute) -> SubmitResult:
         """Accept, route, advance — all in one transaction (ADR 0004, ADR 0006)."""
         from dispute_agent.kernel.domain.case import CaseFacts
+        from dispute_agent.kernel.domain.values import UntrustedText
+
+        note = (body.statement or "").strip()
 
         facts = CaseFacts(
             shipment_ref=body.shipment_ref,
@@ -79,6 +82,11 @@ class Runtime:
             seller_ref=body.seller_ref,
             seller_contact=body.seller_contact,
             raised_at=body.raised_at,
+            statement=(
+                UntrustedText.create(note, "dispute_form", f"form-{body.source_event_id}")
+                if note
+                else None
+            ),
         )
         # Checked before anything is written, so a refusal leaves no trace (I11, S27).
         self._intake.check(facts)

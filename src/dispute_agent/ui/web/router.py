@@ -54,6 +54,7 @@ from dispute_agent.ui.journey import journey
 from dispute_agent.ui.labels import local
 from dispute_agent.ui.photos import photo_for
 from dispute_agent.ui.seller import (
+    NOTE_CHARS,
     contact_for,
     personas,
     raise_ticket,
@@ -98,6 +99,7 @@ class Raise(BaseModel):
 
     seller_id: str
     shipment_ref: str
+    note: str = Field(default="", max_length=NOTE_CHARS)
 
 
 class Question(BaseModel):
@@ -267,7 +269,7 @@ def build_workspace_router(
             raise HTTPException(status_code=404, detail="Not one of this seller's shipments.")
         contact = contact_for(persona["contact_tag"], Settings().test_seller_email)
         now = datetime.now(UTC)
-        raised = raise_ticket(post, shipment, contact, now, f"ws-{uuid.uuid4().hex}")
+        raised = raise_ticket(post, shipment, contact, now, f"ws-{uuid.uuid4().hex}", body.note)
         return {"ok": raised.ok, "message": raised.message, "case_id": raised.case_id}
 
     @router.get("/ledger/{seller_id}")

@@ -157,6 +157,17 @@ class TestSellerScreen:
         assert sent[0]["shipment_ref"] == shipment.ref and "statement" not in sent[0]
         assert sent[0]["source"] in INBOUND_SOURCES  # an unknown source is refused at intake
 
+    def test_a_seller_s_note_is_sent_as_the_dispute_statement(self) -> None:
+        sent: list[dict[str, str]] = []
+
+        def post(body: dict[str, str]) -> tuple[int, dict[str, Any]]:
+            sent.append(body)
+            return 200, {"case_id": "case_1", "duplicate": False}
+
+        shipment = seller.catalogue()[0]
+        seller.raise_ticket(post, shipment, "a@example.test", NOW, "e1", "  Padded mailer.\n")
+        assert sent[0]["statement"] == "Padded mailer."
+
     def test_no_api_and_no_address_are_explained_not_crashed(self) -> None:
         def down(_body: dict[str, str]) -> tuple[int, dict[str, Any]]:
             raise ConnectionRefusedError

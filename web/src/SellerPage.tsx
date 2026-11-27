@@ -15,6 +15,7 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
   const [page, setPage] = useState<Page | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string; case_id: string | null } | null>(null);
 
   const load = useCallback(async () => {
@@ -38,7 +39,9 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
       const answer = await api.post<{ ok: boolean; message: string; case_id: string | null }>("/sellers/raise", {
         seller_id: sellerId,
         shipment_ref: shipment.ref,
+        note,
       });
+      if (answer.ok) setNote("");
       setMessage({ ok: answer.ok, text: answer.message, case_id: answer.case_id });
       if (answer.ok) say(`Ticket raised on ${shipment.ref}. The agent has started on it.`);
       await load();
@@ -161,9 +164,20 @@ export function SellerPage({ session, say }: { session: Session; say: (t: string
                       You already have an open ticket on this shipment: <span className={`pill ${pillClass(open.tone)}`}>{open.status}</span>
                     </p>
                   ) : page?.can_raise ? (
-                    <button className="btn primary" disabled={busy} onClick={() => void raise()} style={{ alignSelf: "flex-start" }}>
-                      Raise a dispute
-                    </button>
+                    <>
+                      <label className="note-label" htmlFor="seller-note">Note for the agent (optional)</label>
+                      <textarea
+                        id="seller-note"
+                        className="seller-note"
+                        value={note}
+                        maxLength={1000}
+                        placeholder="Anything the agent should know, e.g. the box you packed it in, or what was inside."
+                        onChange={(e) => setNote(e.target.value)}
+                      />
+                      <button className="btn primary" disabled={busy} onClick={() => void raise()} style={{ alignSelf: "flex-start" }}>
+                        Raise a dispute
+                      </button>
+                    </>
                   ) : (
                     <p className="muted" style={{ margin: 0 }}>{page?.cannot_raise}</p>
                   )}

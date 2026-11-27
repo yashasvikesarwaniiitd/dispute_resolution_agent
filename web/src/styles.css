@@ -253,9 +253,9 @@ a:hover { color: var(--you-text); }
 
 .footer { flex: none; background: var(--surface); border-top: 1px solid var(--line-2); padding: 14px 32px; }
 .footer .inner { display: flex; flex-direction: column; gap: 10px; }
-.footer textarea { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--control); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--surface); }
-.footer textarea:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
-.footer .note-label { font-size: 12.5px; color: var(--text-2); }
+.footer textarea, textarea.seller-note { width: 100%; min-height: 60px; resize: vertical; border: 1px solid var(--control); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--surface); }
+.footer textarea:focus, textarea.seller-note:focus { outline: 2px solid var(--you); outline-offset: 0; border-color: transparent; }
+.footer .note-label, .note-label { font-size: 12.5px; color: var(--text-2); }
 .footer .hint { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .footer .actions { display: flex; gap: 8px; align-items: center; }
 .btn { height: 38px; border-radius: 8px; padding: 0 14px 0 16px; font-size: 13.5px; white-space: nowrap; cursor: pointer;
