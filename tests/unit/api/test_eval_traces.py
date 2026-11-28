@@ -6,6 +6,7 @@ Offline: a fake Langfuse stands in for the REST API and the OTLP exporter.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -134,8 +135,19 @@ def test_what_the_agent_was_shown_is_sorted_into_plain_categories() -> None:
     ]
     assert shown["1. The dispute"]["Shipment"] == "SHP-104904"
     bill = shown["2. The bill, as checked by code"]
-    assert (bill["Amount charged"], bill["Overcharge found"]) == ("₹114.00", "₹0.00")
-    assert bill["Measured by the hub"] == "length 67.1, width 8.9, height 9, weight 210 g"
+    assert list(bill)[:3] == [  # the dispute in one glance: charged vs declared vs code's figure
+        "Amount charged",
+        "Charge on the seller's declared size",
+        "Code's recalculation on the hub's measurement",
+    ]
+    assert (bill["Amount charged"], bill["Charge on the seller's declared size"]) == (
+        "₹114.00",
+        "₹76.00",
+    )
+    assert bill["Overcharge (charged minus code's recalculation)"] == "₹0.00"
+    assert bill["Hub measured"] == (
+        "length 67.1 cm, width 8.9 cm, height 9 cm, weight 210 g, chargeable weight 1,075 g"
+    )
     assert "this parcel's scan and tracking history" in shown["3. Evidence on file"]["Missing"]
     assert "Send the case to a person" in shown["7. What the agent may decide"]
     assert shown["9. Limits"] == {
@@ -146,8 +158,21 @@ def test_what_the_agent_was_shown_is_sorted_into_plain_categories() -> None:
     assert "fact_id" not in json.dumps(shown)
     seller = readable_prompt(rebuilt["IC-15/enriched"]["user"])
     assert seller["2. What the seller wrote (not verified)"]["From"] == "dispute form"
-    for prompt in rebuilt.values():  # every section of every prompt lands in one category
-        assert isinstance(readable_prompt(prompt["user"]), dict)
+    for key, prompt in rebuilt.items():  # nothing the agent was shown is lost
+        text = prompt["user"]
+        shown = readable_prompt(text)
+        assert isinstance(shown, dict), key
+        flat = json.dumps(shown, ensure_ascii=False)
+        bill = re.search(r"<deterministic_results>\n(.*?)\n</deterministic_results>", text, re.S)
+        assert bill
+        for fact in json.loads(bill.group(1))["facts"]:
+            assert fact["value"] in flat, (key, fact["label"])
+        items = re.search(r"<evidence_items>\n(.*?)\n</evidence_items>", text, re.S)
+        assert items
+        evidence = next(v for k, v in shown.items() if "Evidence on file" in k)
+        assert len(evidence["Found"]) + len(evidence["Missing"]) == len(
+            items.group(1).splitlines()
+        ), key
     assert readable_prompt("free text") == "free text"  # unrecognised: shown as it is
 
 

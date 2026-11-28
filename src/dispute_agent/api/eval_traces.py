@@ -216,26 +216,43 @@ def _bill(body: str) -> Any:
         return data
     facts = {f.get("label"): f.get("value") for f in data.get("facts") or ()}
 
-    def size(who: str) -> str:
+    def size(who: str, chargeable: str) -> str:
         parts = [
-            f"{side} {facts.pop(f'{who} {side}')}"
+            f"{side} {facts.pop(f'{who} {side}')} cm"
             for side in ("length", "width", "height")
             if f"{who} {side}" in facts
         ]
         weight = facts.pop(f"{who} weight", None)
-        return ", ".join(parts + ([f"weight {weight}"] if weight else [])) or "not given"
+        billed = facts.pop(chargeable, None)
+        return (
+            ", ".join(
+                parts
+                + ([f"weight {weight}"] if weight else [])
+                + ([f"chargeable weight {billed}"] if billed else [])
+            )
+            or "not given"
+        )
 
+    # Every value is one the agent was shown; none is computed here. Labels the summary
+    # repeats leave the worked-out list, the rest stay in it.
+    for repeated in ("amount charged", "recalculated charge", "overcharge"):
+        facts.pop(repeated, None)
     out: dict[str, Any] = {
         "Amount charged": data.get("charged"),
-        "What code says it should be": data.get("recalculated"),
-        "Overcharge found": data.get("discrepancy"),
-        "Billing errors code found": data.get("definite_errors") or "none",
-        "Eligible for review": data.get("eligible"),
-        "Declared by the seller": size("declared"),
-        "Measured by the hub": size("measured"),
+        "Charge on the seller's declared size": facts.pop("charge on the declared size", None)
+        or "not given",
+        "Code's recalculation on the hub's measurement": data.get("recalculated"),
     }
     if data.get("recalculated_remeasured"):
-        out["Charge on the re-measured size"] = data["recalculated_remeasured"]
+        out["Code's recalculation on the re-measured size"] = data["recalculated_remeasured"]
+    out |= {
+        "Overcharge (charged minus code's recalculation)": data.get("discrepancy"),
+        "Billing errors code found": [_plain(e, {}) for e in data.get("definite_errors") or ()]
+        or "none",
+        "Eligible for review": data.get("eligible"),
+        "Seller declared": size("declared", "chargeable weight on the declared size"),
+        "Hub measured": size("measured", "chargeable weight in grams"),
+    }
     if data.get("reason_codes"):
         out["Reasons code gave"] = [_plain(c, {}) for c in data["reason_codes"]]
     out["How the charge is worked out"] = [f"{k}: {v}" for k, v in facts.items()]
