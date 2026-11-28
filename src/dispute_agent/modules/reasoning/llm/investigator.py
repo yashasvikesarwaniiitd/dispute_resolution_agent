@@ -155,7 +155,7 @@ class InvestigatorReasoner:
     )
 
     def propose(self, briefing: CaseBriefing) -> Proposal:
-        view = build_view(briefing)
+        view = build_view(briefing, reading_block=True)  # v4's reply-reading block (AUD-05)
         ctx = ToolContext(
             case_id=briefing.case_id,
             facts=briefing.facts,

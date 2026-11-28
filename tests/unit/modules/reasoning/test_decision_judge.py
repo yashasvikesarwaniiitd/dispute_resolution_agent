@@ -41,7 +41,7 @@ def _judge(answer: Any, seen: list[str] | None = None) -> DecisionJudge:
             seen.append(" ".join(m.content for m in req.prompt.messages))
         return answer(req) if callable(answer) else answer
 
-    settings = Settings()
+    settings = Settings(_env_file=None)  # never the developer's .env (its credit dates expire)
     gateway = build_model_gateway(
         "fake",
         settings=settings,

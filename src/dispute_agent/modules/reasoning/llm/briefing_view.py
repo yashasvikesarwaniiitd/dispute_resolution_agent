@@ -44,6 +44,18 @@ MAX_SCREEN_RESULTS = 10
 
 #: The dispute statement's id in the briefing. Always kept when texts are dropped (spec).
 STATEMENT_ID = "dispute_statement"
+#: The reply reader's structured reading of a seller reply (an evidence item, SELLER provenance).
+REPLY_KEY = "seller_reply"
+#: What the reading block shows: the reading, not who produced it (model, prompt hash).
+READING_FIELDS = (
+    "intent",
+    "requested_items_status",
+    "claims",
+    "attachments",
+    "manipulation_flags",
+    "summary",
+    "language",
+)
 
 
 @dataclass(frozen=True)
@@ -55,16 +67,23 @@ class BriefingView:
     citable_ids: frozenset[str]
 
 
-def build_view(briefing: CaseBriefing) -> BriefingView:
+def build_view(briefing: CaseBriefing, *, reading_block: bool = False) -> BriefingView:
+    """`reading_block`: show the latest seller reply's reading in the template's
+    `untrusted_reply_reading` block (and not again among the untrusted evidence), for a prompt
+    that has that block wired (v4, audit AUD-05). Off by default: v1-v3, v5 and the released
+    default engine keep the briefing they were evaluated on."""
     trusted: list[dict[str, Any]] = []
     outside: list[tuple[str, str, UntrustedText]] = []
+    reading = _latest_reading(briefing) if reading_block else None
 
     if briefing.facts.statement is not None:
         outside.append((STATEMENT_ID, "dispute_form", briefing.facts.statement))
 
     for item in briefing.evidence.items:
         result = item.result
-        if item.provenance is Provenance.SELLER and result.value is not None:
+        if reading is not None and str(item.id) == reading["evidence_id"]:
+            pass  # in the reply-reading block; its id stays citable below
+        elif item.provenance is Provenance.SELLER and result.value is not None:
             # A seller-provided structured value is still the seller's words (spec, row
             # "SELLER-provenance evidence item value"): it renders as outside text.
             as_text = json.dumps(result.value, sort_keys=True, default=str)
@@ -89,8 +108,8 @@ def build_view(briefing: CaseBriefing) -> BriefingView:
         "assessment_view": assessment,
         "trusted_evidence": trusted[:MAX_TRUSTED_ITEMS],
         "untrusted_evidence": [{"id": doc_id, "source": source} for doc_id, source, _ in kept],
-        # The reply interpreter arrives in Phase 4+; until then there is no reading.
-        "reply_reading": None,
+        # Outside text, rendered in its own untrusted block (AUD-05); None unless asked for.
+        "reply_reading": reading,
         "contact": briefing.contact.model_dump(mode="json"),
         "screen_results": [
             {
@@ -252,4 +271,21 @@ def _untrusted(text: str, source_ref: str) -> UntrustedText:
     return UntrustedText.create(text, "seller_portal", source_ref)
 
 
-__all__ = ["STATEMENT_ID", "BriefingView", "build_view"]
+def _latest_reading(briefing: CaseBriefing) -> dict[str, Any] | None:
+    """The newest seller-reply reading in this round's evidence, with its evidence id (so it
+    stays citable), or None. Earlier readings, if any, stay among the untrusted evidence."""
+    found = None
+    for item in briefing.evidence.items:
+        value = item.result.value
+        if (
+            item.provenance is Provenance.SELLER
+            and item.result.requirement_key == REPLY_KEY
+            and isinstance(value, dict)
+        ):
+            found = {"evidence_id": str(item.id)} | {
+                k: value[k] for k in READING_FIELDS if k in value
+            }
+    return found
+
+
+__all__ = ["READING_FIELDS", "REPLY_KEY", "STATEMENT_ID", "BriefingView", "build_view"]

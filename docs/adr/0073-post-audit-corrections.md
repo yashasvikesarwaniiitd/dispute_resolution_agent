@@ -90,3 +90,12 @@ The one paid pass (`evals/investigation/runs/inv-focused-paid-20261127T143232Z`,
   - **Seller evidence must support the charge.** A seller reply or photo merely existing no longer qualifies. A reply counts only when it supplies everything requested, carries no manipulation flag, and claims no size smaller than the hub measured (`seller_supports`). Code cannot see what a photo shows; that judgement stays with the investigator and the approving person.
   - **History never overrides a contradiction.** The contradictions are: an unconcluded hub check, an outstanding remeasurement, unresolved new seller evidence, a scanner or hub reading high against its peers, or a photo showing a smaller parcel or more than one (`history_contradictions`, `tool_contradictions`).
   - **The run record shows how each call's format was enforced:** native, plain, or a fallback.
+
+## Addendum, 2026-11-28: AUD-05
+
+- **Fixed for the v4 investigator only.** The seller reply's structured reading (intent, each requested item, claims, attachments, manipulation flags and summary) now fills v4's `untrusted_reply_reading` block. It is still outside text: the block is labelled untrusted and its content is neutralised.
+- **Shown once.** The same reading is no longer repeated among the untrusted evidence. Its evidence id stays citable, and the seller's own raw words stay where they were.
+- **The released v3 prompt, the default engine, is unchanged.** Its block was never filled, and changing what v3 sees would change the engine you evaluated.
+- **No new model calls and no policy change.**
+- **Still mandatory release blockers before any real seller data:** AUD-02 (seller identity at intake) and AUD-07 (cross-seller statistics that can be subtracted).
+

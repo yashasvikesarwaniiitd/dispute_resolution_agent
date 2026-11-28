@@ -16,8 +16,9 @@ Date: 2026-11-27. Scope: ADR 0071 (five investigation tools), ADR 0072 (bounded 
 ---
 
 > **Update, same day: corrections made (ADR 0073).** Fixed: AUD-01, 03, 04, 06, 08, 09, 10, 11,
-> 13, 14, 16, 20, 22, 23, 25, and the AUD-12 test gaps. Still open: AUD-02 and AUD-07 (blockers
-> before real seller data), AUD-05, 15, 17, 18, 19, 21, 24. The findings below are as audited.
+> 13, 14, 16, 20, 22, 23, 25, and the AUD-12 test gaps; AUD-05 on 2026-11-28. Still open:
+> AUD-02 and AUD-07 (mandatory release blockers before any real seller data), AUD-15, 17, 18, 19,
+> 21, 24. The findings below are as audited.
 
 ## A. Executive summary
 

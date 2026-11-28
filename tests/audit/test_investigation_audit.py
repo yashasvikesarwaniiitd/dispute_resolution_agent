@@ -301,15 +301,15 @@ def test_an_ordinary_refund_request_is_not_screened_as_manipulation() -> None:
         assert RulesBasedInputScreen.flags_for(text) == set()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="AUD-05: the v4 template's reply-reading block is never filled (view sets None)",
-)
+# Fixed after the audit: AUD-05 (behaviour: tests/unit/modules/reasoning/test_reply_reading_block.py).
 def test_the_reply_reading_reaches_the_prompt_block_written_for_it() -> None:
-    from dispute_agent.modules.reasoning.llm import briefing_view
+    import inspect
 
-    source = briefing_view.__file__
-    assert '"reply_reading": None' not in Path(source).read_text(encoding="utf-8")
+    from dispute_agent.modules.reasoning.llm import briefing_view, investigator
+
+    source = Path(briefing_view.__file__).read_text(encoding="utf-8")
+    assert '"reply_reading": None' not in source
+    assert "build_view(briefing, reading_block=True)" in inspect.getsource(investigator)
 
 
 # Fixed after the audit: AUD-06 (v4 and v5; v3 is released and stays as it was evaluated).
