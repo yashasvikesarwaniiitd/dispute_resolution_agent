@@ -343,3 +343,37 @@ def test_replacing_deletes_then_sends_once_under_new_ids(tmp_path: Path) -> None
         label="run3",
     )
     assert third.traces_sent == 0
+
+
+def test_every_look_up_reads_plainly_and_keeps_its_records() -> None:
+    """Run 3's look-ups, in full (recovered after the run): plain labels, nothing lost."""
+    from dispute_agent.api.eval_traces import readable_answer
+
+    record = json.loads(RUN3.read_text(encoding="utf-8"))
+    rebuilt = json.loads(RUN3.with_suffix(".inputs.json").read_text(encoding="utf-8"))
+
+    def keys(value: Any) -> list[str]:
+        if isinstance(value, dict):
+            return [*value, *(k for v in value.values() for k in keys(v))]
+        if isinstance(value, list):
+            return [k for v in value for k in keys(v)]
+        return []
+
+    seen = set()
+    for r in record["results"]:
+        full = rebuilt[f"{r['case']}/{r['arm']}"]["tools"]
+        for step in (t for t in r["trace"] if t.get("ref") and t.get("result")):
+            answer = full[step["ref"]]
+            assert answer.startswith(step["result"])  # what the run kept, then the rest
+            shown = readable_answer(step["step"], answer)
+            assert isinstance(shown, dict) and shown["In short"], step["ref"]
+            assert not [k for k in keys(shown) if "_" in k], (step["step"], keys(shown))
+            data = json.loads(answer)["data"]
+            for rec in data.get("records") or data.get("this_seller") or ():
+                ref = rec.get("ref") or rec.get("shipment_ref")
+                assert ref in json.dumps(shown), ref
+            seen.add(step["step"])
+    assert seen == {"search_past_shipments", "get_scanner_statistics", "search_past_disputes"}
+    assert readable_answer("search_past_shipments", '{"ok": true, "data": {"que') == (
+        '{"ok": true, "data": {"que'
+    )  # a cut-short answer is shown as it is

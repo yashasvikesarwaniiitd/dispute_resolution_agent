@@ -74,6 +74,14 @@ The three paid evaluation runs were JSON files and markdown reports. Nobody coul
     - The only code change since the run is AUD-05, which does nothing without a seller reply.
   - The importer uses a rebuilt prompt only when it matched, and labels it "Rebuilt after the run".
   - Later prompts depended on the model's replies, which were not saved, so they stay "Not saved by this run".
+- **Look-ups read plainly.** Each tool step shows:
+  - what it was asked, in plain labels;
+  - a one-line "In short";
+  - the details (records one per line, scanner windows as sentences, cautions);
+  - whether the decision used it.
+
+  Every value stays. Only labels and layout change.
+- **Run 3's cut-off tool answers were recovered in full.** The rebuild replays the run's own look-ups on the same synthetic data. All 38 answers start with exactly the 400 characters the run kept. Where the run had cut an answer, the step says it was recovered.
 - Run 3's 30 traces were replaced (`--replace`, owner-approved) so Langfuse shows this version.
 
 ## Using it

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import tempfile
 from decimal import Decimal
@@ -24,6 +25,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+#: One look-up in a prompt's investigation notes: "- T1.2: tool({args}) -> {answer}".
+NOTE = re.compile(r"^- (T\d+\.\d+): (\w+)\((.*?)\) -> (.*)$", re.M)
 
 
 def main() -> int:
@@ -45,14 +48,23 @@ def main() -> int:
 
     seen: list[tuple[str, str]] = []
     arm_now = {"arm": ""}
+    replaying: list[dict[str, Any]] = []  # the run's own look-ups, asked again in order
 
     def stand_in(
         self: Any, system: str, user: str, max_tokens: int, prompt_chars: int, schema: Any = None
     ) -> RawReply:
         seen.append((system, user))
-        draft = investigator("escalate_to_human", None)
-        key = "argument" if arm_now["arm"] == "agent" else "arguments"
-        body = {"step": "decide", key: "" if key == "argument" else {}, "draft": draft}
+        if replaying:
+            step = replaying.pop(0)
+            body: dict[str, Any] = {
+                "step": step["step"],
+                "arguments": json.loads(step["arguments"] or "{}"),
+                "reason": "replay of the recorded run",
+            }
+        else:
+            draft = investigator("escalate_to_human", None)
+            key = "argument" if arm_now["arm"] == "agent" else "arguments"
+            body = {"step": "decide", key: "" if key == "argument" else {}, "draft": draft}
         return RawReply(
             text=json.dumps(body),
             input_tokens=0,
@@ -71,6 +83,9 @@ def main() -> int:
     out: dict[str, Any] = {}
     for n, r in enumerate(record["results"]):
         arm_now["arm"], seen[:] = r["arm"], []
+        steps = [t for t in r["trace"] if t.get("ref") and t.get("arguments") is not None]
+        # The enriched arm's look-ups run in code; only the investigator chose its own.
+        replaying[:] = [t for t in steps if r["arm"] == "investigator"]
         case = cases[r["case"]]
         factory = build_haiku_eval_models(
             settings,
@@ -84,8 +99,25 @@ def main() -> int:
         system, user = seen[0]
         recorded = (logged[n][0].get("prompt_hash") if logged and logged[n] else None) or ""
         matches = recorded == str(payload_hash(system))
-        out[f"{r['case']}/{r['arm']}"] = {"system": system, "user": user, "verified": matches}
-        print(f"{r['case']} {r['arm']:12} instructions match the run: {matches}", flush=True)
+        answers: dict[str, str] = {}  # each look-up's full answer, as the next prompt showed it
+        for _, later in seen:
+            for ref, _tool, _args, answer in NOTE.findall(later):
+                answers[ref] = answer
+        # Check: each answer starts with exactly what the run kept of it (its first 400 chars).
+        kept = {t["ref"]: str(t.get("result") or "") for t in steps}
+        tools_ok = all(answers.get(ref, "").startswith(v) for ref, v in kept.items() if v)
+        out[f"{r['case']}/{r['arm']}"] = {
+            "system": system,
+            "user": user,
+            "verified": matches,
+            "tools": {ref: answers[ref] for ref in kept if ref in answers} if tools_ok else {},
+        }
+        print(
+            f"{r['case']} {r['arm']:12} instructions match the run: {matches}; "
+            f"{len(kept)} look-up answers recovered and matching: {tools_ok}",
+            flush=True,
+        )
+        matches = matches and tools_ok
     target = path.with_suffix(".inputs.json")
     target.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     bad = [k for k, v in out.items() if not v["verified"]]

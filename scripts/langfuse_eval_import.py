@@ -56,6 +56,7 @@ def import_record(
             found = first.get(f"{r['case']}/{r['arm']}")
             if found and found.get("verified"):  # only a rebuild that matched the run
                 r["first_prompt"] = {"system": found["system"], "user": found["user"]}
+                r["tool_results"] = found.get("tools") or {}  # each matched what the run kept
     cases = {c.id: c.model_dump() for c in load_cases().cases}
     calls = call_logs(record)
     executions = build(record, cases, calls, run_id=run_id(path), reissued=reissued(MANIFEST))

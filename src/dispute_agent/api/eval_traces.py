@@ -99,6 +99,11 @@ TOOL_LABELS = {
     "check_draft": "check its draft decision",
 }
 NOT_SHOWN = "Test description (for reviewers; the agent never sees this)"
+RECOVERED = (
+    "This run kept only the start of this answer. The full answer was recovered after the run by "
+    "asking the same look-up again on the same synthetic data; it starts with exactly what the "
+    "run kept."
+)
 REBUILT = (
     "Rebuilt after the run from the same synthetic data and code. The instructions match the "
     "fingerprint the run recorded for this call."
@@ -298,9 +303,228 @@ def _note(line: str) -> Any:
     ref, tool, args, answer = hit.groups()
     return {
         "Look-up": f"{_plain(tool, TOOL_LABELS).capitalize()} [{ref}]",
-        "Asked for": _json_or_text(args) or "nothing specific",
-        "Answer": _json_or_text(answer),
+        "Asked for": readable_ask(_json_or_text(args)),
+        "Answer": readable_answer(tool, answer),
     }
+
+
+# -- a look-up's question and answer, in plain words ------------------------------------------------
+
+_ASK_FIELDS = {
+    "sku_id": "Product",
+    "packaging_id": "Packaging",
+    "quantity": "Quantity",
+    "trusted_only": "Trusted records only",
+    "date_from": "From",
+    "date_to": "To",
+    "hub_id": "Hub",
+    "scanner_id": "Scanner",
+    "limit": "Show at most",
+    "level": "Look at",
+    "match": "Disputes with the same",
+    "query": "Search for",
+    "top_k": "Passages",
+}
+_STATS = {
+    "sample_size": "Shipments compared",
+    "typical_measured_cm": "Typical measured size (cm)",
+    "typical_measured_grams": "Typical measured weight (g)",
+    "volume_cm3_range": "Volume range (cm³)",
+    "this_parcel_volume_to_typical": "This parcel's volume vs typical",
+    "this_parcel_grams_to_typical": "This parcel's weight vs typical",
+    "share_measured_over_1_25x_declared": "Share measured over 1.25x declared",
+    "by_packaging": "By packaging",
+    "by_quantity": "By quantity",
+}
+_GROUPS = {
+    "this_scanner": "This scanner",
+    "other_scanners_at_hub": "Other scanners at this hub",
+    "this_hub": "This hub",
+    "other_hubs": "Other hubs",
+}
+_NOT_ENOUGH = "not enough data to share"
+_STATES = {
+    "RESOLVED_UPHELD": "resolved: charge kept",
+    "RESOLVED_CREDITED": "resolved: seller credited",
+}
+
+
+def _pct(v: Any) -> str:
+    try:
+        return f"{float(v) * 100:.0f}%"
+    except (TypeError, ValueError):
+        return _value(v)
+
+
+def _times(v: Any) -> str:
+    try:
+        return f"{float(v):.2f}x"
+    except (TypeError, ValueError):
+        return _value(v)
+
+
+def readable_ask(args: Any) -> Any:
+    """What a look-up was asked, with the tool's own argument names in plain words."""
+    if not isinstance(args, dict):
+        return args or "Nothing specific: the tool's standard question for this case"
+    if not args:
+        return "Nothing specific: the tool's standard question for this case"
+    return {_ASK_FIELDS.get(k, _plain(k, {}).capitalize()): _value(v) for k, v in args.items()}
+
+
+def readable_answer(tool: str, text: str) -> Any:
+    """A look-up's answer as a reviewer reads it: a one-line summary, then the details in plain
+    labels. Every value of the answer stays; only names and layout change. An answer that is not
+    the tool's JSON (cut short, or an error text) comes back as it is."""
+    answer = _json_or_text(text)
+    if not isinstance(answer, dict):
+        return answer
+    if answer.get("ok") is False:
+        return {"In short": "No answer", "Why": _value(answer.get("error") or answer.get("data"))}
+    data = answer.get("data", answer)
+    if not isinstance(data, dict):
+        return _value(data)
+    shape = {
+        "search_past_shipments": _shipments,
+        "get_scanner_statistics": _scanner,
+        "search_past_disputes": _disputes,
+    }.get(tool)
+    if shape is None:
+        return {_plain(k, {}).capitalize(): _value(v) for k, v in data.items()}
+    out, used = shape(data)
+    out |= {_plain(k, {}).capitalize(): _value(v) for k, v in data.items() if k not in used}
+    return out
+
+
+def _shipments(d: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
+    stats = dict(d.get("stats") or {})
+    widened = d.get("differs_from_authoritative") or []
+    official = d.get("basis") == "authoritative"
+    shown: dict[str, Any] = {}
+    for k, v in stats.items():
+        if k.startswith("share_"):
+            v = _pct(v)
+        elif k.endswith("_to_typical"):
+            v = _times(v)
+        shown[_STATS.get(k, _plain(k, {}).capitalize())] = _value(v)
+    filters = d.get("available_filters") or {}
+    return {
+        "In short": f"{d.get('matched')} matching shipments by this seller ({d.get('shown')} shown)",
+        "Searched for": readable_ask(
+            {k: v for k, v in (d.get("query") or {}).items() if v is not None}
+        ),
+        "Official comparison or extra context": "The official comparison"
+        if official
+        else "Extra context only" + (f" (search widened: {', '.join(widened)})" if widened else ""),
+        "Cautions": d.get("limitations") or "none",
+        "Across the shipments found": shown or "nothing to summarise",
+        "Shipments found": [
+            " · ".join(
+                str(x)
+                for x in (
+                    r.get("ref"),
+                    r.get("on"),
+                    f"packaging {r.get('packaging')}",
+                    f"quantity {r.get('qty')}",
+                    f"scanner {r.get('scanner')}",
+                    f"declared {r.get('declared')}",
+                    f"measured {r.get('measured')}",
+                    r.get("status"),
+                )
+            )
+            for r in d.get("records") or ()
+        ]
+        or "none",
+        "Other searches it could run": {
+            _plain(k, {}).capitalize(): _value(
+                [x.get("sku_id") or x.get("packaging_id") or x for x in v]
+                if isinstance(v, list) and v and isinstance(v[0], dict)
+                else v
+            )
+            for k, v in filters.items()
+        }
+        or "none listed",
+    }, {
+        "query",
+        "basis",
+        "differs_from_authoritative",
+        "matched",
+        "shown",
+        "stats",
+        "limitations",
+        "records",
+        "available_filters",
+    }
+
+
+def _scanner(d: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
+    def group(w: Any) -> str:
+        if not isinstance(w, dict):
+            return _NOT_ENOUGH if w == "insufficient_data" else _value(w)
+        return (
+            f"{w.get('readings')} readings; {_pct(w.get('share_over_1_25x_declared'))} measured "
+            f"over 1.25x the declared volume; typical measured vs declared volume "
+            f"{_times(w.get('median_measured_to_declared_volume'))}; "
+            f"{_pct(w.get('share_corrected_or_disputed'))} later corrected or disputed"
+        )
+
+    level = d.get("level")
+    looked = (
+        f"the scanner that measured this parcel ({d.get('scanner_id')}, at hub {d.get('hub_id')})"
+        if level == "scanner"
+        else f"the whole hub ({d.get('hub_id')})"
+    )
+    windows = {
+        _plain(name, {}).capitalize(): {
+            _GROUPS.get(k, _plain(k, {}).capitalize()): group(v) for k, v in (w or {}).items()
+        }
+        for name, w in (d.get("windows") or {}).items()
+    }
+    limits = d.get("thresholds") or {}
+    return {
+        "In short": f"This parcel measured {_times(d.get('this_parcel_measured_to_declared_volume'))}"
+        " its declared volume",
+        "Looked at": looked,
+        **windows,
+        "Shared only when": f"at least {limits.get('min_readings')} readings from at least "
+        f"{limits.get('min_sellers')} sellers"
+        if limits
+        else "not stated",
+    }, {
+        "level",
+        "scanner_id",
+        "hub_id",
+        "this_parcel_measured_to_declared_volume",
+        "windows",
+        "thresholds",
+    }
+
+
+def _disputes(d: dict[str, Any]) -> tuple[dict[str, Any], set[str]]:
+    own = d.get("this_seller") or []
+    others = d.get("other_sellers_by_outcome")
+    return {
+        "In short": f"{d.get('this_seller_total', len(own))} earlier disputes by this seller with "
+        f"the same {d.get('match')}",
+        "Looked for": f"disputes with the same {d.get('match')} ({d.get('value')})",
+        "This seller's disputes": [
+            " · ".join(
+                str(x)
+                for x in (
+                    r.get("shipment_ref"),
+                    f"opened {r.get('opened_on')}",
+                    _plain(r.get("state", ""), _STATES),
+                    f"review reason: {_plain(r['review_code'], {})}"
+                    if r.get("review_code")
+                    else "",
+                )
+                if x
+            )
+            for r in own
+        ]
+        or "none",
+        "Other sellers": _NOT_ENOUGH if others == "insufficient_data" else _value(others),
+    }, {"match", "value", "this_seller", "this_seller_total", "other_sellers_by_outcome"}
 
 
 @dataclass(frozen=True)
@@ -443,8 +667,19 @@ def _execution(
 
     children: list[Observation] = []
     cursor = begin
+    answers = dict(r.get("tool_results") or {})  # full look-up answers recovered after the run
     for i, step in enumerate(steps[:code_steps]):
-        children.append(_tool(step, f"code-{i}", cursor, cited, chosen_by="code", limit=limit))
+        children.append(
+            _tool(
+                step,
+                f"code-{i}",
+                cursor,
+                cited,
+                chosen_by="code",
+                limit=limit,
+                full=answers.get(str(step.get("ref"))),
+            )
+        )
         cursor = children[-1].end_ns
     rejected = format_failures = uncited = 0
     final = _final_decision(r)
@@ -462,7 +697,15 @@ def _execution(
         cursor += latency * 1_000_000
         name = str(step.get("step"))
         if name in TOOLS:
-            tool = _tool(step, f"step-{i}", cursor, cited, chosen_by="model", limit=limit)
+            tool = _tool(
+                step,
+                f"step-{i}",
+                cursor,
+                cited,
+                chosen_by="model",
+                limit=limit,
+                full=answers.get(str(step.get("ref"))),
+            )
             uncited += (
                 tool.metadata.get("cited") == "false" and tool.metadata.get("answered") == "true"
             )
@@ -686,6 +929,7 @@ def _tool(
     *,
     chosen_by: str,
     limit: int = 400,
+    full: str | None = None,
 ) -> Observation:
     name = str(step.get("step"))
     ref = str(step.get("ref") or "")
@@ -693,8 +937,15 @@ def _tool(
     has_detail = "arguments" in step or "result" in step
     is_cited = bool(ref) and (ref in cited or f"tool:{name}" in cited)
     result = step.get("result")
-    output: Any = {"Answer": _json_or_text(str(result))} if result else unavailable("the answer")
-    if result and len(str(result)) >= limit and isinstance(output["Answer"], str):
+    said = full or result
+    output: Any = (
+        {"Answer": readable_answer(name, str(said))} if said else unavailable("the answer")
+    )
+    if said and ref:
+        output["Used in the decision"] = "yes" if is_cited else "no"
+    if full and len(full) > len(str(result or "")):  # only when the run cut it short
+        output["How we know"] = RECOVERED
+    elif result and len(str(result)) >= limit:
         output["Note"] = f"This run saved only the first {limit} characters of the answer."
     if answered and result == "":
         output = "Same question as an earlier step, so no new answer (it points to that step)."
@@ -711,7 +962,7 @@ def _tool(
         kind="tool",
         start_ns=start,
         end_ns=start + max(int(step.get("tool_ms") or 0), 1) * 1_000_000,
-        input=({"Asked for": asked} if asked else "Nothing specific: the standard search")
+        input={"Asked for": readable_ask(asked)}
         if has_detail
         else unavailable("what it asked for (the current agent's log keeps only step names)"),
         output=output,
@@ -723,7 +974,9 @@ def _tool(
             "answered": str(answered).lower() if answered is not None else "unrecorded",
             "cited": str(is_cited).lower() if ref else "unrecorded",
             "reused": str(step.get("reused", "unrecorded")).lower(),
-            "result_truncated": f"at {limit} characters by the run recorder" if result else "n/a",
+            "result_truncated": "no: recovered in full"
+            if full
+            else (f"at {limit} characters by the run recorder" if result else "n/a"),
             "duration": f"{step['tool_ms']} ms"
             if "tool_ms" in step
             else "unrecorded (shown as 1 ms)",
