@@ -46,6 +46,9 @@ def main() -> int:
     )
     parser.add_argument("--cap", type=Decimal, help="USD for the whole run")
     parser.add_argument("--yes-paid", action="store_true", help="confirm real model calls")
+    parser.add_argument(
+        "--no-langfuse", action="store_true", help="do not import the run (ADR 0074)"
+    )
     args = parser.parse_args()
     refused = _refusal(args)
     if refused:
@@ -79,10 +82,16 @@ def main() -> int:
             Decimal(0),
         )
     )
+    record["logs"] = str(logs)  # the call logs: per-call tokens, cost and latency for Langfuse
     path = save(record, ROOT)
     for key, value in record["summary"].items():
         print(f"{key:28} {value}")
     print(f"Saved {path}")
+    if not args.no_langfuse:  # every paid run is captured (ADR 0074); a no-op without keys
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from langfuse_eval_import import import_record
+
+        print(import_record(path))
     return 0
 
 

@@ -370,7 +370,7 @@ flowchart LR
 | A guided walkthrough | `docs/DEMO.md` |
 | Which parts are on, and how to switch them | `docs/MODULES.md` |
 | The architecture | `docs/ARCHITECTURE.md` |
-| Why each decision was made | `docs/adr/` (73 decision records) |
+| Why each decision was made | `docs/adr/` (74 decision records) |
 | The detailed specifications | `docs/spec/` |
 | Progress, history and open items | `docs/PROGRESS.md`, `docs/HANDOFF.md`, `docs/BACKLOG.md` |
 | The safety review against known threats | `docs/SECURITY_REVIEW.md` |
